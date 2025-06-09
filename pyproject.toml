@@ -1,0 +1,8 @@
+[project]
+name = "maposcal"
+version = "0.1.0"
+description = "CLI tool to generate OSCAL component definitions from source code."
+dependencies = ["typer[all]", "faiss-cpu", "openai", "PyYAML"]
+
+[project.scripts]
+maposcal = "maposcal.cli:app"
