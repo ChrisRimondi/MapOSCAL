@@ -7,7 +7,7 @@ feature extraction, and file summarization.
 from pathlib import Path
 from maposcal.embeddings import local_embedder, faiss_index, meta_store
 from maposcal.analyzer import chunker, rules
-from maposcal.llm.llm_handler import query_llm
+from maposcal.llm.llm_handler import LLMHandler
 from typing import List, Dict, Any
 
 import numpy as np
@@ -100,7 +100,7 @@ class Analyzer:
                 continue
             try:
                 content = file_path.read_text(encoding="utf-8")
-                summary = query_llm(content)
+                summary = LLMHandler.query(content)
                 vec = local_embedder.embed_one(summary)
                 vectors.append(vec)
                 summary_meta[str(file_path)] = {

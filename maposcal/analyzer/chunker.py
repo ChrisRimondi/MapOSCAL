@@ -5,7 +5,7 @@ This module handles the analysis of repository files and their chunking based on
 
 from pathlib import Path
 from typing import List, Dict, Any
-from maposcal.analyzer import parser
+from maposcal.analyzer.parser import parse_file
 
 def analyze_repo(repo_path: Path) -> List[Dict[str, Any]]:
     """
@@ -27,7 +27,7 @@ def analyze_repo(repo_path: Path) -> List[Dict[str, Any]]:
         if not file_path.is_file() or file_path.suffix in [".png", ".jpg", ".exe", ".dll"]:
             continue
         try:
-            parsed = parser.parse_file(file_path)
+            parsed = parse_file(file_path)
             for chunk in parsed:
                 chunk["source_file"] = str(file_path)
                 chunk["chunk_type"] = detect_chunk_type(file_path.suffix)
