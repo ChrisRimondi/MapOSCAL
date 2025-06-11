@@ -2,7 +2,15 @@
 name = "maposcal"
 version = "0.1.0"
 description = "CLI tool to generate OSCAL component definitions from source code."
-dependencies = ["typer[all]", "faiss-cpu", "openai", "PyYAML"]
+dependencies = ["typer[all]", "faiss-cpu", "openai", "PyYAML", "sentence-transformers", "dotenv", "tiktoken"]
 
 [project.scripts]
 maposcal = "maposcal.cli:app"
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.4.0",
+    "black>=23.7.0",
+    "ruff>=0.1.0",
+    "mypy>=1.5.0"
+]
