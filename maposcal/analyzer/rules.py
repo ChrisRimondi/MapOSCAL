@@ -1,6 +1,23 @@
-from typing import List, Dict
+"""
+Security rule analysis utilities.
+This module provides functions for analyzing code chunks and identifying
+security-related patterns and control mappings.
+"""
 
-def apply_rules(chunks: List[Dict]) -> List[Dict]:
+from typing import List, Dict, Any
+
+def apply_rules(chunks: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    """
+    Apply security rules to code chunks and identify relevant security controls.
+    
+    Args:
+        chunks: List of dictionaries containing code chunks with their content
+        
+    Returns:
+        Updated list of chunks with added security flags and control hints:
+        - security_flags: Dictionary of boolean flags for security features
+        - control_hints: List of relevant security control identifiers
+    """
     for chunk in chunks:
         content = chunk.get("content", "").lower()
         flags = {

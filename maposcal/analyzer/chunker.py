@@ -1,8 +1,27 @@
+"""
+Repository chunking utilities for breaking down code files into manageable pieces.
+This module handles the analysis of repository files and their chunking based on file types.
+"""
+
 from pathlib import Path
-from typing import List, Dict
+from typing import List, Dict, Any
 from maposcal.analyzer import parser
 
-def analyze_repo(repo_path: Path) -> List[Dict]:
+def analyze_repo(repo_path: Path) -> List[Dict[str, Any]]:
+    """
+    Analyze a repository and break its files into chunks.
+    
+    Args:
+        repo_path: Path to the repository root
+        
+    Returns:
+        List of dictionaries containing chunk information including:
+        - content: The text content of the chunk
+        - source_file: Path to the source file
+        - chunk_type: Type of chunk (code, config, doc, or unknown)
+        - start_line: Starting line number (if applicable)
+        - end_line: Ending line number (if applicable)
+    """
     chunks = []
     for file_path in repo_path.rglob("*"):
         if not file_path.is_file() or file_path.suffix in [".png", ".jpg", ".exe", ".dll"]:
@@ -18,6 +37,15 @@ def analyze_repo(repo_path: Path) -> List[Dict]:
     return chunks
 
 def detect_chunk_type(suffix: str) -> str:
+    """
+    Determine the type of chunk based on file extension.
+    
+    Args:
+        suffix: File extension (including the dot)
+        
+    Returns:
+        String indicating chunk type: "code", "config", "doc", or "unknown"
+    """
     if suffix in [".py", ".js", ".go"]:
         return "code"
     elif suffix in [".yaml", ".yml", ".json"]:
