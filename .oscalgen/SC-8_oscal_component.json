@@ -1,9 +1,9 @@
 {
   "control-id": "SC-8",
   "control-name": "Transmission Confidentiality And Integrity",
-  "description": "The information system protects the confidentiality and integrity of transmitted information.",
+  "description": "The information system protects the [Selection (one or more): confidentiality; integrity] of transmitted information.",
   "status": "gap",
-  "explanation": "The reviewed code and configuration reveal that the system implements a basic TCP/HTTP server without any encryption or integrity-protection mechanisms (such as TLS). There is no evidence of the use of secure communication protocols or configuration files enabling transmission confidentiality and integrity. Therefore, the system does not currently protect the confidentiality or integrity of transmitted information, which represents a significant security gap.",
+  "explanation": "The analyzed codebase for the Tiny-HTTP service lacks any implementation of encryption or integrity protection mechanisms such as TLS/SSL for transmitted data. There are no configuration files indicating that encryption is enabled or can be enabled through configuration. The server accepts plain TCP connections and transmits data without confidentiality or integrity safeguards, exposing transmitted information to interception and tampering.",
   "configuration": "",
   "files_used": [
     "/Users/chrisrimondi/Code/Tiny-HTTP/tinyhttp/helper.py"
