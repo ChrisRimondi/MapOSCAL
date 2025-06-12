@@ -28,7 +28,7 @@ def apply_rules(chunks: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
         chunk["security_flags"] = flags
         chunk["control_hints"] = []
         if flags["uses_tls"]:
-            chunk["control_hints"].append("SC-12")
+            chunk["control_hints"].append("SC-8")
         if flags["auth_check"]:
             chunk["control_hints"].append("AC-6")
     return chunks
