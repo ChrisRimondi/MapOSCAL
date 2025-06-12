@@ -30,12 +30,3 @@ The industry is currently struggling to have a clean, clear, and actionable way 
 The tool is simple and straight-forward to use for native CLI-based analysis of your software!
 
 < Examples HERE >
-
-
-
-
-
-
-
-
-
