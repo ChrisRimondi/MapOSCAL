@@ -41,4 +41,8 @@ htmlcov/
 
 # Distribution
 dist/
-build/ 
+build/
+
+# OSCAL
+.oscalgen/
+.DS_Store 
