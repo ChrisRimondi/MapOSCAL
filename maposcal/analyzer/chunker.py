@@ -7,6 +7,8 @@ from pathlib import Path
 from typing import List, Dict, Any
 from maposcal.analyzer.parser import parse_file
 
+EXCLUDED_FILENAME_PATTERNS = ["test", "mock", "example", "sample"]
+
 def analyze_repo(repo_path: Path) -> List[Dict[str, Any]]:
     """
     Analyze a repository and break its files into chunks.
@@ -25,6 +27,9 @@ def analyze_repo(repo_path: Path) -> List[Dict[str, Any]]:
     chunks = []
     for file_path in repo_path.rglob("*"):
         if not file_path.is_file() or file_path.suffix in [".png", ".jpg", ".exe", ".dll"]:
+            continue
+        # Exclude files with certain patterns in the name
+        if any(pattern in file_path.name.lower() for pattern in EXCLUDED_FILENAME_PATTERNS):
             continue
         try:
             parsed = parse_file(file_path)
@@ -46,11 +51,14 @@ def detect_chunk_type(suffix: str) -> str:
     Returns:
         String indicating chunk type: "code", "config", "doc", or "unknown"
     """
-    if suffix in [".py", ".js", ".go"]:
+
+    if suffix in [".py", ".go", ".java", ".js", ".ts", ".rb", ".cs"]:
         return "code"
     elif suffix in [".yaml", ".yml", ".json"]:
         return "config"
-    elif suffix in [".md", ".rst"]:
+    elif suffix in [".md", ".rst", ".txt"]:
         return "doc"
     else:
         return "unknown"
+
+

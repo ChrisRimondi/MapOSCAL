@@ -8,9 +8,15 @@ from pathlib import Path
 from maposcal.embeddings import local_embedder, faiss_index, meta_store
 from maposcal.analyzer import chunker, rules
 from maposcal.llm.llm_handler import LLMHandler
+from maposcal.llm import prompt_templates as pt
 from typing import List, Dict, Any
-
+import os
 import numpy as np
+from maposcal.analyzer.chunker import detect_chunk_type
+
+os.environ["TOKENIZERS_PARALLELISM"] = "false"
+
+EXCLUDED_FILENAME_PATTERNS = ["test", "mock", "example", "sample"]
 
 class Analyzer:
     """
@@ -95,12 +101,21 @@ class Analyzer:
         vectors: List[np.ndarray] = []
         idx = 0
 
+        llm_handler = LLMHandler()
+
         for file_path in self.repo_path.rglob("*"):
-            if not file_path.is_file() or file_path.suffix in [".png", ".jpg", ".exe", ".dll"]:
+            if not file_path.is_file() or file_path.suffix in [".png", ".jpg", ".exe", ".dll", ".gitignore", ".idx",  ".pack"]:
+                continue
+            # Exclude files with certain patterns in the name
+            if any(pattern in file_path.name.lower() for pattern in EXCLUDED_FILENAME_PATTERNS):
+                continue
+            chunk_type = detect_chunk_type(file_path.suffix)
+            if chunk_type not in ["code", "config"]:
                 continue
             try:
                 content = file_path.read_text(encoding="utf-8")
-                summary = LLMHandler.query(content)
+                prompt = pt.build_file_summary_prompt(file_path.name, content)
+                summary, _ = llm_handler.query(prompt=prompt)
                 vec = local_embedder.embed_one(summary)
                 vectors.append(vec)
                 summary_meta[str(file_path)] = {
@@ -108,7 +123,8 @@ class Analyzer:
                     "vector_id": idx
                 }
                 idx += 1
-            except Exception:
+            except Exception as e:
+                print(f"[summarize_files] Skipped {file_path} due to error: {e}")
                 continue
 
         if vectors:
