@@ -13,10 +13,13 @@ from typing import List, Dict, Any
 import os
 import numpy as np
 from maposcal.analyzer.chunker import detect_chunk_type
+import logging
 
 os.environ["TOKENIZERS_PARALLELISM"] = "false"
 
 EXCLUDED_FILENAME_PATTERNS = ["test", "mock", "example", "sample"]
+
+logger = logging.getLogger(__name__)
 
 class Analyzer:
     """
@@ -66,13 +69,28 @@ class Analyzer:
         3. Creates and saves a FAISS index for similarity search
         4. Saves chunk metadata
         """
-        print("Chunking and embedding files...")
+        logger.info("Chunking and embedding files...")
         self.chunks = chunker.analyze_repo(self.repo_path)
+        logger.debug(f"Found {len(self.chunks)} chunks from repository")
+        
+        if not self.chunks:
+            logger.error("No chunks were generated from the repository")
+            raise ValueError("No chunks were generated from the repository. Please check if the repository path is correct and contains valid files.")
+            
         texts = [c['content'] for c in self.chunks]
+        logger.debug(f"Extracted {len(texts)} text chunks for embedding")
+        
         embeddings = local_embedder.embed_chunks(texts)
         index = faiss_index.build_faiss_index(embeddings)
-        faiss_index.save_index(index, self.output_dir / f"{self.service_prefix}_index.faiss")
-        meta_store.save_metadata(self.chunks, self.output_dir / f"{self.service_prefix}_meta.json")
+        
+        # Debug logging for file paths
+        index_path = self.output_dir / f"{self.service_prefix}_index.faiss"
+        meta_path = self.output_dir / f"{self.service_prefix}_meta.json"
+        logger.debug(f"Saving index to: {index_path}")
+        logger.debug(f"Saving metadata to: {meta_path}")
+        
+        faiss_index.save_index(index, index_path)
+        meta_store.save_metadata(self.chunks, meta_path)
 
     def extract_features(self) -> None:
         """
@@ -98,7 +116,7 @@ class Analyzer:
         4. Builds and saves a FAISS index for summary similarity search
         5. Saves summary metadata
         """
-        print("Generating file-level summaries...")
+        logger.info("Generating file-level summaries...")
         summary_meta: Dict[str, Dict[str, Any]] = {}
         vectors: List[np.ndarray] = []
         idx = 0
@@ -117,7 +135,7 @@ class Analyzer:
             try:
                 content = file_path.read_text(encoding="utf-8")
                 prompt = pt.build_file_summary_prompt(file_path.name, content)
-                summary, _ = llm_handler.query(prompt=prompt)
+                summary = llm_handler.query(prompt=prompt)
                 vec = local_embedder.embed_one(summary)
                 vectors.append(vec)
                 summary_meta[str(file_path)] = {
@@ -125,12 +143,22 @@ class Analyzer:
                     "vector_id": idx
                 }
                 idx += 1
+                logger.debug(f"Processed file: {file_path}")
             except Exception as e:
-                print(f"[summarize_files] Skipped {file_path} due to error: {e}")
+                logger.error(f"Skipped {file_path} due to error: {e}")
                 continue
 
         if vectors:
             all_vectors = np.vstack(vectors)
             summary_index = faiss_index.build_faiss_index(all_vectors)
-            faiss_index.save_index(summary_index, self.output_dir / f"{self.service_prefix}_summary_index.faiss")
-            meta_store.save_metadata(summary_meta, self.output_dir / f"{self.service_prefix}_summary_meta.json")
+            
+            # Debug logging for summary file paths
+            summary_index_path = self.output_dir / f"{self.service_prefix}_summary_index.faiss"
+            summary_meta_path = self.output_dir / f"{self.service_prefix}_summary_meta.json"
+            logger.debug(f"Saving summary index to: {summary_index_path}")
+            logger.debug(f"Saving summary metadata to: {summary_meta_path}")
+            
+            faiss_index.save_index(summary_index, summary_index_path)
+            meta_store.save_metadata(summary_meta, summary_meta_path)
+        else:
+            logger.warning("No vectors were generated for summaries.")

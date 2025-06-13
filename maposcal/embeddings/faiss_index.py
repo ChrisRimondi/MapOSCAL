@@ -7,19 +7,27 @@ for efficient similarity search of vector embeddings.
 
 import faiss
 import numpy as np
+import logging
 from pathlib import Path
 
-def build_faiss_index(vectors: np.ndarray) -> faiss.IndexFlatL2:
+logger = logging.getLogger(__name__)
+
+def build_faiss_index(vectors: np.ndarray) -> faiss.Index:
     """
-    Build a FAISS index from a set of vectors.
+    Build a FAISS index from a numpy array of vectors.
     
     Args:
-        vectors: numpy array of shape (n_vectors, vector_dim) containing the vectors to index
+        vectors: A numpy array of vectors to index
         
     Returns:
         A FAISS index containing the input vectors
     """
+    if vectors.size == 0:
+        logger.error("Cannot build FAISS index: vectors array is empty")
+        raise ValueError("Cannot build FAISS index with empty vectors array")
+        
     dim = vectors.shape[1]
+    logger.debug(f"Building FAISS index with {len(vectors)} vectors of dimension {dim}")
     index = faiss.IndexFlatL2(dim)  # Exact search
     index.add(vectors)
     return index
@@ -59,5 +67,6 @@ def search_index(index: faiss.IndexFlatL2, query: np.ndarray, k: int = 5):
     Returns:
         Tuple of (indices, distances) for the k nearest neighbors
     """
-    D, I = index.search(query, k)
+    logger.debug(f"Searching index with query shape: {query.shape}")
+    D, I = index.search(query.reshape(1, -1), k)
     return I[0], D[0]  # Return top-k indices and distances

@@ -50,5 +50,8 @@ build/
 # Local embedding model cache
 .cache/
 
+# Local configuration files
+config/*
+
 # Log files
 control_mapper.log 

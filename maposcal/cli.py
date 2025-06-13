@@ -13,18 +13,23 @@ app = typer.Typer()
 
 SAMPLE_CONFIG_PATH = "sample_control_config.yaml"
 
-@app.command()
-def analyze(repo_path: str, output_dir: str = ".oscalgen", config: str = None):
-    # Load the config file
-    config_path = config or SAMPLE_CONFIG_PATH
+def load_config(config_path: str = None) -> dict:
+    """Load configuration from a YAML file."""
+    config_path = config_path or SAMPLE_CONFIG_PATH
     if not os.path.exists(config_path):
         typer.echo(f"Config file not found: {config_path}. Please create it or provide a valid config.")
         raise typer.Exit(code=1)
     with open(config_path, "r") as f:
         config_data = yaml.safe_load(f)
     typer.echo(f"Loaded config: {config_data}")
+    return config_data
 
-    # Generate service prefix from title
+@app.command()
+def analyze(config: str = typer.Argument(None, help="Path to the configuration file.")):
+    """Analyze a repository using the provided configuration."""
+    config_data = load_config(config)
+    repo_path = config_data.get("repo_path")
+    output_dir = config_data.get("output_dir", ".oscalgen")
     title = config_data.get("title", "")
     service_prefix = hashlib.md5(title.encode()).hexdigest()[:6]
 
@@ -32,18 +37,11 @@ def analyze(repo_path: str, output_dir: str = ".oscalgen", config: str = None):
     analyzer.run()
 
 @app.command()
-def generate(config: str = None, output_dir: str = ".oscalgen", top_k: int = 5):
-    """Generate OSCAL component for control"""
-    # Load the config file
-    config_path = config or SAMPLE_CONFIG_PATH
-    if not os.path.exists(config_path):
-        typer.echo(f"Config file not found: {config_path}. Please create it or provide a valid config.")
-        raise typer.Exit(code=1)
-    with open(config_path, "r") as f:
-        config_data = yaml.safe_load(f)
-    typer.echo(f"Loaded config: {config_data}")
-
-    # Generate service prefix from title
+def generate(config: str = typer.Argument(None, help="Path to the configuration file.")):
+    """Generate OSCAL component for control using the provided configuration."""
+    config_data = load_config(config)
+    output_dir = config_data.get("output_dir", ".oscalgen")
+    top_k = config_data.get("top_k", 5)
     title = config_data.get("title", "")
     service_prefix = hashlib.md5(title.encode()).hexdigest()[:6]
 

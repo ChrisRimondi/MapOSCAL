@@ -9,6 +9,9 @@ import os
 from sentence_transformers import SentenceTransformer
 import numpy as np
 from typing import List
+import logging
+
+logger = logging.getLogger(__name__)
 
 # Global model instance and name
 _model = None
@@ -29,37 +32,49 @@ def load_model(model_name: str = None):
     if model_name:
         _model_name = model_name
     if _model is None:
-        print(f"Loading local embedding model: {_model_name}")
+        logger.info(f"Loading local embedding model: {_model_name}")
         _model = SentenceTransformer(_model_name, cache_folder=os.path.expanduser("~/.cache/torch/sentence_transformers/"))
     return _model
 
-def embed_chunks(chunks: List[str]) -> np.ndarray:
+def embed_chunks(texts: List[str]) -> np.ndarray:
     """
-    Convert a list of text chunks into embeddings.
+    Generate embeddings for a list of text chunks.
     
     Args:
-        chunks: List of text strings to embed
+        texts: List of text chunks to embed
         
     Returns:
-        numpy array of shape (n_chunks, embedding_dim) containing the embeddings
+        numpy array of embeddings
     """
+    if not texts:
+        logger.error("No texts provided for embedding")
+        raise ValueError("Cannot embed empty list of texts")
+        
+    logger.debug(f"Embedding {len(texts)} chunks")
     model = load_model()
-    embeddings = model.encode(chunks, convert_to_numpy=True, show_progress_bar=True)
-    return embeddings.astype("float32")
+    embeddings = model.encode(texts, show_progress_bar=True)
+    logger.debug(f"Generated embeddings of shape: {embeddings.shape}")
+    return embeddings
 
 def embed_one(text: str) -> np.ndarray:
     """
-    Convert a single text string into an embedding.
+    Generate embedding for a single text.
     
     Args:
-        text: Text string to embed
+        text: Text to embed
         
     Returns:
-        numpy array of shape (1, embedding_dim) containing the embedding
+        numpy array containing the embedding
     """
+    if not text:
+        logger.error("Empty text provided for embedding")
+        raise ValueError("Cannot embed empty text")
+        
+    logger.debug("Embedding single text")
     model = load_model()
-    embedding = model.encode(text, convert_to_numpy=True)
-    return embedding.astype("float32").reshape(1, -1)
+    embedding = model.encode([text])[0]
+    logger.debug(f"Generated embedding of shape: {embedding.shape}")
+    return embedding
 
 def get_model_name() -> str:
     """

@@ -7,16 +7,6 @@ from pathlib import Path
 from maposcal.embeddings import faiss_index, meta_store, local_embedder
 import logging
 
-# Configure logging
-logging.basicConfig(
-    level=logging.DEBUG,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-    handlers=[
-        logging.FileHandler("control_mapper.log"),
-        logging.StreamHandler()
-    ]
-)
-
 logger = logging.getLogger(__name__)
 
 def get_relevant_chunks(control_description: str, output_dir: str, top_k: int = 5, service_prefix: str = None) -> List[Dict]:
@@ -104,8 +94,7 @@ def map_control(control_id: str, control_name: str, control_description: str, ou
     relevant_chunks = get_relevant_chunks(control_description, output_dir, top_k, service_prefix)
 
     prompt = prompt_templates.build_control_prompt(control_id, control_name, control_description, relevant_chunks, top_k)
-    response, _ = llm_handler.query(prompt=prompt)
-
+    response = llm_handler.query(prompt=prompt)
     return response
 
 def parse_llm_response(result: str) -> dict:
