@@ -74,29 +74,35 @@ Use this structure and format for the JSON output:
   "props": [
     {{
       "name": "control-status",
-      "value": "string on the status of control"
+      "value": "string on the status of control",
+      "ns": "urn:maposcal:control-status-reference"
     }},
     {{
       "name": "control-name",
-      "value": "{control_name}"
+      "value": "{control_name}",
+      "ns": "urn:maposcal:control-name-reference"
     }},
     {{
       "name": "control-description",
-      "value": "{control_description}"
+      "value": "{control_description}",
+      "ns": "urn:maposcal:control-description-reference"
     }},
     {{
       "name": "control-explanation",
-      "value": "string on the explanation of the control status"
+      "value": "string on the explanation of the control status",
+      "ns": "urn:maposcal:explanation-reference"
     }},
     {{
       "name": "control-configuration",
-      "value": "string on the configuration of the control if requires configuration"
+      "value": "string on the configuration of the control if requires configuration",
+      "ns": "urn:maposcal:configuration-reference"
     }}
   ],
   "annotations": [
     {{
       "name": "source-code-reference",
-      "value": "list of files used to determine the status of the control"
+      "value": "list of files used to determine the status of the control",
+      "ns": "urn:maposcal:source-code-reference"
     }}
   ],
   "statements": [
@@ -109,6 +115,9 @@ Use this structure and format for the JSON output:
 }}
 """
 )
+# Will eventually add profile to the prompt, for example:
+#  - uuid: 72bd9a0f-dbf1-4ad1-8d3c-84ec678b9227
+# source: "profiles/nist-800-53-low-profile.xml"
 
 CONTROL_IMPL_PROMPT_HEADER = (
     "{system}\n\n{instructions}\n\n"
