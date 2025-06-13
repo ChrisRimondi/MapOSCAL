@@ -28,16 +28,18 @@ class Analyzer:
     - Generating file-level summaries
     """
     
-    def __init__(self, repo_path: str, output_dir: str = ".oscalgen"):
+    def __init__(self, repo_path: str, output_dir: str = ".oscalgen", service_prefix: str = None):
         """
         Initialize the analyzer.
         
         Args:
             repo_path: Path to the repository to analyze
             output_dir: Directory to store analysis outputs (default: ".oscalgen")
+            service_prefix: Prefix for output files (default: None)
         """
         self.repo_path = Path(repo_path)
         self.output_dir = Path(output_dir)
+        self.service_prefix = service_prefix
         self.output_dir.mkdir(parents=True, exist_ok=True)
 
     def run(self) -> None:
@@ -69,8 +71,8 @@ class Analyzer:
         texts = [c['content'] for c in self.chunks]
         embeddings = local_embedder.embed_chunks(texts)
         index = faiss_index.build_faiss_index(embeddings)
-        faiss_index.save_index(index, self.output_dir / "index.faiss")
-        meta_store.save_metadata(self.chunks, self.output_dir / "meta.json")
+        faiss_index.save_index(index, self.output_dir / f"{self.service_prefix}_index.faiss")
+        meta_store.save_metadata(self.chunks, self.output_dir / f"{self.service_prefix}_meta.json")
 
     def extract_features(self) -> None:
         """
@@ -83,7 +85,7 @@ class Analyzer:
         """
         print("Extracting rule-based features...")
         self.chunks = rules.apply_rules(self.chunks)
-        meta_store.save_metadata(self.chunks, self.output_dir / "meta.json")
+        meta_store.save_metadata(self.chunks, self.output_dir / f"{self.service_prefix}_meta.json")
 
     def summarize_files(self) -> None:
         """
@@ -130,5 +132,5 @@ class Analyzer:
         if vectors:
             all_vectors = np.vstack(vectors)
             summary_index = faiss_index.build_faiss_index(all_vectors)
-            faiss_index.save_index(summary_index, self.output_dir / "summary_index.faiss")
-            meta_store.save_metadata(summary_meta, self.output_dir / "summary_meta.json")
+            faiss_index.save_index(summary_index, self.output_dir / f"{self.service_prefix}_summary_index.faiss")
+            meta_store.save_metadata(summary_meta, self.output_dir / f"{self.service_prefix}_summary_meta.json")

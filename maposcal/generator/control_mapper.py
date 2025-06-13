@@ -19,7 +19,7 @@ logging.basicConfig(
 
 logger = logging.getLogger(__name__)
 
-def get_relevant_chunks(control_description: str, output_dir: str, top_k: int = 5) -> List[Dict]:
+def get_relevant_chunks(control_description: str, output_dir: str, top_k: int = 5, service_prefix: str = None) -> List[Dict]:
     """
     Query both index.faiss and summary_index.faiss using the control_description as the query.
     Combine and deduplicate the results to return relevant chunks.
@@ -28,6 +28,7 @@ def get_relevant_chunks(control_description: str, output_dir: str, top_k: int = 
         control_description (str): The control description to use as the query.
         output_dir (str): The directory containing the FAISS indices and metadata.
         top_k (int): Number of top chunks to retrieve from each index.
+        service_prefix (str): Prefix for the FAISS and metadata files.
         
     Returns:
         List[Dict]: A list of relevant chunks.
@@ -37,8 +38,8 @@ def get_relevant_chunks(control_description: str, output_dir: str, top_k: int = 
     query_embedding = local_embedder.embed_one(control_description)
 
     # Query index.faiss (chunk-level)
-    index_path = Path(output_dir) / "index.faiss"
-    meta_path = Path(output_dir) / "meta.json"
+    index_path = Path(output_dir) / f"{service_prefix}_index.faiss"
+    meta_path = Path(output_dir) / f"{service_prefix}_meta.json"
     if not index_path.exists() or not meta_path.exists():
         raise FileNotFoundError(f"Could not find {index_path} or {meta_path}. Please run analyze first.")
     index = faiss_index.load_index(index_path)
@@ -47,8 +48,8 @@ def get_relevant_chunks(control_description: str, output_dir: str, top_k: int = 
     chunk_results = [meta_store.get_chunk_by_index(meta, idx) for idx in chunk_indices if idx < len(meta)]
 
     # Query summary_index.faiss (file-level summaries)
-    summary_index_path = Path(output_dir) / "summary_index.faiss"
-    summary_meta_path = Path(output_dir) / "summary_meta.json"
+    summary_index_path = Path(output_dir) / f"{service_prefix}_summary_index.faiss"
+    summary_meta_path = Path(output_dir) / f"{service_prefix}_summary_meta.json"
     summary_results = []
     if summary_index_path.exists() and summary_meta_path.exists():
         summary_index = faiss_index.load_index(summary_index_path)
@@ -81,7 +82,7 @@ def get_relevant_chunks(control_description: str, output_dir: str, top_k: int = 
 
     return unique_relevant_chunks
 
-def map_control(control_id: str, control_name: str, control_description: str, output_dir: str, top_k: int = 5) -> str:
+def map_control(control_id: str, control_name: str, control_description: str, output_dir: str, top_k: int = 5, service_prefix: str = None) -> str:
     """
     Maps chunks to an OSCAL control using LLM summarization.
 
@@ -91,6 +92,7 @@ def map_control(control_id: str, control_name: str, control_description: str, ou
         control_description (str): The OSCAL control description.
         output_dir (str): The directory containing the FAISS indices and metadata.
         top_k (int): Number of top chunks to use.
+        service_prefix (str): Prefix for the FAISS and metadata files.
 
     Returns:
         str: The LLM response for the control mapping prompt.
@@ -99,7 +101,7 @@ def map_control(control_id: str, control_name: str, control_description: str, ou
     llm_handler = LLMHandler()
     
     # Get relevant chunks
-    relevant_chunks = get_relevant_chunks(control_description, output_dir, top_k)
+    relevant_chunks = get_relevant_chunks(control_description, output_dir, top_k, service_prefix)
 
     prompt = prompt_templates.build_control_prompt(control_id, control_name, control_description, relevant_chunks, top_k)
     response, _ = llm_handler.query(prompt=prompt)
