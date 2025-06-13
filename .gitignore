@@ -45,4 +45,7 @@ build/
 
 # OSCAL
 .oscalgen/
-.DS_Store 
+.DS_Store
+
+# Local embedding model cache
+.cache/ 

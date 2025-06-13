@@ -5,6 +5,7 @@ This module provides functions for loading and using local embedding models
 to convert text into vector representations.
 """
 
+import os
 from sentence_transformers import SentenceTransformer
 import numpy as np
 from typing import List
@@ -16,6 +17,7 @@ _model_name = "all-MiniLM-L6-v2"  # or "thenlper/gte-small", etc.
 def load_model(model_name: str = None):
     """
     Load or initialize the sentence transformer model.
+    If the model is not cached, it will be downloaded and cached.
     
     Args:
         model_name: Optional name of the model to load. If None, uses the default model.
@@ -28,7 +30,7 @@ def load_model(model_name: str = None):
         _model_name = model_name
     if _model is None:
         print(f"Loading local embedding model: {_model_name}")
-        _model = SentenceTransformer(_model_name)
+        _model = SentenceTransformer(_model_name, cache_folder=os.path.expanduser("~/.cache/torch/sentence_transformers/"))
     return _model
 
 def embed_chunks(chunks: List[str]) -> np.ndarray:

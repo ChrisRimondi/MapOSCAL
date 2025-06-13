@@ -11,11 +11,6 @@ import re
 app = typer.Typer()
 
 SAMPLE_CONFIG_PATH = "sample_control_config.yaml"
-SAMPLE_CONFIG_CONTENT = {
-    "control_id": "SC-8",
-    "control_name": "Transmission Confidentiality And Integrity",
-    "control_description": "The information system protects the [Selection (one or more): confidentiality; integrity] of transmitted information."
-}
 
 @app.command()
 def analyze(repo_path: str, output_dir: str = ".oscalgen"):
@@ -25,12 +20,11 @@ def analyze(repo_path: str, output_dir: str = ".oscalgen"):
 @app.command()
 def generate(config: str = None, output_dir: str = ".oscalgen", top_k: int = 5):
     """Generate OSCAL component for control"""
-    # If no config is provided, use or create the sample config
+    # Load the config file
     config_path = config or SAMPLE_CONFIG_PATH
     if not os.path.exists(config_path):
-        with open(config_path, "w") as f:
-            yaml.dump(SAMPLE_CONFIG_CONTENT, f)
-        typer.echo(f"Sample config created at {config_path}. Please edit it or provide your own.")
+        typer.echo(f"Config file not found: {config_path}. Please create it or provide a valid config.")
+        raise typer.Exit(code=1)
     with open(config_path, "r") as f:
         config_data = yaml.safe_load(f)
     typer.echo(f"Loaded config: {config_data}")
