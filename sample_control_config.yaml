@@ -1,4 +1,6 @@
-control_description: 'The information system protects the [Selection (one or more):
-  confidentiality; integrity] of transmitted information.'
-control_id: SC-8
-control_name: Transmission Confidentiality And Integrity
+title: "OSCAL Control Configuration"
+description: "Configuration for generating OSCAL control components."
+controls: 
+  - control_id: "SC-8"
+    control_description: "The information system protects the [Selection (one or more): confidentiality; integrity] of transmitted information."
+    control_name: "Transmission Confidentiality And Integrity"

@@ -69,83 +69,43 @@ For the control {control_id}: Name: {control_name}, Description: {control_descri
 
 Use this structure and format for the JSON output:
 {{
+  "uuid": "randomly generated uuid",
   "control-id": "{control_id}",
-  "control-name": "{control_name}",
-  "description": "{control_description}",
-  "status": "applicable and inherently satisfied | applicable but only satisfied through configuration | gap | not applicable",
-  "explanation": "string explaining the status of the control",
-  "configuration": "string explaining the configuration of the control",
-  "files_used": "list of files used to determine the status of the control",
-  "component-definition": {{
-      "uuid": "a7ba800c-a432-44cd-9075-0862cd66da6b",
-      "metadata": {{
-        "title": "Sample Component Definition",
-        "last-modified": "2024-02-01T13:57:28.355446-04:00",
-        "version": "20231012",
-        "oscal-version": "1.1.2",
-        "roles": [
-          {{
-            "id": "provider",
-            "title": "Provider"
-          }}
-        ],
-        "parties": [
-          {{
-            "uuid": "ef7c799a-c50e-49ab-83e0-515e989e6df1",
-            "type": "organization",
-            "name": "Example Vendor",
-            "links": [
-              {{
-                "href": "https://www.example.com",
-                "rel": "website"
-              }}
-            ]
-          }}
-        ]
-      }},
-      "components": [
-        {{
-          "uuid": "91f646c5-b1b6-4786-9ec3-2305a044e217",
-          "type": "software",
-          "title": "General purpose software",
-          "description": "Generic software that is not specific to any particular use case. To be edited later",
-          "responsible-roles": [
-            {{
-              "role-id": "provider",
-              "party-uuids": [
-                "ef7c799a-c50e-49ab-83e0-515e989e6df1"
-              ]
-            }},
-            {{
-              "role-id": "customer"
-            }}
-          ],
-          "control-implementations": [
-            {{
-              "uuid": "dynamic_uuid",
-              "source": "#ba047e56-faef-430c-bafb-c54e9a87c6e8",
-              "description": "Example control implementations for NIST SP 800-53 revision 5.",
-              "implemented-requirements": [
-                {{
-                  "uuid": "cf8338c5-fb6e-4593-a4a8-b3c4946ee080",
-                  "control-id": "{control_id}",
-                  "description": "Example's implementation of {control_name}. The details of the implementation are provided at the statement level.",
-                  "set-parameters": [
-                    {{
-                      "param-id": "{control_id}_prm_1",
-                      "values": [
-                        "TBD"
-                      ]
-                    }}
-                  ],
-                  "statements": [
-                    {{
-                      "statement-id": "{control_id}_smt",
-                      "uuid": "bb9219b1-e51c-4680-abb0-616a43bbfbb1",
-                      "description": "string describing the implementation of the control"
-                    }}
-                  ]
-                }}
+  "props": [
+    {{
+      "name": "control-status",
+      "value": "string on the status of control"
+    }},
+    {{
+      "name": "control-name",
+      "value": "{control_name}"
+    }},
+    {{
+      "name": "control-description",
+      "value": "{control_description}"
+    }},
+    {{
+      "name": "control-explanation",
+      "value": "string on the explanation of the control status"
+    }},
+    {{
+      "name": "control-configuration",
+      "value": "string on the configuration of the control if requires configuration"
+    }}
+  ],
+  "annotations": [
+    {{
+      "name": "source-code-reference",
+      "value": "list of files used to determine the status of the control"
+    }}
+  ],
+  "statements": [
+    {{
+      "statement-id": "{control_id}_smt.a",
+      "uuid": "randomly generated uuid",
+      "description": "string describing the implementation of the control"
+    }}
+  ]
 }}
 """
 )

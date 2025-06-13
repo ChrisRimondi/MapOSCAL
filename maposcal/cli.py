@@ -29,23 +29,33 @@ def generate(config: str = None, output_dir: str = ".oscalgen", top_k: int = 5):
         config_data = yaml.safe_load(f)
     typer.echo(f"Loaded config: {config_data}")
 
-    # Call map_control
-    result = map_control(
-        config_data["control_id"],
-        config_data["control_name"],
-        config_data["control_description"],
-        output_dir,
-        top_k
-    )
+    # Process each control in the list
+    for control in config_data.get("controls", []):
+        control_id = control.get("control_id")
+        control_name = control.get("control_name")
+        control_description = control.get("control_description")
 
-    # Parse the LLM response as JSON
-    parsed = parse_llm_response(result)
+        if not all([control_id, control_name, control_description]):
+            typer.echo(f"Missing required control details for {control_id}. Skipping.")
+            continue
 
-    # Write result to output_dir as JSON
-    output_path = os.path.join(output_dir, f"{config_data['control_id']}_oscal_component.json")
-    with open(output_path, "w") as f:
-        json.dump(parsed, f, indent=2)
-    typer.echo(f"Generated OSCAL component written to {output_path}")
+        # Call map_control
+        result = map_control(
+            control_id,
+            control_name,
+            control_description,
+            output_dir,
+            top_k
+        )
+
+        # Parse the LLM response as JSON
+        parsed = parse_llm_response(result)
+
+        # Write result to output_dir as JSON
+        output_path = os.path.join(output_dir, f"{control_id}_oscal_implemented_requirement.json")
+        with open(output_path, "w") as f:
+            json.dump(parsed, f, indent=2)
+        typer.echo(f"Generated OSCAL component written to {output_path}")
 
 if __name__ == "__main__":
     app()
