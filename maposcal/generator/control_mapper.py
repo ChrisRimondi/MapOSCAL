@@ -5,6 +5,19 @@ import re
 import json
 from pathlib import Path
 from maposcal.embeddings import faiss_index, meta_store, local_embedder
+import logging
+
+# Configure logging
+logging.basicConfig(
+    level=logging.DEBUG,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    handlers=[
+        logging.FileHandler("control_mapper.log"),
+        logging.StreamHandler()
+    ]
+)
+
+logger = logging.getLogger(__name__)
 
 def get_relevant_chunks(control_description: str, output_dir: str, top_k: int = 5) -> List[Dict]:
     """
@@ -19,6 +32,7 @@ def get_relevant_chunks(control_description: str, output_dir: str, top_k: int = 
     Returns:
         List[Dict]: A list of relevant chunks.
     """
+    logger.info(f"Querying relevant chunks for control description: {control_description}")
     # Embed the control description for querying
     query_embedding = local_embedder.embed_one(control_description)
 
@@ -61,6 +75,10 @@ def get_relevant_chunks(control_description: str, output_dir: str, top_k: int = 
             unique_relevant_chunks.append(c)
             seen.add(key)
 
+    # Debug log to print the chunks returned
+    for chunk in unique_relevant_chunks:
+        logger.debug(f"Relevant chunk: {chunk}")
+
     return unique_relevant_chunks
 
 def map_control(control_id: str, control_name: str, control_description: str, output_dir: str, top_k: int = 5) -> str:
@@ -77,6 +95,7 @@ def map_control(control_id: str, control_name: str, control_description: str, ou
     Returns:
         str: The LLM response for the control mapping prompt.
     """
+    logger.info(f"Mapping control: {control_id} - {control_name}")
     llm_handler = LLMHandler()
     
     # Get relevant chunks
@@ -97,6 +116,7 @@ def parse_llm_response(result: str) -> dict:
     Returns:
         dict: The parsed JSON object. If parsing fails, returns a dict with the raw response.
     """
+    logger.info("Parsing LLM response")
     try:
         cleaned = result.strip()
         cleaned = re.sub(r"^```json|```$", "", cleaned, flags=re.MULTILINE).strip()
