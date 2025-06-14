@@ -4,6 +4,7 @@ import os
 import yaml
 import json
 from maposcal.generator.control_mapper import map_control, parse_llm_response
+from maposcal.generator.profile_control_extractor import ProfileControlExtractor
 from maposcal.embeddings import faiss_index, meta_store, local_embedder
 from pathlib import Path
 import re
@@ -44,22 +45,47 @@ def generate(config: str = typer.Argument(None, help="Path to the configuration 
     top_k = config_data.get("top_k", 5)
     title = config_data.get("title", "")
     service_prefix = hashlib.md5(title.encode()).hexdigest()[:6]
-
-    # Process each control in the list
-    for control in config_data.get("controls", []):
-        control_id = control.get("control_id")
-        control_name = control.get("control_name")
-        control_description = control.get("control_description")
-
-        if not all([control_id, control_name, control_description]):
-            typer.echo(f"Missing required control details for {control_id}. Skipping.")
+    
+    # Get catalog and profile paths from config
+    catalog_path = config_data.get("catalog_path")
+    profile_path = config_data.get("profile_path")
+    
+    if not catalog_path or not profile_path:
+        typer.echo("Both catalog_path and profile_path must be specified in the config.")
+        raise typer.Exit(code=1)
+        
+    # Extract controls from profile using catalog
+    extractor = ProfileControlExtractor(catalog_path, profile_path)
+    
+    # Get all controls from the profile
+    controls_dict = {}
+    for import_item in extractor.profile['profile'].get('imports', []):
+        # Handle both direct control IDs and structured imports
+        if isinstance(import_item, dict):
+            # Handle structured imports with include-controls
+            for include in import_item.get('include-controls', []):
+                for control_id in include.get('with-ids', []):
+                    control_data = extractor.extract_control_parameters(control_id)
+                    if control_data:
+                        controls_dict[control_id] = control_data
+        else:
+            # Handle direct control IDs
+            control_data = extractor.extract_control_parameters(import_item)
+            if control_data:
+                controls_dict[import_item] = control_data
+    
+    typer.echo(f"Found {len(controls_dict)} controls to process")
+    
+    # Process each control and collect implemented requirements
+    implemented_requirements = []
+    for control_id, control_data in controls_dict.items():
+        if not control_data:
+            typer.echo(f"Missing control data for {control_id}. Skipping.")
             continue
 
-        # Call map_control
+        # Call map_control with the control dictionary
         result = map_control(
-            control_id,
-            control_name,
-            control_description,
+            control_data,
             output_dir,
             top_k,
             service_prefix
@@ -67,12 +93,19 @@ def generate(config: str = typer.Argument(None, help="Path to the configuration 
 
         # Parse the LLM response as JSON
         parsed = parse_llm_response(result)
+        
+        # Add the control ID to the requirement
+        if isinstance(parsed, dict):
+            parsed['control_id'] = control_id
+            implemented_requirements.append(parsed)
+        else:
+            typer.echo(f"Warning: Invalid response format for control {control_id}. Skipping.")
 
-        # Write result to output_dir as JSON with service prefix
-        output_path = os.path.join(output_dir, f"{service_prefix}_{control_id}_oscal_implemented_requirement.json")
-        with open(output_path, "w") as f:
-            json.dump(parsed, f, indent=2)
-        typer.echo(f"Generated OSCAL component written to {output_path}")
+    # Write all implemented requirements to a single JSON file
+    output_path = os.path.join(output_dir, f"{service_prefix}_implemented_requirements.json")
+    with open(output_path, "w") as f:
+        json.dump({"implemented_requirements": implemented_requirements}, f, indent=2)
+    typer.echo(f"Generated OSCAL component written to {output_path}")
 
 if __name__ == "__main__":
     app()

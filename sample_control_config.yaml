@@ -1,0 +1,7 @@
+title: "sample_service"
+description: "This service does important things"
+repo_path: "/path/to/repository"
+output_dir: ".oscalgen"
+top_k: 5
+catalog_path: "examples/NIST_SP-800-53_rev5_catalog.json"
+profile_path: "examples/NIST_SP-800-53_rev5_HIGH-baseline_profile.json" 

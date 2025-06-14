@@ -72,14 +72,16 @@ def get_relevant_chunks(control_description: str, output_dir: str, top_k: int = 
 
     return unique_relevant_chunks
 
-def map_control(control_id: str, control_name: str, control_description: str, output_dir: str, top_k: int = 5, service_prefix: str = None) -> str:
+def map_control(control_dict: dict, output_dir: str, top_k: int = 5, service_prefix: str = None) -> str:
     """
     Maps chunks to an OSCAL control using LLM summarization.
 
     Args:
-        control_id (str): The OSCAL control ID (e.g. AC-6).
-        control_name (str): The OSCAL control name.
-        control_description (str): The OSCAL control description.
+        control_dict (dict): Dictionary containing control information with keys:
+            - id: The OSCAL control ID (e.g. AC-6)
+            - title: The OSCAL control name
+            - statement: The OSCAL control statement/description
+            - params: Optional parameters for the control
         output_dir (str): The directory containing the FAISS indices and metadata.
         top_k (int): Number of top chunks to use.
         service_prefix (str): Prefix for the FAISS and metadata files.
@@ -87,13 +89,46 @@ def map_control(control_id: str, control_name: str, control_description: str, ou
     Returns:
         str: The LLM response for the control mapping prompt.
     """
-    logger.info(f"Mapping control: {control_id} - {control_name}")
+    logger.info(f"Mapping control: {control_dict['id']} - {control_dict['title']}")
     llm_handler = LLMHandler()
     
-    # Get relevant chunks
+    # Get the control statement and handle ODP substitution
+    control_description = control_dict['statement'][0] if isinstance(control_dict['statement'], list) else control_dict['statement']
+    
+    # Handle ODP parameter substitution and collect prose
+    additional_prose = []
+    if 'params' in control_dict:
+        for param in control_dict['params']:
+            param_id = param['id']
+            # Look for the parameter placeholder in the statement
+            placeholder = f"{{{{ insert: param, {param_id} }}}}"
+            if placeholder in control_description:
+                # Replace with resolved values if available
+                if param.get('resolved-values'):
+                    resolved_value = param['resolved-values'][0]  # Take the first resolved value
+                    control_description = control_description.replace(placeholder, resolved_value)
+                # If no resolved values, use the prose
+                elif param.get('prose'):
+                    prose_value = param['prose'][0]  # Take the first prose value
+                    control_description = control_description.replace(placeholder, prose_value)
+            
+            # Collect prose for additional context
+            if param.get('prose'):
+                additional_prose.extend(param['prose'])
+    
+    # Append additional prose if available
+    if additional_prose:
+        control_description += "\n\nAdditional requirements:\n" + "\n".join(f"- {prose}" for prose in additional_prose)
+    
     relevant_chunks = get_relevant_chunks(control_description, output_dir, top_k, service_prefix)
 
-    prompt = prompt_templates.build_control_prompt(control_id, control_name, control_description, relevant_chunks, top_k)
+    prompt = prompt_templates.build_control_prompt(
+        control_dict['id'],
+        control_dict['title'],
+        control_description,
+        relevant_chunks,
+        top_k
+    )
     response = llm_handler.query(prompt=prompt)
     return response
 

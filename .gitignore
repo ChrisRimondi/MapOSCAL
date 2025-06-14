@@ -55,3 +55,5 @@ config/*
 
 # Log files
 control_mapper.log 
+maposcal/.DS_Store
+maposcal/.DS_Store
