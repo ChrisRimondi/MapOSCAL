@@ -1,9 +1,0 @@
-title: "sample_service"
-description: "This service does important things"
-controls: 
-  - control_id: "SC-8"
-    control_description: "The information system protects the [Selection (one or more): confidentiality; integrity] of transmitted information."
-    control_name: "Transmission Confidentiality And Integrity"
-repo_path: "/path/to/repository"
-output_dir: ".oscalgen"
-top_k: 5
