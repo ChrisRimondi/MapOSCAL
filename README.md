@@ -25,8 +25,139 @@ The industry is currently struggling to have a clean, clear, and actionable way 
 
 2. **Robust commercial support** - While this project is foundational and released as open source, requires significant investment in ongoing compliance-related content generation and maintenance.  As such, it is desirable to have commercial add-ons in the future to benefit users with turn-key compliance needs.
 
-## Tool Usage
+## Installation
 
-The tool is simple and straight-forward to use for native CLI-based analysis of your software!
+### Prerequisites
+- Python 3.8 or higher
+- pip (Python package installer)
 
-< Examples HERE >
+### Setup
+
+1. Clone the repository:
+```bash
+git clone https://github.com/yourusername/MapOSCAL.git
+cd MapOSCAL
+```
+
+2. Create and activate a virtual environment (recommended):
+```bash
+python -m venv .venv
+source .venv/bin/activate  # On Windows, use `.venv\Scripts\activate`
+```
+
+3. Install the package:
+```bash
+pip install -e .
+```
+
+For development, install with additional dependencies:
+```bash
+pip install -e ".[dev]"
+```
+
+## Usage
+
+### Configuration
+
+Create a configuration file (e.g., `config.yaml`) with the following structure:
+```yaml
+title: "your_service_name"
+description: "Description of your service"
+repo_path: "/path/to/your/repository"
+output_dir: ".oscalgen"
+top_k: 5
+catalog_path: "path/to/NIST_catalog.json"
+profile_path: "path/to/NIST_profile.json"
+```
+
+### Commands
+
+The tool provides two main commands:
+
+1. **Analyze Repository**
+```bash
+maposcal analyze config.yaml
+```
+This command analyzes your repository and generates initial OSCAL component definitions.
+
+2. **Generate OSCAL Component**
+```bash
+maposcal generate config.yaml
+```
+This command generates the final OSCAL component definitions based on the analysis and control mappings.
+
+### Output
+
+The tool generates output in the specified `output_dir` (default: `.oscalgen`):
+- Component definitions
+- Implemented requirements
+- Control mappings
+
+### Example
+
+1. Create a configuration file:
+```yaml
+title: "my_service"
+description: "My security-critical service"
+repo_path: "./my_service"
+output_dir: ".oscalgen"
+top_k: 5
+catalog_path: "examples/NIST_SP-800-53_rev5_catalog.json"
+profile_path: "examples/NIST_SP-800-53_rev5_HIGH-baseline_profile.json"
+```
+
+2. Run the analysis:
+```bash
+maposcal analyze config.yaml
+```
+
+3. Generate the OSCAL component:
+```bash
+maposcal generate config.yaml
+```
+
+## Project Structure
+
+- `maposcal/` - Main package directory
+  - `analyzer/` - Code analysis components
+  - `generator/` - OSCAL generation components
+  - `llm/` - Language model integration
+  - `embeddings/` - Code embedding functionality
+  - `utils/` - Utility functions
+  - `cli.py` - Command-line interface
+
+- `tests/` - Test suite
+- `examples/` - Example configurations and outputs
+- `config/` - Configuration templates
+
+## Development
+
+### Running Tests
+```bash
+pytest
+```
+
+### Code Style
+The project uses:
+- Black for code formatting
+- Ruff for linting
+- MyPy for type checking
+
+Run the formatters:
+```bash
+black .
+ruff check .
+mypy .
+```
+
+## Contributing
+
+1. Fork the repository
+2. Create a feature branch
+3. Make your changes
+4. Run tests and ensure code style compliance
+5. Submit a pull request
+
+## License
+
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
