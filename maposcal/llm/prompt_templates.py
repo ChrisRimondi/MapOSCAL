@@ -72,7 +72,7 @@ Do NOT include comments inside JSON.
 
 Use this structure and format for the JSON output:
 {{
-  "uuid": "randomly generated uuid",
+  "uuid": "{main_uuid}",
   "control-id": "{control_id}",
   "props": [
     {{
@@ -111,7 +111,7 @@ Use this structure and format for the JSON output:
   "statements": [
     {{
       "statement-id": "{control_id}_smt.a",
-      "uuid": "randomly generated uuid",
+      "uuid": "{statement_uuid}",
       "description": "string describing the implementation of the control"
     }}
   ]
@@ -131,11 +131,85 @@ CHUNK_BULLET = "- {chunk_type} • {source} • lines {start}-{end}\n```\n{conte
 
 CONTROL_IMPL_PROMPT_FOOTER = "\n---\nGenerate the JSON now:"
 
-def build_control_prompt(control_id: str, control_name: str, control_description: str, evidence_chunks: List[dict], k: int) -> str:
+CRITIQUE_REVISE_SYSTEM = """You are an expert in OSCAL and software-security evidence mapping.
+Follow every JSON rule exactly; invalid JSON is never acceptable.
+When asked to CRITIQUE, list flaws without rewriting the object.
+When asked to REVISE, fix *only* the flagged flaws; keep everything else identical.
+Never invent content you don’t have evidence for.
+Return raw, minified JSON—no markdown, no comments."""
+
+CRITIQUE_PROMPT = """
+{system}
+
+You will receive an array of OSCAL `implemented_requirements` objects.
+
+Goal: identify every violation of the Draft-Prompt Guidelines below.
+
+Draft-Prompt Guidelines
+- `control-status` must be one of:  
+    • "applicable and inherently satisfied"  
+    • "applicable but only satisfied through configuration"  
+    • "applicable but partially satisfied"  
+    • "applicable and not satisfied"  
+    • "not applicable"
+- If status contains “configuration”, `control-configuration` must be a **non-empty** array of objects with keys:
+    file_path, key_path, line_number.
+- `control-configuration.file_path` must end with .yaml, .yml, .json, .toml, .conf, .ini, .env, or a source-code extension; **never** .md / .txt / directory.
+- No duplicate keys in any object.
+- No fields outside the OSCAL spec or the above list.
+- All string values must be plain strings (no JSON or markdown inside).
+
+OUTPUT FORMAT  
+Return a JSON object:
+{{
+  "valid": <boolean>,
+  "violations": [
+    {{
+      "path": "<JSONPath to the problematic field>",
+      "issue": "<short description>",
+      "suggestion": "<if obvious, one-line fix or 'remove'>"
+    }},
+    ...
+  ]
+}}
+
+Begin when ready.  Here is the input array:
+
+<<<{implemented_requirements_json}>>>
+"""
+
+REVISE_PROMPT = """
+{system}
+
+You are given:
+1. The original `implemented_requirements` array.
+2. A `violations` list produced by the Critique step (same schema as above).
+
+Task: produce a **repaired** version of the array that resolves *every* violation,
+without altering any other content.
+
+Rules
+- Preserve all original field order unless you must add / remove / reorder for validity.
+- If a `control-configuration` must be emptied (per suggestion: "remove"), also
+  change `control-status` to "applicable and not satisfied".
+- After fixes, the object set **must** pass the Guidelines from the Critique prompt.
+
+Return the full, minified JSON array—nothing else.
+
+INPUT
+"original": <<<{implemented_requirements_json}>>>
+"violations": <<<{critique_violations_json}>>>
+
+"""
+
+
+def build_control_prompt(control_id: str, control_name: str, control_description: str, evidence_chunks: List[dict], k: int, main_uuid: str, statement_uuid: str) -> str:
     instructions = CONTROL_IMPL_INSTRUCTIONS.format(
         control_id=control_id,
         control_name=control_name,
         control_description=control_description,
+        main_uuid=main_uuid,
+        statement_uuid=statement_uuid
     )
     header = CONTROL_IMPL_PROMPT_HEADER.format(
         system=CONTROL_IMPL_SYSTEM,

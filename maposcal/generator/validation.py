@@ -1,17 +1,41 @@
 from pydantic import BaseModel, Field, validator
-from typing import List, Optional
+from typing import List, Optional, Union, Any
 import re
 import uuid
 
 class Prop(BaseModel):
     name: str
-    value: str
+    value: Union[str, List[str]]
     ns: str
+
+    @validator('value')
+    def validate_value(cls, v):
+        if isinstance(v, str):
+            return v
+        elif isinstance(v, list):
+            # Ensure all items in the list are strings
+            if not all(isinstance(item, str) for item in v):
+                raise ValueError('All items in value list must be strings')
+            return v
+        else:
+            raise ValueError('Value must be either a string or a list of strings')
 
 class Annotation(BaseModel):
     name: str
-    value: List[str]
+    value: Union[str, List[str]]
     ns: str
+
+    @validator('value')
+    def validate_value(cls, v):
+        if isinstance(v, str):
+            return [v]  # Convert single string to list
+        elif isinstance(v, list):
+            # Ensure all items in the list are strings
+            if not all(isinstance(item, str) for item in v):
+                raise ValueError('All items in value list must be strings')
+            return v
+        else:
+            raise ValueError('Value must be either a string or a list of strings')
 
 class Statement(BaseModel):
     statement_id: str = Field(..., alias="statement-id")
@@ -52,12 +76,15 @@ class ControlMapping(BaseModel):
     def validate_configuration_file_extensions(cls, props):
         for prop in props:
             if prop.name == 'control-configuration' and prop.value:
-                # Extract file paths from the configuration value
-                file_paths = re.findall(r'File:?\s*([^\n,]+)', prop.value)
-                for path in file_paths:
-                    path = path.strip()
-                    if path and not path.endswith(('.json', '.yaml', '.yml')):
-                        raise ValueError(f'Invalid file extension in configuration: {path}')
+                # Handle both string and list values
+                values = [prop.value] if isinstance(prop.value, str) else prop.value
+                for value in values:
+                    # Extract file paths from the configuration value
+                    file_paths = re.findall(r'File:?\s*([^\n,]+)', value)
+                    for path in file_paths:
+                        path = path.strip()
+                        if path and not path.endswith(('.json', '.yaml', '.yml')):
+                            raise ValueError(f'Invalid file extension in configuration: {path}')
         return props
 
 def validate_control_mapping(data: dict) -> tuple[bool, Optional[str]]:

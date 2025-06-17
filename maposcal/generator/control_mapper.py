@@ -7,6 +7,7 @@ from pathlib import Path
 from maposcal.embeddings import faiss_index, meta_store, local_embedder
 import logging
 from .validation import validate_control_mapping, validate_unique_uuids
+import uuid
 
 logger = logging.getLogger(__name__)
 
@@ -126,12 +127,18 @@ def map_control(control_dict: dict, output_dir: str, top_k: int = 5, service_pre
     # Try up to 3 times to get a valid response
     max_retries = 3
     for attempt in range(max_retries):
+        # Generate new UUIDs for each attempt
+        main_uuid = str(uuid.uuid4())
+        statement_uuid = str(uuid.uuid4())
+        
         prompt = prompt_templates.build_control_prompt(
             control_dict['id'],
             control_dict['title'],
             control_description,
             relevant_chunks,
-            top_k
+            top_k,
+            main_uuid,
+            statement_uuid
         )
         response = llm_handler.query(prompt=prompt)
         
