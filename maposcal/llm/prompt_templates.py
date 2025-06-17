@@ -13,6 +13,7 @@ Tips
 
 from textwrap import dedent
 from typing import List
+import json
 
 # ---------------------------------------------------------------------------
 # 1. FILE-LEVEL SECURITY / COMPLIANCE SUMMARY
@@ -135,7 +136,7 @@ CRITIQUE_REVISE_SYSTEM = """You are an expert in OSCAL and software-security evi
 Follow every JSON rule exactly; invalid JSON is never acceptable.
 When asked to CRITIQUE, list flaws without rewriting the object.
 When asked to REVISE, fix *only* the flagged flaws; keep everything else identical.
-Never invent content you don’t have evidence for.
+Never invent content you don't have evidence for.
 Return raw, minified JSON—no markdown, no comments."""
 
 CRITIQUE_PROMPT = """
@@ -152,7 +153,7 @@ Draft-Prompt Guidelines
     • "applicable but partially satisfied"  
     • "applicable and not satisfied"  
     • "not applicable"
-- If status contains “configuration”, `control-configuration` must be a **non-empty** array of objects with keys:
+- If status contains "configuration", `control-configuration` must be a **non-empty** array of objects with keys:
     file_path, key_path, line_number.
 - `control-configuration.file_path` must end with .yaml, .yml, .json, .toml, .conf, .ini, .env, or a source-code extension; **never** .md / .txt / directory.
 - No duplicate keys in any object.
@@ -227,3 +228,18 @@ def build_control_prompt(control_id: str, control_name: str, control_description
             content=(c.get("content") or c.get("summary", "")).strip()[:800],  # protect context length
         )
     return header + body + CONTROL_IMPL_PROMPT_FOOTER
+
+def build_critique_prompt(implemented_requirements: List[dict]) -> str:
+    """Build a prompt for critiquing implemented requirements."""
+    return CRITIQUE_PROMPT.format(
+        system=CRITIQUE_REVISE_SYSTEM,
+        implemented_requirements_json=json.dumps(implemented_requirements)
+    )
+
+def build_revise_prompt(implemented_requirements: List[dict], violations: List[dict]) -> str:
+    """Build a prompt for revising implemented requirements based on violations."""
+    return REVISE_PROMPT.format(
+        system=CRITIQUE_REVISE_SYSTEM,
+        implemented_requirements_json=json.dumps(implemented_requirements),
+        critique_violations_json=json.dumps(violations)
+    )

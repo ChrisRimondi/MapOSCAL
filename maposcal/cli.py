@@ -10,7 +10,14 @@ from pathlib import Path
 import re
 import hashlib
 from maposcal.generator.validation import validate_unique_uuids
+from maposcal.llm.prompt_templates import build_critique_prompt, build_revise_prompt
+from maposcal.llm.llm_handler import LLMHandler
 import logging
+from typing import List
+from maposcal.utils.logging_config import configure_logging
+
+# Configure logging at module level
+configure_logging()
 
 logger = logging.getLogger(__name__)
 
@@ -41,6 +48,73 @@ def analyze(config: str = typer.Argument(None, help="Path to the configuration f
     analyzer = Analyzer(repo_path=repo_path, output_dir=output_dir, service_prefix=service_prefix)
     analyzer.run()
 
+def critique_and_revise(implemented_requirements: List[dict], max_retries: int = 3) -> List[dict]:
+    """
+    Critique and revise implemented requirements until valid or max retries reached.
+    
+    Args:
+        implemented_requirements: List of implemented requirement dictionaries
+        max_retries: Maximum number of critique-revise cycles
+        
+    Returns:
+        List of revised implemented requirements
+    """
+    llm_handler = LLMHandler()
+    
+    for attempt in range(max_retries):
+        # Critique the current requirements
+        critique_prompt = build_critique_prompt(implemented_requirements)
+        critique_response = llm_handler.query(prompt=critique_prompt)
+        critique_result = parse_llm_response(critique_response)
+        
+        if not isinstance(critique_result, dict):
+            logger.error(f"Invalid critique response format on attempt {attempt + 1}")
+            continue
+            
+        if critique_result.get("valid", False):
+            return implemented_requirements
+            
+        # Log validation failures
+        violations = critique_result.get("violations", [])
+        if violations:
+            logger.warning(f"Validation failures on attempt {attempt + 1}:")
+            # Group violations by control ID
+            violations_by_control = {}
+            for violation in violations:
+                # Extract control ID from the JSONPath
+                path = violation.get("path", "")
+                control_id = None
+                for req in implemented_requirements:
+                    if f"$[{req.get('control_id')}]" in path:
+                        control_id = req.get('control_id')
+                        break
+                
+                if control_id:
+                    if control_id not in violations_by_control:
+                        violations_by_control[control_id] = []
+                    violations_by_control[control_id].append(violation)
+            
+            # Log violations grouped by control
+            for control_id, control_violations in violations_by_control.items():
+                logger.warning(f"Control {control_id} violations:")
+                for v in control_violations:
+                    logger.warning(f"  - {v.get('issue')} (at {v.get('path')})")
+                    if v.get('suggestion'):
+                        logger.warning(f"    Suggestion: {v.get('suggestion')}")
+            
+        # If not valid, revise based on violations
+        revise_prompt = build_revise_prompt(implemented_requirements, violations)
+        revise_response = llm_handler.query(prompt=revise_prompt)
+        revised_requirements = parse_llm_response(revise_response)
+        
+        if isinstance(revised_requirements, list):
+            implemented_requirements = revised_requirements
+        else:
+            logger.error(f"Invalid revise response format on attempt {attempt + 1}")
+            
+    logger.warning(f"Failed to achieve valid requirements after {max_retries} attempts")
+    return implemented_requirements
+
 @app.command()
 def generate(config: str = typer.Argument(None, help="Path to the configuration file.")):
     """Generate OSCAL component for control using the provided configuration."""
@@ -49,6 +123,7 @@ def generate(config: str = typer.Argument(None, help="Path to the configuration 
     top_k = config_data.get("top_k", 5)
     title = config_data.get("title", "")
     service_prefix = hashlib.md5(title.encode()).hexdigest()[:6]
+    max_critique_retries = config_data.get("max_critique_retries", 3)
     
     # Get catalog and profile paths from config
     catalog_path = config_data.get("catalog_path")
@@ -104,6 +179,9 @@ def generate(config: str = typer.Argument(None, help="Path to the configuration 
             implemented_requirements.append(parsed)
         else:
             typer.echo(f"Warning: Invalid response format for control {control_id}. Skipping.")
+
+    # Run critique-revise loop on the entire set of requirements
+    implemented_requirements = critique_and_revise(implemented_requirements, max_critique_retries)
 
     # Validate unique UUIDs across all requirements
     is_valid, error_msg = validate_unique_uuids(implemented_requirements)
