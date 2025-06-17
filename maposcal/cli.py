@@ -9,6 +9,10 @@ from maposcal.embeddings import faiss_index, meta_store, local_embedder
 from pathlib import Path
 import re
 import hashlib
+from maposcal.generator.validation import validate_unique_uuids
+import logging
+
+logger = logging.getLogger(__name__)
 
 app = typer.Typer()
 
@@ -100,6 +104,12 @@ def generate(config: str = typer.Argument(None, help="Path to the configuration 
             implemented_requirements.append(parsed)
         else:
             typer.echo(f"Warning: Invalid response format for control {control_id}. Skipping.")
+
+    # Validate unique UUIDs across all requirements
+    is_valid, error_msg = validate_unique_uuids(implemented_requirements)
+    if not is_valid:
+        logger.error(f"Duplicate UUIDs found in final output: {error_msg}")
+        typer.echo(f"Warning: {error_msg}")
 
     # Write all implemented requirements to a single JSON file
     output_path = os.path.join(output_dir, f"{service_prefix}_implemented_requirements.json")

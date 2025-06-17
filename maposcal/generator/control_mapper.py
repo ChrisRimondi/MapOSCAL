@@ -6,6 +6,7 @@ import json
 from pathlib import Path
 from maposcal.embeddings import faiss_index, meta_store, local_embedder
 import logging
+from .validation import validate_control_mapping, validate_unique_uuids
 
 logger = logging.getLogger(__name__)
 
@@ -122,14 +123,41 @@ def map_control(control_dict: dict, output_dir: str, top_k: int = 5, service_pre
     
     relevant_chunks = get_relevant_chunks(control_description, output_dir, top_k, service_prefix)
 
-    prompt = prompt_templates.build_control_prompt(
-        control_dict['id'],
-        control_dict['title'],
-        control_description,
-        relevant_chunks,
-        top_k
-    )
-    response = llm_handler.query(prompt=prompt)
+    # Try up to 3 times to get a valid response
+    max_retries = 3
+    for attempt in range(max_retries):
+        prompt = prompt_templates.build_control_prompt(
+            control_dict['id'],
+            control_dict['title'],
+            control_description,
+            relevant_chunks,
+            top_k
+        )
+        response = llm_handler.query(prompt=prompt)
+        
+        # Parse and validate the response
+        parsed = parse_llm_response(response)
+        if isinstance(parsed, dict):
+            is_valid, error_msg = validate_control_mapping(parsed)
+            if is_valid:
+                return response
+            
+            # If validation failed and we have retries left, try again with error feedback
+            if attempt < max_retries - 1:
+                error_prompt = f"Here is the validation error—fix it: {error_msg}\n\nPlease regenerate the control mapping with the following requirements:\n"
+                error_prompt += "- Ensure all required properties are present\n"
+                error_prompt += "- Use only .json, .yaml, or .yml file extensions in control-configuration\n"
+                error_prompt += "- Use valid UUID format for all UUIDs\n"
+                error_prompt += "- Ensure no duplicate UUIDs are used\n\n"
+                error_prompt += "Original prompt:\n" + prompt
+                
+                response = llm_handler.query(prompt=error_prompt)
+                continue
+            
+            # If we're out of retries, log the error and return the last response
+            logger.error(f"Failed to generate valid control mapping after {max_retries} attempts. Last error: {error_msg}")
+            return response
+    
     return response
 
 def parse_llm_response(result: str) -> dict:
@@ -148,5 +176,5 @@ def parse_llm_response(result: str) -> dict:
         cleaned = re.sub(r"^```json|```$", "", cleaned, flags=re.MULTILINE).strip()
         return json.loads(cleaned)
     except Exception as e:
-        print(f"Failed to parse LLM response as JSON: {e}")
+        logger.error(f"Failed to parse LLM response as JSON: {e}")
         return {"llm_raw_response": result}
