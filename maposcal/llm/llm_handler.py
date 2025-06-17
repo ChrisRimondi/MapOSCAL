@@ -2,9 +2,12 @@
 from typing import Tuple
 import tiktoken
 from openai import OpenAI
+from openai import RateLimitError
 from dotenv import load_dotenv
 import os
 import logging
+import time
+from datetime import datetime
 
 # Load environment variables
 load_dotenv()
@@ -15,7 +18,7 @@ class LLMHandler:
     """
     A class to handle interactions with the LLM.
     """
-    def __init__(self, model: str = "gpt-4.1-mini"):
+    def __init__(self, model: str = "gpt-4.1-nano"):
         """
         Initialize the LLM handler.
         
@@ -56,9 +59,12 @@ class LLMHandler:
                 model=self.model,
                 messages=[{"role": "user", "content": prompt}],
                 temperature=0.7,
-                max_tokens=2000
+                max_tokens=8000
             )
             return response.choices[0].message.content
+        except RateLimitError as e:
+            logger.error(f"[{datetime.now()}] 429 Rate Limit hit: {e}")
+            time.sleep(10)
         except Exception as e:
             logger.error(f"Error querying LLM: {e}")
             raise 
