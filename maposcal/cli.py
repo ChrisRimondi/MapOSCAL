@@ -1,3 +1,21 @@
+"""
+maposcal.cli
+~~~~~~~~~~~~
+
+Command-line interface for MapOSCAL.
+
+This module provides the main CLI commands for analyzing repositories,
+generating OSCAL components, and evaluating existing components.
+
+Commands:
+- analyze: Analyze a repository and generate initial OSCAL definitions
+- generate: Generate validated OSCAL components with comprehensive validation
+- evaluate: Evaluate the quality of existing OSCAL components using AI assessment
+
+The CLI uses Typer for command-line argument parsing and provides
+comprehensive error handling, progress reporting, and output generation.
+"""
+
 import typer
 from maposcal.analyzer.analyzer import Analyzer
 import os
@@ -27,7 +45,18 @@ app = typer.Typer()
 SAMPLE_CONFIG_PATH = "sample_control_config.yaml"
 
 def load_config(config_path: str = None) -> dict:
-    """Load configuration from a YAML file."""
+    """
+    Load configuration from a YAML file.
+    
+    Args:
+        config_path: Path to the configuration file. If None, uses SAMPLE_CONFIG_PATH.
+        
+    Returns:
+        dict: Configuration data loaded from the YAML file
+        
+    Raises:
+        typer.Exit: If the config file doesn't exist
+    """
     config_path = config_path or SAMPLE_CONFIG_PATH
     if not os.path.exists(config_path):
         typer.echo(f"Config file not found: {config_path}. Please create it or provide a valid config.")
@@ -39,7 +68,17 @@ def load_config(config_path: str = None) -> dict:
 
 @app.command()
 def analyze(config: str = typer.Argument(None, help="Path to the configuration file.")):
-    """Analyze a repository using the provided configuration."""
+    """
+    Analyze a repository using the provided configuration.
+    
+    This command performs the initial analysis of a code repository to:
+    - Extract and embed code files
+    - Generate semantic summaries
+    - Create initial OSCAL component definitions
+    
+    The analysis results are stored in the specified output directory
+    and serve as the foundation for the generate command.
+    """
     config_data = load_config(config)
     repo_path = config_data.get("repo_path")
     output_dir = config_data.get("output_dir", ".oscalgen")
@@ -118,7 +157,24 @@ def critique_and_revise(implemented_requirements: List[dict], max_retries: int =
 
 @app.command()
 def generate(config: str = typer.Argument(None, help="Path to the configuration file.")):
-    """Generate OSCAL component for control using the provided configuration."""
+    """
+    Generate validated OSCAL components for controls using the provided configuration.
+    
+    This command performs the main OSCAL generation process with comprehensive validation:
+    
+    1. **Control Extraction**: Extracts controls from the specified profile and catalog
+    2. **LLM Generation**: Generates initial OSCAL implementations for each control
+    3. **Local Validation**: Validates each requirement using deterministic validation functions
+    4. **Automatic Fixes**: Applies automatic fixes for common validation issues
+    5. **LLM-Assisted Fixes**: Uses LLM for complex fixes that require understanding
+    6. **Cross-Validation**: Validates UUID uniqueness across all requirements
+    7. **Reporting**: Generates comprehensive validation reports and failure logs
+    
+    The command produces three main output files:
+    - {service_prefix}_implemented_requirements.json: Validated OSCAL components
+    - {service_prefix}_validation_failures.json: Detailed validation failure information
+    - {service_prefix}_unvalidated_requirements.json: Requirements that failed validation
+    """
     config_data = load_config(config)
     output_dir = config_data.get("output_dir", ".oscalgen")
     top_k = config_data.get("top_k", 5)
@@ -186,7 +242,7 @@ def generate(config: str = typer.Argument(None, help="Path to the configuration 
         # Add the control ID to the requirement
         parsed['control_id'] = control_id
         
-        # Validate this individual requirement
+        # Validate this individual requirement with comprehensive validation and fixing
         llm_handler = LLMHandler()
         is_valid = False
         final_validation_errors = []
@@ -353,7 +409,26 @@ def generate(config: str = typer.Argument(None, help="Path to the configuration 
 
 @app.command()
 def evaluate(requirements_file: str = typer.Argument(..., help="Path to the implemented_requirements.json file.")):
-    """Evaluate an existing implemented_requirements.json file."""
+    """
+    Evaluate the quality of existing OSCAL component definitions using AI-powered assessment.
+    
+    This command provides comprehensive quality evaluation of OSCAL implemented requirements:
+    
+    1. **Individual Control Evaluation**: Evaluates each control using AI assessment
+    2. **Quality Scoring**: Scores each control on 4 dimensions (0-2 scale):
+       - Status Alignment: Is the control-status correct given the explanation and configuration?
+       - Explanation Quality: Is the control-explanation clear, accurate, and grounded?
+       - Configuration Support: Is the control-configuration specific, correct, and valid?
+       - Overall Consistency: Do all parts reinforce each other without contradiction?
+    3. **Detailed Justifications**: Provides specific reasoning for each score
+    4. **Improvement Recommendations**: Offers actionable suggestions for improvement
+    5. **Comprehensive Reporting**: Generates detailed evaluation reports with statistics
+    
+    The command produces:
+    - Console output with real-time evaluation progress
+    - {filename}_evaluation_results.json: Detailed evaluation results with scores and recommendations
+    - Summary statistics including average scores and success rates
+    """
     if not os.path.exists(requirements_file):
         typer.echo(f"Requirements file not found: {requirements_file}")
         raise typer.Exit(code=1)

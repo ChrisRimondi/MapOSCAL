@@ -4,11 +4,18 @@ maposcal.llm.prompt_templates
 
 Central store for all LLM prompt templates used by MapOSCAL.
 
+This module contains all the prompt templates used for different LLM interactions:
+- File-level security/compliance summaries
+- OSCAL control implementation generation
+- Control validation and revision
+- Quality evaluation of existing controls
+
 Tips
 ----
 * Keep the **system** message short and stable.
 * Keep a dedicated **instructions** section so you can tweak style centrally.
 * Use f-strings or `.format()` for lightweight variable replacement.
+* Templates are designed to be deterministic and produce consistent JSON output.
 """
 
 from textwrap import dedent
@@ -43,6 +50,16 @@ FILE_SUMMARY_PROMPT = (
 
 
 def build_file_summary_prompt(filename: str, file_content: str) -> str:
+    """
+    Build a prompt for generating file-level security summaries.
+    
+    Args:
+        filename: Name of the file being analyzed
+        file_content: Content of the file to analyze
+        
+    Returns:
+        str: Formatted prompt for LLM
+    """
     return FILE_SUMMARY_PROMPT.format(
         system=FILE_SUMMARY_SYSTEM,
         instructions=FILE_SUMMARY_INSTRUCTIONS,
@@ -144,6 +161,10 @@ CHUNK_BULLET = "- {chunk_type} • {source} • lines {start}-{end}\n```\n{conte
 
 CONTROL_IMPL_PROMPT_FOOTER = "\n---\nGenerate the JSON now:"
 
+# ---------------------------------------------------------------------------
+# 3. OSCAL CONTROL VALIDATION AND REVISION
+# ---------------------------------------------------------------------------
+
 CRITIQUE_REVISE_SYSTEM = """You are an expert in OSCAL and software-security evidence mapping.
 Follow every JSON rule exactly; invalid JSON is never acceptable.
 When asked to CRITIQUE, list flaws without rewriting the object.
@@ -196,7 +217,7 @@ INPUT
 """
 
 # ---------------------------------------------------------------------------
-# 3. OSCAL CONTROL EVALUATION
+# 4. OSCAL CONTROL EVALUATION
 # ---------------------------------------------------------------------------
 
 EVALUATE_SYSTEM = """
@@ -253,7 +274,23 @@ CONTROL TO EVALUATE:
 
 """
 
+
 def build_control_prompt(control_id: str, control_name: str, control_description: str, evidence_chunks: List[dict], k: int, main_uuid: str, statement_uuid: str) -> str:
+    """
+    Build a prompt for generating OSCAL control implementations.
+    
+    Args:
+        control_id: The control identifier (e.g., "AC-1")
+        control_name: Human-readable name of the control
+        control_description: Detailed description of the control
+        evidence_chunks: List of evidence chunks from code analysis
+        k: Number of top evidence chunks to include
+        main_uuid: UUID for the main control
+        statement_uuid: UUID for the control statement
+        
+    Returns:
+        str: Formatted prompt for LLM
+    """
     instructions = CONTROL_IMPL_INSTRUCTIONS.format(
         control_id=control_id,
         control_name=control_name,
@@ -279,14 +316,31 @@ def build_control_prompt(control_id: str, control_name: str, control_description
     return header + body + CONTROL_IMPL_PROMPT_FOOTER
 
 def build_critique_prompt(implemented_requirements: List[dict]) -> str:
-    """Build a prompt for critiquing implemented requirements."""
+    """
+    Build a prompt for critiquing implemented requirements.
+    
+    Args:
+        implemented_requirements: List of implemented requirement dictionaries
+        
+    Returns:
+        str: Formatted prompt for LLM critique
+    """
     return CRITIQUE_PROMPT.format(
         system=CRITIQUE_REVISE_SYSTEM,
         implemented_requirements_json=json.dumps(implemented_requirements)
     )
 
 def build_revise_prompt(implemented_requirements: List[dict], violations: List[dict]) -> str:
-    """Build a prompt for revising implemented requirements based on violations."""
+    """
+    Build a prompt for revising implemented requirements based on violations.
+    
+    Args:
+        implemented_requirements: List of implemented requirement dictionaries
+        violations: List of validation violations to fix
+        
+    Returns:
+        str: Formatted prompt for LLM revision
+    """
     return REVISE_PROMPT.format(
         system=CRITIQUE_REVISE_SYSTEM,
         implemented_requirements_json=json.dumps(implemented_requirements),
@@ -294,7 +348,15 @@ def build_revise_prompt(implemented_requirements: List[dict], violations: List[d
     )
 
 def build_evaluate_prompt(requirement: dict) -> str:
-    """Build a prompt for evaluating a single implemented requirement."""
+    """
+    Build a prompt for evaluating a single implemented requirement.
+    
+    Args:
+        requirement: Single implemented requirement dictionary
+        
+    Returns:
+        str: Formatted prompt for LLM evaluation
+    """
     return EVALUATE_PROMPT.format(
         system=EVALUATE_SYSTEM,
         control_json=json.dumps(requirement, indent=2)

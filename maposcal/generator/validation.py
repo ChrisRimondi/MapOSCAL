@@ -1,9 +1,41 @@
+"""
+maposcal.generator.validation
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Comprehensive validation module for OSCAL component definitions.
+
+This module provides Pydantic V2 schemas and validation functions to ensure
+OSCAL component definitions meet structural and content requirements.
+
+Key Features:
+- Pydantic V2 field validators for type safety
+- Control status validation against allowed values
+- Configuration structure validation with file extension checking
+- UUID format validation
+- Cross-reference validation between control status and configuration
+- Comprehensive error reporting with suggestions
+
+Usage:
+    from maposcal.generator.validation import validate_implemented_requirement
+    
+    is_valid, violations = validate_implemented_requirement(requirement_dict)
+    if not is_valid:
+        for violation in violations:
+            print(f"{violation['field']}: {violation['issue']}")
+"""
+
 from pydantic import BaseModel, Field, field_validator
 from typing import List, Optional, Union, Any
 import re
 import uuid
 
 class Prop(BaseModel):
+    """
+    OSCAL Property model with flexible value types.
+    
+    Supports string, list of strings, list of objects, or single object values
+    to accommodate different OSCAL property requirements.
+    """
     name: str
     value: Union[str, List[str], List[dict], dict]
     ns: str
@@ -11,6 +43,18 @@ class Prop(BaseModel):
     @field_validator('value')
     @classmethod
     def validate_value(cls, v):
+        """
+        Validate property value based on its type.
+        
+        Args:
+            v: The value to validate
+            
+        Returns:
+            The validated value
+            
+        Raises:
+            ValueError: If value format is invalid
+        """
         if isinstance(v, str):
             return v
         elif isinstance(v, list):
@@ -32,6 +76,11 @@ class Prop(BaseModel):
             raise ValueError('Value must be either a string, list of strings, list of objects, or object')
 
 class Annotation(BaseModel):
+    """
+    OSCAL Annotation model for metadata and references.
+    
+    Values are always converted to lists for consistency.
+    """
     name: str
     value: Union[str, List[str]]
     ns: str
@@ -39,6 +88,18 @@ class Annotation(BaseModel):
     @field_validator('value')
     @classmethod
     def validate_value(cls, v):
+        """
+        Convert single strings to lists and validate list contents.
+        
+        Args:
+            v: The value to validate
+            
+        Returns:
+            List of strings
+            
+        Raises:
+            ValueError: If value format is invalid
+        """
         if isinstance(v, str):
             return [v]  # Convert single string to list
         elif isinstance(v, list):
@@ -50,6 +111,11 @@ class Annotation(BaseModel):
             raise ValueError('Value must be either a string or a list of strings')
 
 class Statement(BaseModel):
+    """
+    OSCAL Statement model for control implementation details.
+    
+    Includes UUID validation for statement identifiers.
+    """
     statement_id: str = Field(..., alias="statement-id")
     uuid: str
     description: str
@@ -57,6 +123,18 @@ class Statement(BaseModel):
     @field_validator('uuid')
     @classmethod
     def validate_uuid(cls, v):
+        """
+        Validate UUID format.
+        
+        Args:
+            v: UUID string to validate
+            
+        Returns:
+            Validated UUID string
+            
+        Raises:
+            ValueError: If UUID format is invalid
+        """
         try:
             uuid.UUID(v)
             return v
@@ -64,6 +142,12 @@ class Statement(BaseModel):
             raise ValueError('Invalid UUID format')
 
 class ControlMapping(BaseModel):
+    """
+    Main OSCAL Control Mapping model.
+    
+    Represents a complete implemented requirement with all required properties,
+    optional annotations, and optional statements.
+    """
     uuid: str
     control_id: str = Field(..., alias="control-id")
     props: List[Prop]
@@ -73,6 +157,18 @@ class ControlMapping(BaseModel):
     @field_validator('uuid')
     @classmethod
     def validate_uuid(cls, v):
+        """
+        Validate main control UUID format.
+        
+        Args:
+            v: UUID string to validate
+            
+        Returns:
+            Validated UUID string
+            
+        Raises:
+            ValueError: If UUID format is invalid
+        """
         try:
             uuid.UUID(v)
             return v
@@ -82,6 +178,25 @@ class ControlMapping(BaseModel):
     @field_validator('props')
     @classmethod
     def validate_required_props(cls, props):
+        """
+        Ensure all required OSCAL properties are present.
+        
+        Required properties:
+        - control-status: Current status of the control
+        - control-name: Human-readable name of the control
+        - control-description: Description of the control
+        - control-explanation: Explanation of implementation
+        - control-configuration: Configuration details (if applicable)
+        
+        Args:
+            props: List of Prop objects
+            
+        Returns:
+            Validated props list
+            
+        Raises:
+            ValueError: If required properties are missing
+        """
         required_props = {
             'control-status',
             'control-name',
@@ -98,7 +213,25 @@ class ControlMapping(BaseModel):
     @field_validator('props')
     @classmethod
     def validate_control_status_values(cls, props):
-        """Validate that control-status has one of the allowed values."""
+        """
+        Validate that control-status has one of the allowed values.
+        
+        Allowed values:
+        - "applicable and inherently satisfied"
+        - "applicable but only satisfied through configuration"
+        - "applicable but partially satisfied"
+        - "applicable and not satisfied"
+        - "not applicable"
+        
+        Args:
+            props: List of Prop objects
+            
+        Returns:
+            Validated props list
+            
+        Raises:
+            ValueError: If control-status value is invalid
+        """
         ALLOWED_STATUSES = {
             "applicable and inherently satisfied",
             "applicable but only satisfied through configuration",
@@ -122,7 +255,25 @@ class ControlMapping(BaseModel):
     @field_validator('props')
     @classmethod
     def validate_configuration_structure(cls, props):
-        """Validate control-configuration structure and file extensions."""
+        """
+        Validate control-configuration structure and file extensions.
+        
+        Validates:
+        - Configuration is an array of objects
+        - Each object has required keys: file_path, key_path, line_number
+        - File paths have allowed extensions
+        - Line numbers are integers
+        - No documentation files (.md, .txt) are used
+        
+        Args:
+            props: List of Prop objects
+            
+        Returns:
+            Validated props list
+            
+        Raises:
+            ValueError: If configuration structure is invalid
+        """
         ALLOWED_EXTENSIONS = {
             '.yaml', '.yml', '.json', '.toml', '.conf', '.ini', '.env',
             '.py', '.js', '.ts', '.go', '.java', '.cpp', '.c', '.h', '.cs', 
@@ -165,7 +316,21 @@ class ControlMapping(BaseModel):
     @field_validator('props')
     @classmethod
     def validate_configuration_consistency(cls, props):
-        """Validate that control-configuration is consistent with control-status."""
+        """
+        Validate that control-configuration is consistent with control-status.
+        
+        Ensures that if control-status contains "configuration", 
+        control-configuration must be non-empty.
+        
+        Args:
+            props: List of Prop objects
+            
+        Returns:
+            Validated props list
+            
+        Raises:
+            ValueError: If status and configuration are inconsistent
+        """
         control_status = None
         control_config = None
         
@@ -192,11 +357,15 @@ def validate_control_mapping(data: dict) -> tuple[bool, Optional[str]]:
     """
     Validate a control mapping dictionary against the schema.
     
+    This function uses the Pydantic ControlMapping model to validate
+    the complete structure of an OSCAL implemented requirement.
+    
     Args:
         data: The control mapping dictionary to validate
         
     Returns:
-        tuple: (is_valid, error_message)
+        tuple: (is_valid, error_message) where is_valid is boolean
+               and error_message is None if valid, or a string describing the error
     """
     try:
         ControlMapping(**data)
@@ -208,11 +377,15 @@ def validate_unique_uuids(mappings: List[dict]) -> tuple[bool, Optional[str]]:
     """
     Validate that all UUIDs in a list of control mappings are unique.
     
+    Checks both the main control UUID and any statement UUIDs
+    to ensure no duplicates exist across the entire set.
+    
     Args:
         mappings: List of control mapping dictionaries
         
     Returns:
-        tuple: (is_valid, error_message)
+        tuple: (is_valid, error_message) where is_valid is boolean
+               and error_message is None if valid, or a string describing the duplicate
     """
     uuids = set()
     for mapping in mappings:
@@ -233,11 +406,15 @@ def validate_control_status(requirement: dict) -> tuple[bool, Optional[str]]:
     """
     Validate that the control-status field contains an allowable value.
     
+    This is a focused validation function that specifically checks
+    the control-status property against the allowed OSCAL values.
+    
     Args:
         requirement: The implemented requirement dictionary
         
     Returns:
-        tuple: (is_valid, error_message)
+        tuple: (is_valid, error_message) where is_valid is boolean
+               and error_message is None if valid, or a string describing the issue
     """
     ALLOWABLE_CONTROL_STATUSES = {
         "applicable and inherently satisfied",
@@ -273,11 +450,15 @@ def validate_control_configuration(requirement: dict) -> tuple[bool, list]:
     """
     Validate the control-configuration field according to OSCAL requirements.
     
+    This function performs comprehensive validation of the control-configuration
+    property, including structure, file extensions, and consistency with control-status.
+    
     Args:
         requirement: The implemented requirement dictionary
         
     Returns:
-        tuple: (is_valid, list_of_violations)
+        tuple: (is_valid, list_of_violations) where is_valid is boolean
+               and list_of_violations contains detailed violation information
     """
     violations = []
     ALLOWED_EXTENSIONS = {
@@ -363,11 +544,15 @@ def validate_oscal_structure(requirement: dict) -> tuple[bool, list]:
     """
     Validate the overall OSCAL structure and required fields.
     
+    This function checks the basic structure of an OSCAL implemented requirement,
+    including required fields, UUID formats, and statement validation.
+    
     Args:
         requirement: The implemented requirement dictionary
         
     Returns:
-        tuple: (is_valid, list_of_violations)
+        tuple: (is_valid, list_of_violations) where is_valid is boolean
+               and list_of_violations contains detailed violation information
     """
     violations = []
     
@@ -435,11 +620,18 @@ def validate_implemented_requirement(requirement: dict) -> tuple[bool, list]:
     """
     Comprehensive validation of an implemented requirement.
     
+    This is the main validation function that combines all validation checks:
+    - OSCAL structure validation
+    - Control status validation
+    - Control configuration validation
+    
     Args:
         requirement: The implemented requirement dictionary
         
     Returns:
-        tuple: (is_valid, list_of_violations)
+        tuple: (is_valid, list_of_violations) where is_valid is boolean
+               and list_of_violations contains detailed violation information
+               with field names, issues, and suggestions
     """
     all_violations = []
     

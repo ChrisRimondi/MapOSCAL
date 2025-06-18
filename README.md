@@ -17,6 +17,15 @@ While extremely powerful, generative AI can be equally dangerous in producing fa
 
 Having an OSCAL-based system defintion is only half of the compliance battle.  To be truely effective that definition must be distilled into accurate implementation statements that are tied to one or more compliance frameworks.  In this open source implementation we have included a single control definition and mapping for example purposes.  If future growth occurs, more are desired to be offered as part of a future, commercial offering.
 
+### Validation and Quality Assurance
+
+MapOSCAL includes comprehensive validation and evaluation capabilities to ensure the quality and accuracy of generated OSCAL components:
+
+- **Local Validation**: Fast, deterministic validation using Pydantic schemas for structural correctness
+- **LLM-Assisted Fixes**: Intelligent fixing of complex issues that require understanding context
+- **Quality Evaluation**: AI-powered assessment of control mapping quality and completeness
+- **Comprehensive Reporting**: Detailed validation failures and evaluation results
+
 ### Future Growth
 
 The industry is currently struggling to have a clean, clear, and actionable way to describe systems for security and compliance purposes.  Our view is that the ideal path forward to improve this problem space is two-fold:
@@ -68,11 +77,12 @@ output_dir: ".oscalgen"
 top_k: 5
 catalog_path: "path/to/NIST_catalog.json"
 profile_path: "path/to/NIST_profile.json"
+max_critique_retries: 3  # Number of validation/fix attempts
 ```
 
 ### Commands
 
-The tool provides two main commands:
+The tool provides three main commands:
 
 1. **Analyze Repository**
 ```bash
@@ -84,16 +94,54 @@ This command analyzes your repository and generates initial OSCAL component defi
 ```bash
 maposcal generate config.yaml
 ```
-This command generates the final OSCAL component definitions based on the analysis and control mappings.
+This command generates the final OSCAL component definitions based on the analysis and control mappings. It includes:
+- Individual control validation with automatic fixes
+- LLM-assisted resolution of complex issues
+- Comprehensive validation reporting
+- Generation of validation failure logs
 
-### Output
+3. **Evaluate OSCAL Component Quality**
+```bash
+maposcal evaluate path/to/implemented_requirements.json
+```
+This command evaluates the quality of existing OSCAL component definitions using AI-powered assessment:
+- Scores each control on 4 quality dimensions (0-2 scale)
+- Provides detailed justifications for scores
+- Offers improvement recommendations
+- Generates comprehensive evaluation reports
 
-The tool generates output in the specified `output_dir` (default: `.oscalgen`):
-- Component definitions
-- Implemented requirements
-- Control mappings
+### Output Files
 
-### Example
+The tool generates several output files in the specified `output_dir`:
+
+#### Generated Files
+- `{service_prefix}_implemented_requirements.json` - Validated OSCAL component definitions
+- `{service_prefix}_validation_failures.json` - Detailed validation failure information
+- `{service_prefix}_unvalidated_requirements.json` - Requirements that failed validation
+
+#### Evaluation Files
+- `{filename}_evaluation_results.json` - Quality assessment results with scores and recommendations
+
+### Validation Features
+
+#### Local Validation (Fast & Deterministic)
+- **Control Status Validation**: Ensures valid control-status values
+- **Configuration Structure**: Validates control-configuration format and file extensions
+- **OSCAL Structure**: Checks required fields and UUID formats
+- **Cross-Reference Validation**: Ensures consistency between status and configuration
+
+#### LLM-Assisted Fixes
+- **Automatic Fixes**: Simple issues fixed automatically (file extensions, missing fields)
+- **Intelligent Resolution**: Complex issues sent to LLM for context-aware fixing
+- **Retry Logic**: Multiple attempts to resolve validation issues
+
+#### Quality Evaluation
+- **Status Alignment**: Is the control-status correct given the explanation and configuration?
+- **Explanation Quality**: Is the control-explanation clear, accurate, and grounded?
+- **Configuration Support**: Is the control-configuration specific, correct, and valid?
+- **Overall Consistency**: Do all parts reinforce each other without contradiction?
+
+### Example Workflow
 
 1. Create a configuration file:
 ```yaml
@@ -104,6 +152,7 @@ output_dir: ".oscalgen"
 top_k: 5
 catalog_path: "examples/NIST_SP-800-53_rev5_catalog.json"
 profile_path: "examples/NIST_SP-800-53_rev5_HIGH-baseline_profile.json"
+max_critique_retries: 3
 ```
 
 2. Run the analysis:
@@ -116,15 +165,22 @@ maposcal analyze config.yaml
 maposcal generate config.yaml
 ```
 
+4. Evaluate the quality of generated components:
+```bash
+maposcal evaluate .oscalgen/abc123_implemented_requirements.json
+```
+
 ## Project Structure
 
 - `maposcal/` - Main package directory
   - `analyzer/` - Code analysis components
   - `generator/` - OSCAL generation components
+    - `validation.py` - Comprehensive validation schemas and functions
   - `llm/` - Language model integration
+    - `prompt_templates.py` - LLM prompt templates for generation and evaluation
   - `embeddings/` - Code embedding functionality
   - `utils/` - Utility functions
-  - `cli.py` - Command-line interface
+  - `cli.py` - Command-line interface with analyze, generate, and evaluate commands
 
 - `tests/` - Test suite
 - `examples/` - Example configurations and outputs
