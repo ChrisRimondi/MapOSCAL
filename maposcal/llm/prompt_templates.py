@@ -130,16 +130,6 @@ Use this structure and format for the JSON output:
   ]
 }}
 
-IMPORTANT NOTES:
-- control-status must be exactly one of the 5 values shown above
-- control-configuration.value must be an array of objects, each with file_path, key_path, and line_number
-- file_path must end with .yaml, .yml, .json, .toml, .conf, .ini, .env, or source code extensions (.py, .js, .ts, .go, .java, .cpp, .c, .h, .cs, .php, .rb, .pl, .sh, .bash, .ps1)
-- Do NOT use .md, .txt, or documentation files for file_path
-- If control-status contains "configuration", control-configuration must have at least one object
-- If control-status does NOT contain "configuration", control-configuration can be empty array []
-- source-code-reference.value must be an array of strings (file names)
-- All UUIDs must be valid UUID format
-
 Return only valid, minified JSON.
 """
 )
@@ -166,14 +156,7 @@ CRITIQUE_PROMPT = """
 
 You will receive a dictionary of an OSCAL `implemented_requirements` object.
 
-Goal: identify every violation of the Draft-Prompt Guidelines below.
-
-Draft-Prompt Guidelines
-- If status contains "configuration", the `control-configuration` prop must have a **non-empty** array value containing objects with keys:
-    file_path, key_path, line_number.
-- `control-configuration` prop value array objects must have `file_path` ending with .yaml, .yml, .json, .toml, .conf, .ini, .env, or a source-code extension; **never** .md / .txt / directory.
-- No fields outside the OSCAL spec or the above list.
-- All string values must be plain strings (no JSON or markdown inside).
+Goal: identify any remaining structural or content issues that need fixing.
 
 OUTPUT FORMAT  
 Return a JSON object:
@@ -199,16 +182,10 @@ REVISE_PROMPT = """
 
 You are given:
 1. The original `implemented_requirements` array.
-2. A `violations` list produced by the Critique step (same schema as above).
+2. A `violations` list produced by the Critique step.
 
 Task: produce a **repaired** version of the array that resolves *every* violation,
 without altering any other content.
-
-Rules
-- Preserve all original field order unless you must add / remove / reorder for validity.
-- If a `control-configuration` must be emptied (per suggestion: "remove"), also
-  change `control-status` to "applicable and not satisfied".
-- After fixes, the object set **must** pass the Guidelines from the Critique prompt.
 
 Return the full, minified JSON array—nothing else.
 
