@@ -195,6 +195,63 @@ INPUT
 
 """
 
+# ---------------------------------------------------------------------------
+# 3. OSCAL CONTROL EVALUATION
+# ---------------------------------------------------------------------------
+
+EVALUATE_SYSTEM = """
+You are a senior compliance auditor reviewing automated control mappings in OSCAL format.
+You evaluate based on the quality of rationale (explanation), evidence (configuration), and status alignment.
+Your goal is to provide a structured assessment and recommendations to improve the mapping output.
+Do not assume any content beyond what is shown.
+
+"""
+
+EVALUATE_PROMPT = """
+{system}
+
+Here is a single control from an OSCAL component-definition's `implemented_requirements` section.
+
+Evaluate the following:
+1. Is the `control-status` correct given the explanation and configuration?
+2. Is the `control-explanation` clearly written, accurate, and grounded in the observed implementation?
+3. Is the `control-configuration` (if required) specific, correct, and valid?
+4. Do all parts of the control (status, explanation, configuration, and statement) reinforce each other without contradiction?
+
+Score each of the 4 categories from 0–2 as follows:
+- 0 = inaccurate or missing
+- 1 = partially correct or vague
+- 2 = complete, specific, and accurate
+
+Also provide:
+- A 1–2 sentence justification for each score
+- A recommendation (if any) for how to improve this control mapping
+
+Return the result in this format:
+
+
+{{
+  "control-id": "<from input>",
+  "scores": {{
+    "status_alignment": <0-2>,
+    "explanation_quality": <0-2>,
+    "configuration_support": <0-2>,
+    "overall_consistency": <0-2>
+  }},
+  "total_score": <sum>,
+  "justifications": {{
+    "status_alignment": "...",
+    "explanation_quality": "...",
+    "configuration_support": "...",
+    "overall_consistency": "..."
+  }},
+  "recommendation": "..."
+}}
+
+CONTROL TO EVALUATE:
+{control_json}
+
+"""
 
 def build_control_prompt(control_id: str, control_name: str, control_description: str, evidence_chunks: List[dict], k: int, main_uuid: str, statement_uuid: str) -> str:
     instructions = CONTROL_IMPL_INSTRUCTIONS.format(
@@ -234,4 +291,11 @@ def build_revise_prompt(implemented_requirements: List[dict], violations: List[d
         system=CRITIQUE_REVISE_SYSTEM,
         implemented_requirements_json=json.dumps(implemented_requirements),
         critique_violations_json=json.dumps(violations)
+    )
+
+def build_evaluate_prompt(requirement: dict) -> str:
+    """Build a prompt for evaluating a single implemented requirement."""
+    return EVALUATE_PROMPT.format(
+        system=EVALUATE_SYSTEM,
+        control_json=json.dumps(requirement, indent=2)
     )

@@ -10,7 +10,7 @@ from pathlib import Path
 import re
 import hashlib
 from maposcal.generator.validation import validate_unique_uuids, validate_control_status, validate_implemented_requirement
-from maposcal.llm.prompt_templates import build_critique_prompt, build_revise_prompt
+from maposcal.llm.prompt_templates import build_critique_prompt, build_revise_prompt, build_evaluate_prompt
 from maposcal.llm.llm_handler import LLMHandler
 import logging
 from typing import List
@@ -350,6 +350,86 @@ def generate(config: str = typer.Argument(None, help="Path to the configuration 
         json.dump({"implemented_requirements": implemented_requirements}, f, indent=2)
     typer.echo(f"Generated OSCAL component written to {output_path}")
     typer.echo(f"Successfully processed {len(implemented_requirements)} out of {len(controls_dict)} controls")
+
+@app.command()
+def evaluate(requirements_file: str = typer.Argument(..., help="Path to the implemented_requirements.json file.")):
+    """Evaluate an existing implemented_requirements.json file."""
+    if not os.path.exists(requirements_file):
+        typer.echo(f"Requirements file not found: {requirements_file}")
+        raise typer.Exit(code=1)
+    
+    try:
+        with open(requirements_file, "r") as f:
+            data = json.load(f)
+    except json.JSONDecodeError as e:
+        typer.echo(f"Invalid JSON in requirements file: {e}")
+        raise typer.Exit(code=1)
+    
+    implemented_requirements = data.get("implemented_requirements", [])
+    if not implemented_requirements:
+        typer.echo("No implemented_requirements found in the file.")
+        raise typer.Exit(code=1)
+    
+    typer.echo(f"Evaluating {len(implemented_requirements)} implemented requirements...")
+    
+    # Initialize LLM handler
+    llm_handler = LLMHandler()
+    evaluation_results = []
+    
+    # Evaluate each requirement
+    for requirement in implemented_requirements:
+        control_id = requirement.get('control-id', 'unknown')
+        typer.echo(f"Evaluating control {control_id}...")
+        
+        # Build evaluation prompt
+        evaluate_prompt = build_evaluate_prompt(requirement)
+        
+        # Query LLM for evaluation
+        try:
+            evaluation_response = llm_handler.query(prompt=evaluate_prompt)
+            evaluation_result = parse_llm_response(evaluation_response)
+            
+            if isinstance(evaluation_result, dict):
+                evaluation_results.append(evaluation_result)
+                typer.echo(f"✅ Evaluation completed for {control_id}")
+            else:
+                typer.echo(f"❌ Invalid evaluation response format for {control_id}")
+                evaluation_results.append({
+                    "control-id": control_id,
+                    "error": "Invalid evaluation response format"
+                })
+                
+        except Exception as e:
+            typer.echo(f"❌ Error evaluating {control_id}: {e}")
+            evaluation_results.append({
+                "control-id": control_id,
+                "error": str(e)
+            })
+    
+    # Write evaluation results
+    output_dir = os.path.dirname(requirements_file) or "."
+    base_name = os.path.splitext(os.path.basename(requirements_file))[0]
+    
+    evaluation_output = {
+        "evaluation_results": evaluation_results,
+        "evaluation_timestamp": str(datetime.datetime.now())
+    }
+    
+    output_path = os.path.join(output_dir, f"{base_name}_evaluation_results.json")
+    with open(output_path, "w") as f:
+        json.dump(evaluation_output, f, indent=2)
+    
+    typer.echo(f"📄 Evaluation results written to: {output_path}")
+    
+    # Summary
+    valid_evaluations = [r for r in evaluation_results if "error" not in r]
+    total_score = sum(r.get("total_score", 0) for r in valid_evaluations)
+    avg_score = total_score / len(valid_evaluations) if valid_evaluations else 0
+    
+    typer.echo(f"\n📊 Evaluation Summary:")
+    typer.echo(f"   Total controls evaluated: {len(evaluation_results)}")
+    typer.echo(f"   Successful evaluations: {len(valid_evaluations)}")
+    typer.echo(f"   Average total score: {avg_score:.1f}/8.0")
 
 if __name__ == "__main__":
     app()
