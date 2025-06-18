@@ -18,7 +18,7 @@ class LLMHandler:
     """
     A class to handle interactions with the LLM.
     """
-    def __init__(self, model: str = "gpt-4.1-nano"):
+    def __init__(self, model: str = "gpt-4.1-mini"):
         """
         Initialize the LLM handler.
         

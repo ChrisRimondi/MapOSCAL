@@ -62,7 +62,13 @@ You are a security compliance expert analyzing a service's implementation of a s
 
 For the control {control_id}: Name: {control_name}, Description: {control_description}, based on the provided context (documentation, configuration, or code), determine:
 
-- Status of the control: (applicable and inherently satisfied, applicable but only satisfied through configuration, gap, or not applicable)
+- `control-status` must be one of:  
+    • "applicable and inherently satisfied"  
+    • "applicable but only satisfied through configuration"  
+    • "applicable but partially satisfied"  
+    • "applicable and not satisfied"  
+    • "not applicable"
+    
     - ✅ If the control is applicable and inherently satisfied — explain how within the JSON control-explanation field.
     - ✅ If the control is applicable but only satisfied through configuration — explain your reasoning within the JSON control-explanation field and provide the configuration details within the JSON control-configuration field. Make sure to include the file path, key value, and line number of the configuration as applicable. Configuration files should be json or yaml files. Do not reference .md files or other type of documentation type files. 
     - ⚠️ If the control is applicable but represents a gap — clearly describe the gap within the JSON control-explanation field.
@@ -78,7 +84,7 @@ Use this structure and format for the JSON output:
   "props": [
     {{
       "name": "control-status",
-      "value": "string on the status of control",
+      "value": "applicable and inherently satisfied|applicable but only satisfied through configuration|applicable but partially satisfied|applicable and not satisfied|not applicable",
       "ns": "urn:maposcal:control-status-reference"
     }},
     {{
@@ -93,19 +99,25 @@ Use this structure and format for the JSON output:
     }},
     {{
       "name": "control-explanation",
-      "value": "string on the explanation of the control status",
+      "value": "Detailed explanation of how the control is implemented or why it is not applicable",
       "ns": "urn:maposcal:explanation-reference"
     }},
     {{
       "name": "control-configuration",
-      "value": "string on the configuration of the control if requires configuration",
+      "value": [
+        {{
+          "file_path": "path/to/config.yaml",
+          "key_path": "security.authentication.enabled",
+          "line_number": 42
+        }}
+      ],
       "ns": "urn:maposcal:configuration-reference"
     }}
   ],
   "annotations": [
     {{
       "name": "source-code-reference",
-      "value": "list of files used to determine the status of the control",
+      "value": ["file1.py", "file2.yaml", "file3.json"],
       "ns": "urn:maposcal:source-code-reference"
     }}
   ],
@@ -113,10 +125,20 @@ Use this structure and format for the JSON output:
     {{
       "statement-id": "{control_id}_smt.a",
       "uuid": "{statement_uuid}",
-      "description": "string describing the implementation of the control"
+      "description": "Detailed description of how the control statement is implemented"
     }}
   ]
 }}
+
+IMPORTANT NOTES:
+- control-status must be exactly one of the 5 values shown above
+- control-configuration.value must be an array of objects, each with file_path, key_path, and line_number
+- file_path must end with .yaml, .yml, .json, .toml, .conf, .ini, .env, or source code extensions (.py, .js, .ts, .go, .java, .cpp, .c, .h, .cs, .php, .rb, .pl, .sh, .bash, .ps1)
+- Do NOT use .md, .txt, or documentation files for file_path
+- If control-status contains "configuration", control-configuration must have at least one object
+- If control-status does NOT contain "configuration", control-configuration can be empty array []
+- source-code-reference.value must be an array of strings (file names)
+- All UUIDs must be valid UUID format
 
 Return only valid, minified JSON.
 """
@@ -142,21 +164,14 @@ Return raw, minified JSON—no markdown, no comments."""
 CRITIQUE_PROMPT = """
 {system}
 
-You will receive an array of OSCAL `implemented_requirements` objects.
+You will receive a dictionary of an OSCAL `implemented_requirements` object.
 
 Goal: identify every violation of the Draft-Prompt Guidelines below.
 
 Draft-Prompt Guidelines
-- `control-status` must be one of:  
-    • "applicable and inherently satisfied"  
-    • "applicable but only satisfied through configuration"  
-    • "applicable but partially satisfied"  
-    • "applicable and not satisfied"  
-    • "not applicable"
-- If status contains "configuration", `control-configuration` must be a **non-empty** array of objects with keys:
+- If status contains "configuration", the `control-configuration` prop must have a **non-empty** array value containing objects with keys:
     file_path, key_path, line_number.
-- `control-configuration.file_path` must end with .yaml, .yml, .json, .toml, .conf, .ini, .env, or a source-code extension; **never** .md / .txt / directory.
-- No duplicate keys in any object.
+- `control-configuration` prop value array objects must have `file_path` ending with .yaml, .yml, .json, .toml, .conf, .ini, .env, or a source-code extension; **never** .md / .txt / directory.
 - No fields outside the OSCAL spec or the above list.
 - All string values must be plain strings (no JSON or markdown inside).
 

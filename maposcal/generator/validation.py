@@ -1,31 +1,43 @@
-from pydantic import BaseModel, Field, validator
+from pydantic import BaseModel, Field, field_validator
 from typing import List, Optional, Union, Any
 import re
 import uuid
 
 class Prop(BaseModel):
     name: str
-    value: Union[str, List[str]]
+    value: Union[str, List[str], List[dict], dict]
     ns: str
 
-    @validator('value')
+    @field_validator('value')
+    @classmethod
     def validate_value(cls, v):
         if isinstance(v, str):
             return v
         elif isinstance(v, list):
-            # Ensure all items in the list are strings
-            if not all(isinstance(item, str) for item in v):
-                raise ValueError('All items in value list must be strings')
+            # For control-configuration, allow objects with file_path, key_path, line_number
+            if v and isinstance(v[0], dict):
+                # This is likely control-configuration with objects
+                for item in v:
+                    if not isinstance(item, dict):
+                        raise ValueError('All items in object list must be dictionaries')
+                return v
+            else:
+                # Regular string list (for source-code-reference)
+                if not all(isinstance(item, str) for item in v):
+                    raise ValueError('All items in value list must be strings')
+                return v
+        elif isinstance(v, dict):
             return v
         else:
-            raise ValueError('Value must be either a string or a list of strings')
+            raise ValueError('Value must be either a string, list of strings, list of objects, or object')
 
 class Annotation(BaseModel):
     name: str
     value: Union[str, List[str]]
     ns: str
 
-    @validator('value')
+    @field_validator('value')
+    @classmethod
     def validate_value(cls, v):
         if isinstance(v, str):
             return [v]  # Convert single string to list
@@ -42,14 +54,8 @@ class Statement(BaseModel):
     uuid: str
     description: str
 
-class ControlMapping(BaseModel):
-    uuid: str
-    control_id: str = Field(..., alias="control-id")
-    props: List[Prop]
-    annotations: Optional[List[Annotation]] = None
-    statements: Optional[List[Statement]] = None
-
-    @validator('uuid')
+    @field_validator('uuid')
+    @classmethod
     def validate_uuid(cls, v):
         try:
             uuid.UUID(v)
@@ -57,7 +63,24 @@ class ControlMapping(BaseModel):
         except ValueError:
             raise ValueError('Invalid UUID format')
 
-    @validator('props')
+class ControlMapping(BaseModel):
+    uuid: str
+    control_id: str = Field(..., alias="control-id")
+    props: List[Prop]
+    annotations: Optional[List[Annotation]] = None
+    statements: Optional[List[Statement]] = None
+
+    @field_validator('uuid')
+    @classmethod
+    def validate_uuid(cls, v):
+        try:
+            uuid.UUID(v)
+            return v
+        except ValueError:
+            raise ValueError('Invalid UUID format')
+
+    @field_validator('props')
+    @classmethod
     def validate_required_props(cls, props):
         required_props = {
             'control-status',
@@ -72,19 +95,97 @@ class ControlMapping(BaseModel):
             raise ValueError(f'Missing required properties: {missing}')
         return props
 
-    @validator('props')
-    def validate_configuration_file_extensions(cls, props):
+    @field_validator('props')
+    @classmethod
+    def validate_control_status_values(cls, props):
+        """Validate that control-status has one of the allowed values."""
+        ALLOWED_STATUSES = {
+            "applicable and inherently satisfied",
+            "applicable but only satisfied through configuration",
+            "applicable but partially satisfied",
+            "applicable and not satisfied",
+            "not applicable"
+        }
+        
         for prop in props:
-            if prop.name == 'control-configuration' and prop.value:
-                # Handle both string and list values
-                values = [prop.value] if isinstance(prop.value, str) else prop.value
-                for value in values:
-                    # Extract file paths from the configuration value
-                    file_paths = re.findall(r'File:?\s*([^\n,]+)', value)
-                    for path in file_paths:
-                        path = path.strip()
-                        if path and not path.endswith(('.json', '.yaml', '.yml')):
-                            raise ValueError(f'Invalid file extension in configuration: {path}')
+            if prop.name == 'control-status':
+                if isinstance(prop.value, str):
+                    if prop.value not in ALLOWED_STATUSES:
+                        raise ValueError(f'Invalid control-status value: {prop.value}. Must be one of: {", ".join(sorted(ALLOWED_STATUSES))}')
+                elif isinstance(prop.value, list):
+                    if not prop.value or not all(status in ALLOWED_STATUSES for status in prop.value):
+                        raise ValueError(f'Invalid control-status values: {prop.value}. All values must be one of: {", ".join(sorted(ALLOWED_STATUSES))}')
+                else:
+                    raise ValueError(f'Invalid control-status format: {type(prop.value)}. Must be string or list of strings')
+        return props
+
+    @field_validator('props')
+    @classmethod
+    def validate_configuration_structure(cls, props):
+        """Validate control-configuration structure and file extensions."""
+        ALLOWED_EXTENSIONS = {
+            '.yaml', '.yml', '.json', '.toml', '.conf', '.ini', '.env',
+            '.py', '.js', '.ts', '.go', '.java', '.cpp', '.c', '.h', '.cs', 
+            '.php', '.rb', '.pl', '.sh', '.bash', '.ps1'
+        }
+        
+        for prop in props:
+            if prop.name == 'control-configuration':
+                if not isinstance(prop.value, list):
+                    raise ValueError('control-configuration.value must be an array')
+                
+                # Validate each configuration object
+                for i, config_obj in enumerate(prop.value):
+                    if not isinstance(config_obj, dict):
+                        raise ValueError(f'control-configuration[{i}] must be an object')
+                    
+                    # Check required keys
+                    required_keys = {'file_path', 'key_path', 'line_number'}
+                    missing_keys = required_keys - set(config_obj.keys())
+                    if missing_keys:
+                        raise ValueError(f'control-configuration[{i}] missing required keys: {", ".join(missing_keys)}')
+                    
+                    # Validate file_path extension
+                    file_path = config_obj.get('file_path', '')
+                    if file_path:
+                        file_ext = '.' + file_path.split('.')[-1].lower() if '.' in file_path else ''
+                        if file_ext not in ALLOWED_EXTENSIONS:
+                            raise ValueError(f'Invalid file extension in configuration[{i}]: {file_path}. Must end with: {", ".join(sorted(ALLOWED_EXTENSIONS))}')
+                        
+                        # Check for disallowed file types
+                        if file_path.endswith(('.md', '.txt')):
+                            raise ValueError(f'Documentation files not allowed in configuration[{i}]: {file_path}')
+                    
+                    # Validate line_number is integer
+                    line_number = config_obj.get('line_number')
+                    if not isinstance(line_number, int):
+                        raise ValueError(f'line_number in configuration[{i}] must be an integer, got: {type(line_number)}')
+        return props
+
+    @field_validator('props')
+    @classmethod
+    def validate_configuration_consistency(cls, props):
+        """Validate that control-configuration is consistent with control-status."""
+        control_status = None
+        control_config = None
+        
+        for prop in props:
+            if prop.name == 'control-status':
+                control_status = prop.value
+            elif prop.name == 'control-configuration':
+                control_config = prop.value
+        
+        if control_status and control_config is not None:
+            # Check if status contains "configuration"
+            status_contains_config = False
+            if isinstance(control_status, str):
+                status_contains_config = "configuration" in control_status.lower()
+            elif isinstance(control_status, list):
+                status_contains_config = any("configuration" in str(status).lower() for status in control_status)
+            
+            if status_contains_config and (not control_config or len(control_config) == 0):
+                raise ValueError('control-configuration must be non-empty when status contains "configuration"')
+        
         return props
 
 def validate_control_mapping(data: dict) -> tuple[bool, Optional[str]]:
@@ -126,4 +227,237 @@ def validate_unique_uuids(mappings: List[dict]) -> tuple[bool, Optional[str]]:
                 return False, f'Duplicate UUID found in statement: {statement["uuid"]}'
             uuids.add(statement['uuid'])
     
-    return True, None 
+    return True, None
+
+def validate_control_status(requirement: dict) -> tuple[bool, Optional[str]]:
+    """
+    Validate that the control-status field contains an allowable value.
+    
+    Args:
+        requirement: The implemented requirement dictionary
+        
+    Returns:
+        tuple: (is_valid, error_message)
+    """
+    ALLOWABLE_CONTROL_STATUSES = {
+        "applicable and inherently satisfied",
+        "applicable but only satisfied through configuration", 
+        "applicable but partially satisfied",
+        "applicable and not satisfied",
+        "not applicable"
+    }
+    
+    # Find the control-status prop
+    control_status = None
+    for prop in requirement.get('props', []):
+        if prop.get('name') == 'control-status':
+            control_status = prop.get('value')
+            break
+    
+    if control_status is None:
+        return False, "Missing 'control-status' property"
+    
+    # Handle both string and list values
+    if isinstance(control_status, str):
+        if control_status not in ALLOWABLE_CONTROL_STATUSES:
+            return False, f"Invalid control-status value: '{control_status}'. Must be one of: {', '.join(sorted(ALLOWABLE_CONTROL_STATUSES))}"
+    elif isinstance(control_status, list):
+        if not control_status or not all(status in ALLOWABLE_CONTROL_STATUSES for status in control_status):
+            return False, f"Invalid control-status values: {control_status}. All values must be one of: {', '.join(sorted(ALLOWABLE_CONTROL_STATUSES))}"
+    else:
+        return False, f"Invalid control-status format: {type(control_status)}. Must be string or list of strings"
+    
+    return True, None
+
+def validate_control_configuration(requirement: dict) -> tuple[bool, list]:
+    """
+    Validate the control-configuration field according to OSCAL requirements.
+    
+    Args:
+        requirement: The implemented requirement dictionary
+        
+    Returns:
+        tuple: (is_valid, list_of_violations)
+    """
+    violations = []
+    ALLOWED_EXTENSIONS = {
+        '.yaml', '.yml', '.json', '.toml', '.conf', '.ini', '.env',
+        '.py', '.js', '.ts', '.go', '.java', '.cpp', '.c', '.h', '.cs', 
+        '.php', '.rb', '.pl', '.sh', '.bash', '.ps1'
+    }
+    
+    # Find control-status and control-configuration props
+    control_status = None
+    control_config = None
+    
+    for prop in requirement.get('props', []):
+        if prop.get('name') == 'control-status':
+            control_status = prop.get('value')
+        elif prop.get('name') == 'control-configuration':
+            control_config = prop.get('value')
+    
+    # Check if status contains "configuration"
+    status_contains_config = False
+    if isinstance(control_status, str):
+        status_contains_config = "configuration" in control_status.lower()
+    elif isinstance(control_status, list):
+        status_contains_config = any("configuration" in str(status).lower() for status in control_status)
+    
+    if status_contains_config:
+        # If status contains "configuration", control-configuration must be non-empty
+        if not control_config:
+            violations.append({
+                "field": "control-configuration",
+                "issue": "control-configuration must be non-empty when status contains 'configuration'",
+                "suggestion": "Add configuration details or change status to 'applicable and not satisfied'"
+            })
+        elif isinstance(control_config, list) and not control_config:
+            violations.append({
+                "field": "control-configuration",
+                "issue": "control-configuration array must be non-empty when status contains 'configuration'",
+                "suggestion": "Add configuration objects or change status to 'applicable and not satisfied'"
+            })
+        elif isinstance(control_config, list) and control_config:
+            # Validate each configuration object
+            for i, config_obj in enumerate(control_config):
+                if not isinstance(config_obj, dict):
+                    violations.append({
+                        "field": f"control-configuration[{i}]",
+                        "issue": "Configuration object must be a dictionary",
+                        "suggestion": "Use object with file_path, key_path, line_number keys"
+                    })
+                    continue
+                
+                # Check required keys
+                required_keys = {'file_path', 'key_path', 'line_number'}
+                missing_keys = required_keys - set(config_obj.keys())
+                if missing_keys:
+                    violations.append({
+                        "field": f"control-configuration[{i}]",
+                        "issue": f"Missing required keys: {', '.join(missing_keys)}",
+                        "suggestion": f"Add missing keys: {', '.join(missing_keys)}"
+                    })
+                
+                # Validate file_path extension
+                file_path = config_obj.get('file_path', '')
+                if file_path:
+                    file_ext = '.' + file_path.split('.')[-1].lower() if '.' in file_path else ''
+                    if file_ext not in ALLOWED_EXTENSIONS:
+                        violations.append({
+                            "field": f"control-configuration[{i}].file_path",
+                            "issue": f"Invalid file extension: {file_path}. Must end with: {', '.join(sorted(ALLOWED_EXTENSIONS))}",
+                            "suggestion": f"Use a file with extension: {', '.join(sorted(ALLOWED_EXTENSIONS))}"
+                        })
+                    
+                    # Check for disallowed file types
+                    if file_path.endswith(('.md', '.txt')):
+                        violations.append({
+                            "field": f"control-configuration[{i}].file_path",
+                            "issue": f"Documentation files not allowed: {file_path}",
+                            "suggestion": "Use configuration or source code files only"
+                        })
+    
+    return len(violations) == 0, violations
+
+def validate_oscal_structure(requirement: dict) -> tuple[bool, list]:
+    """
+    Validate the overall OSCAL structure and required fields.
+    
+    Args:
+        requirement: The implemented requirement dictionary
+        
+    Returns:
+        tuple: (is_valid, list_of_violations)
+    """
+    violations = []
+    
+    # Check required top-level fields
+    required_fields = {'uuid', 'control-id', 'props'}
+    missing_fields = required_fields - set(requirement.keys())
+    if missing_fields:
+        violations.append({
+            "field": "root",
+            "issue": f"Missing required fields: {', '.join(missing_fields)}",
+            "suggestion": f"Add missing fields: {', '.join(missing_fields)}"
+        })
+    
+    # Check required props
+    if 'props' in requirement:
+        required_props = {
+            'control-status', 'control-name', 'control-description', 
+            'control-explanation', 'control-configuration'
+        }
+        prop_names = {prop.get('name', '') for prop in requirement.get('props', [])}
+        missing_props = required_props - prop_names
+        if missing_props:
+            violations.append({
+                "field": "props",
+                "issue": f"Missing required properties: {', '.join(missing_props)}",
+                "suggestion": f"Add missing properties: {', '.join(missing_props)}"
+            })
+    
+    # Validate UUID format
+    if 'uuid' in requirement:
+        try:
+            uuid.UUID(requirement['uuid'])
+        except ValueError:
+            violations.append({
+                "field": "uuid",
+                "issue": f"Invalid UUID format: {requirement['uuid']}",
+                "suggestion": "Use valid UUID format (e.g., 123e4567-e89b-12d3-a456-426614174000)"
+            })
+    
+    # Validate statements if present
+    if 'statements' in requirement:
+        for i, statement in enumerate(requirement['statements']):
+            if not isinstance(statement, dict):
+                violations.append({
+                    "field": f"statements[{i}]",
+                    "issue": "Statement must be a dictionary",
+                    "suggestion": "Use object with statement-id, uuid, description keys"
+                })
+                continue
+            
+            # Check statement UUID
+            if 'uuid' in statement:
+                try:
+                    uuid.UUID(statement['uuid'])
+                except ValueError:
+                    violations.append({
+                        "field": f"statements[{i}].uuid",
+                        "issue": f"Invalid statement UUID format: {statement['uuid']}",
+                        "suggestion": "Use valid UUID format"
+                    })
+    
+    return len(violations) == 0, violations
+
+def validate_implemented_requirement(requirement: dict) -> tuple[bool, list]:
+    """
+    Comprehensive validation of an implemented requirement.
+    
+    Args:
+        requirement: The implemented requirement dictionary
+        
+    Returns:
+        tuple: (is_valid, list_of_violations)
+    """
+    all_violations = []
+    
+    # Validate OSCAL structure
+    structure_valid, structure_violations = validate_oscal_structure(requirement)
+    all_violations.extend(structure_violations)
+    
+    # Validate control-status
+    status_valid, status_error = validate_control_status(requirement)
+    if not status_valid:
+        all_violations.append({
+            "field": "control-status",
+            "issue": status_error,
+            "suggestion": "Use one of the allowable control-status values"
+        })
+    
+    # Validate control-configuration
+    config_valid, config_violations = validate_control_configuration(requirement)
+    all_violations.extend(config_violations)
+    
+    return len(all_violations) == 0, all_violations 
