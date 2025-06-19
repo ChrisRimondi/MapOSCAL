@@ -19,7 +19,7 @@ os.environ["TOKENIZERS_PARALLELISM"] = "false"
 
 EXCLUDED_FILENAME_PATTERNS = ["test", "mock", "example", "sample"]
 
-logger = logging.getLogger(__name__)
+logger = logging.getLogger()
 
 class Analyzer:
     """
