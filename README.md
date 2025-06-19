@@ -186,6 +186,151 @@ maposcal evaluate .oscalgen/abc123_implemented_requirements.json
 - `examples/` - Example configurations and outputs
 - `config/` - Configuration templates
 
+## How it works
+
+### Analysis
+
+MapOSCAL uses a three-pass analysis system to comprehensively understand your codebase and extract security-relevant information:
+
+#### Pass 1: Vector Embedding of Code/Config/Docs
+The first pass processes all repository files and creates semantic vector embeddings:
+
+- **File Discovery**: Recursively scans the repository, excluding binary files, test files, and common non-relevant patterns
+- **Intelligent Chunking**: Breaks files into meaningful chunks based on file type:
+  - **Code files** (`.py`, `.go`, `.java`, `.js`, `.ts`, etc.): Chunked by function and class definitions
+  - **Config files** (`.yaml`, `.yml`, `.json`): Chunked by document separators
+  - **Documentation** (`.md`, `.rst`, `.txt`): Chunked by headers and sections
+- **Vector Generation**: Creates high-dimensional embeddings for each chunk using local embedding models
+- **Index Creation**: Builds a FAISS index for efficient similarity search across all code chunks
+
+**Why FAISS?** MapOSCAL uses FAISS (Facebook AI Similarity Search) for vector storage and similarity search due to its simple setup requirements - no external database dependencies or complex infrastructure needed. FAISS provides excellent performance for similarity search operations, supports both CPU and GPU acceleration, and stores indices as simple files that can be easily versioned and shared. While alternatives like pgvector, Chroma, or Pinecone offer additional features, FAISS's minimal deployment footprint and high performance make it ideal for local analysis workflows where simplicity and speed are paramount.
+
+#### Pass 2: Semantic Security Summaries
+The second pass generates intelligent summaries of each file using LLM analysis:
+
+- **File-Level Processing**: Each relevant file is processed individually
+- **LLM Summarization**: Uses specialized prompts to generate security-focused summaries that capture:
+  - Authentication mechanisms
+  - Data handling patterns
+  - Security controls implemented
+  - Configuration management
+- **Summary Embedding**: Creates vector embeddings for each file summary
+- **Summary Index**: Builds a separate FAISS index for file-level similarity search
+
+#### Pass 3: Rule-Based Feature Extraction
+The third pass applies deterministic security rules to extract specific security features:
+
+- **Pattern Recognition**: Scans code chunks for security-relevant patterns:
+  - TLS/HTTPS usage (`uses_tls` flag)
+  - Hardcoded secrets detection (`hardcoded_secret` flag)
+  - Authentication checks (`auth_check` flag)
+- **Control Mapping**: Maps detected patterns to relevant security controls:
+  - TLS usage → SC-8 (Transmission Confidentiality and Integrity)
+  - Authentication → AC-6 (Least Privilege)
+- **Metadata Enhancement**: Enriches chunk metadata with security flags and control hints
+
+This three-pass system ensures comprehensive coverage:
+- **Pass 1** provides semantic understanding and similarity search capabilities
+- **Pass 2** adds human-like comprehension of security contexts
+- **Pass 3** ensures deterministic detection of specific security patterns
+
+The combined outputs enable the generation system to create accurate, contextually relevant OSCAL implemented requirements that can be included in a broader component definition that reflect the actual security posture of your service. 
+
+### Diagram
+
+![Analysis Flow](docs/diagrams/analysis_flow.png)
+
+*Figure 1: Overview of MapOSCAL's analysis workflow*
+
+
+### Generation
+
+MapOSCAL's generation process transforms the analysis outputs into structured OSCAL implemented requirements through a sophisticated multi-step workflow:
+
+#### Step 1: Control Parameter Extraction
+The generation begins by extracting control information from OSCAL catalogs and profiles:
+
+- **Catalog Processing**: Parses NIST SP 800-53 or other security control catalogs to extract control definitions
+- **Profile Tailoring**: Applies profile-specific modifications, parameter substitutions, and control selections
+- **Parameter Resolution**: Resolves control parameters using profile-specific values or catalog defaults
+- **Statement Extraction**: Extracts control statements and requirements from the catalog structure
+
+#### Step 2: Semantic Evidence Retrieval
+For each control, MapOSCAL retrieves relevant evidence from the analysis outputs:
+
+- **Dual-Index Querying**: Queries both chunk-level and summary-level FAISS indices using the control description as the search query
+- **Relevance Ranking**: Retrieves top-k most semantically similar chunks and file summaries
+- **Evidence Combination**: Combines and deduplicates evidence from both code chunks and file summaries
+- **Context Preservation**: Maintains source file information, line numbers, and chunk types for traceability
+
+#### Step 3: LLM-Based Control Mapping
+Each control is individually processed by the LLM to generate OSCAL implemented requirements:
+
+- **Structured Prompting**: Uses specialized prompts that include:
+  - Control ID, title, and detailed description
+  - Resolved parameter values and additional requirements
+  - Top-k relevant evidence chunks with source information
+  - Pre-generated UUIDs for consistency
+- **Status Determination**: LLM determines the appropriate control status from five options:
+  - "applicable and inherently satisfied"
+  - "applicable but only satisfied through configuration"
+  - "applicable but partially satisfied"
+  - "applicable and not satisfied"
+  - "not applicable"
+- **Configuration Mapping**: When applicable, maps specific configuration files, keys, and line numbers
+- **Explanation Generation**: Creates detailed explanations of how the control is implemented or why it's not applicable
+
+#### Step 4: Individual Validation and Revision
+Each generated control undergoes rigorous validation and iterative improvement:
+
+- **Local Validation**: Performs deterministic validation using Pydantic schemas:
+  - OSCAL structure compliance
+  - Control status validation against allowed values
+  - Configuration structure and file extension validation
+  - UUID format validation
+  - Cross-reference consistency checks
+- **LLM Critique-Revise Loop**: For validation failures, uses LLM to:
+  - Critique the specific issues without rewriting
+  - Revise only the flagged problems while preserving valid content
+  - Retry up to 3 times with error feedback
+- **Final Validation**: Performs comprehensive validation including duplicate UUID detection
+
+#### Step 5: Output Generation and Documentation
+The final step produces structured outputs with comprehensive documentation:
+
+- **Implemented Requirements**: Generates valid OSCAL JSON with all required properties:
+  - `control-status`: Current implementation status
+  - `control-name`: Human-readable control name
+  - `control-description`: Original control description
+  - `control-explanation`: Detailed implementation explanation
+  - `control-configuration`: Specific configuration references (when applicable)
+  - `annotations`: Source code references and metadata
+  - `statements`: Detailed implementation statements
+- **Validation Reports**: Creates detailed JSON files documenting:
+  - Validation failures with timestamps and specific issues
+  - Unvalidated requirements that couldn't be resolved
+  - Final validation results with violation details
+- **Quality Evaluation**: Optionally evaluates each control for:
+  - Status alignment accuracy
+  - Explanation quality and clarity
+  - Configuration support validity
+  - Overall consistency across all elements
+
+This generation process ensures that each implemented requirement is:
+- **Accurate**: Based on actual code analysis and semantic understanding
+- **Compliant**: Follows OSCAL schema requirements exactly
+- **Traceable**: Links back to specific source files and configurations
+- **Validated**: Undergoes multiple validation layers before final output
+- **Documented**: Includes detailed explanations and evidence references
+
+The result is a comprehensive set of OSCAL implemented requirements that accurately reflects your service's security posture and can be integrated into broader component definitions for compliance reporting.
+
+### Diagram
+
+![Generation Flow](docs/diagrams/generation_flow.png)
+
+*Figure 2: Overview of MapOSCAL's generation workflow*
+
 ## Development
 
 ### Running Tests
