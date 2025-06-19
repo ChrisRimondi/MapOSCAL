@@ -41,8 +41,10 @@ The industry is currently struggling to have a clean, clear, and actionable way 
 - pip (Python package installer)
 
 ### Setup
+0. OpenAI API Key:
+This open source configuration currently only supports OpenAI's API functionality for the LLM-based operations.  You will need to configure your environmental variable "OPENAI_API_KEY" to have a valid API key.
 
-1. Clone the repository:
+2. Clone the repository:
 ```bash
 git clone https://github.com/yourusername/MapOSCAL.git
 cd MapOSCAL
