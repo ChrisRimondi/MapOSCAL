@@ -12,7 +12,7 @@ from datetime import datetime
 # Load environment variables
 load_dotenv()
 
-logger = logging.getLogger(__name__)
+logger = logging.getLogger()
 
 class LLMHandler:
     """

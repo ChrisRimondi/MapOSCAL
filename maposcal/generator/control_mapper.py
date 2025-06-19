@@ -9,7 +9,7 @@ import logging
 from .validation import validate_control_mapping, validate_unique_uuids
 import uuid
 
-logger = logging.getLogger(__name__)
+logger = logging.getLogger()
 
 def get_relevant_chunks(control_description: str, output_dir: str, top_k: int = 5, service_prefix: str = None) -> List[Dict]:
     """
