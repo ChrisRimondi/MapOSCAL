@@ -23,6 +23,72 @@ from typing import List
 import json
 
 # ---------------------------------------------------------------------------
+# 0. Service Overview
+# --------------------------------------------------------------------------
+SERVICE_OVERVIEW_SYSTEM = """
+You are a senior security engineer analyzing a service. 
+"""
+
+SERVICE_OVERVIEW_INSTRUCTIONS = dedent(
+    """
+    Based on the following context from the service's code and documentation, generate a comprehensive security summary that includes:
+    
+    1. Service Overview
+   - Main purpose and functionality
+   - Key architectural components
+   - Technical stack and dependencies
+
+  2. Authentication and Authorization
+    - Authentication mechanisms
+    - Authorization models and policies
+    - Identity management
+    - Session handling
+    - Access control implementation
+
+  3. Encryption and Data Protection
+    - Data encryption at rest
+    - Data encryption in transit
+    - Key management
+    - Secure configuration
+    - Data handling and storage
+
+  4. Audit Logging and Monitoring
+    - Audit logging mechanisms
+    - Log formats and structures
+    - Log retention policies
+    - Monitoring systems
+    - Alert mechanisms
+    - Compliance reporting
+
+  Focus on security aspects and technical implementations. Do not make any recommendations. This is just a summary based on the code and documentation in the context you are provided. Do not make anything up. You are only to use the context provided to write this summary.
+  
+  IMPORTANT: Return ONLY the markdown content. Do NOT wrap your response in markdown code blocks (```markdown). Do NOT add any notes, disclaimers, or additional text at the end. Start directly with the first heading and end with the last section.
+
+Context:
+{context}
+    """
+)
+
+SERVICE_OVERVIEW_PROMPT = (
+    "{system}\n\n{instructions}"
+)
+
+def build_service_overview_prompt(context: str) -> str:
+    """
+    Build a prompt for generating comprehensive service security overviews.
+    
+    Args:
+        context: Context from the service's code and documentation
+        
+    Returns:
+        str: Formatted prompt for LLM
+    """
+    return SERVICE_OVERVIEW_PROMPT.format(
+        system=SERVICE_OVERVIEW_SYSTEM,
+        instructions=SERVICE_OVERVIEW_INSTRUCTIONS.format(context=context)
+    )
+
+# ---------------------------------------------------------------------------
 # 1. FILE-LEVEL SECURITY / COMPLIANCE SUMMARY
 # ---------------------------------------------------------------------------
 
