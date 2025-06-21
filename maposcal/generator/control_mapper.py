@@ -1,3 +1,26 @@
+"""
+maposcal.generator.control_mapper
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+OSCAL control mapping functionality for MapOSCAL.
+
+This module provides functions for mapping security controls to OSCAL implemented requirements
+using semantic search and LLM-based analysis. It includes security overview integration
+for improved control mapping accuracy.
+
+Key Features:
+- Semantic evidence retrieval using FAISS indices
+- Security overview integration for better context understanding
+- LLM-based control status determination and explanation generation
+- Comprehensive validation and retry logic
+- Simplified file naming without service prefixes
+
+Functions:
+- get_relevant_chunks: Retrieve semantically relevant code chunks for control mapping
+- map_control: Generate OSCAL implemented requirements for a specific control
+- parse_llm_response: Parse and clean LLM responses as JSON
+"""
+
 from typing import List, Dict
 from maposcal.llm import prompt_templates
 from maposcal.llm.llm_handler import LLMHandler
@@ -11,27 +34,34 @@ import uuid
 
 logger = logging.getLogger()
 
-def get_relevant_chunks(control_description: str, output_dir: str, top_k: int = 5, service_prefix: str = None) -> List[Dict]:
+def get_relevant_chunks(control_description: str, output_dir: str, top_k: int = 5) -> List[Dict]:
     """
     Query both index.faiss and summary_index.faiss using the control_description as the query.
     Combine and deduplicate the results to return relevant chunks.
+    
+    This function performs semantic search across both code chunks and file summaries
+    to find the most relevant evidence for control mapping. It uses FAISS indices
+    for efficient similarity search and combines results from both chunk-level and
+    summary-level analysis.
     
     Args:
         control_description (str): The control description to use as the query.
         output_dir (str): The directory containing the FAISS indices and metadata.
         top_k (int): Number of top chunks to retrieve from each index.
-        service_prefix (str): Prefix for the FAISS and metadata files.
         
     Returns:
-        List[Dict]: A list of relevant chunks.
+        List[Dict]: A list of relevant chunks with source file information and content.
+        
+    Raises:
+        FileNotFoundError: If required FAISS indices or metadata files are missing.
     """
     logger.info(f"Querying relevant chunks for control description: {control_description}")
     # Embed the control description for querying
     query_embedding = local_embedder.embed_one(control_description)
 
     # Query index.faiss (chunk-level)
-    index_path = Path(output_dir) / f"{service_prefix}_index.faiss"
-    meta_path = Path(output_dir) / f"{service_prefix}_meta.json"
+    index_path = Path(output_dir) / "index.faiss"
+    meta_path = Path(output_dir) / "meta.json"
     if not index_path.exists() or not meta_path.exists():
         raise FileNotFoundError(f"Could not find {index_path} or {meta_path}. Please run analyze first.")
     index = faiss_index.load_index(index_path)
@@ -40,8 +70,8 @@ def get_relevant_chunks(control_description: str, output_dir: str, top_k: int = 
     chunk_results = [meta_store.get_chunk_by_index(meta, idx) for idx in chunk_indices if idx < len(meta)]
 
     # Query summary_index.faiss (file-level summaries)
-    summary_index_path = Path(output_dir) / f"{service_prefix}_summary_index.faiss"
-    summary_meta_path = Path(output_dir) / f"{service_prefix}_summary_meta.json"
+    summary_index_path = Path(output_dir) / "summary_index.faiss"
+    summary_meta_path = Path(output_dir) / "summary_meta.json"
     summary_results = []
     if summary_index_path.exists() and summary_meta_path.exists():
         summary_index = faiss_index.load_index(summary_index_path)
@@ -74,9 +104,14 @@ def get_relevant_chunks(control_description: str, output_dir: str, top_k: int = 
 
     return unique_relevant_chunks
 
-def map_control(control_dict: dict, output_dir: str, top_k: int = 5, service_prefix: str = None) -> str:
+def map_control(control_dict: dict, output_dir: str, top_k: int = 5) -> str:
     """
-    Maps chunks to an OSCAL control using LLM summarization.
+    Maps chunks to an OSCAL control using LLM summarization with security context.
+
+    This function generates OSCAL implemented requirements for a specific security control
+    by combining semantic evidence retrieval with LLM-based analysis. It includes
+    security overview integration for improved control mapping accuracy and context
+    understanding.
 
     Args:
         control_dict (dict): Dictionary containing control information with keys:
@@ -86,25 +121,29 @@ def map_control(control_dict: dict, output_dir: str, top_k: int = 5, service_pre
             - params: Optional parameters for the control
         output_dir (str): The directory containing the FAISS indices and metadata.
         top_k (int): Number of top chunks to use.
-        service_prefix (str): Prefix for the FAISS and metadata files.
 
     Returns:
         str: The LLM response for the control mapping prompt.
+        
+    Features:
+        - Security overview integration for better context understanding
+        - Semantic evidence retrieval from both code chunks and file summaries
+        - LLM-based control status determination and explanation generation
+        - Comprehensive validation and retry logic for improved accuracy
     """
     logger.info(f"Mapping control: {control_dict['id']} - {control_dict['title']}")
     llm_handler = LLMHandler()
     
     # Load security overview if available
     security_overview = None
-    if service_prefix:
-        security_overview_path = Path(output_dir) / f"{service_prefix}_security_overview.md"
-        if security_overview_path.exists():
-            try:
-                with open(security_overview_path, 'r') as f:
-                    security_overview = f.read().strip()
-                logger.info(f"Loaded security overview from {security_overview_path}")
-            except Exception as e:
-                logger.warning(f"Failed to load security overview: {e}")
+    security_overview_path = Path(output_dir) / "security_overview.md"
+    if security_overview_path.exists():
+        try:
+            with open(security_overview_path, 'r') as f:
+                security_overview = f.read().strip()
+            logger.info(f"Loaded security overview from {security_overview_path}")
+        except Exception as e:
+            logger.warning(f"Failed to load security overview: {e}")
     
     # Get the control statement and handle ODP substitution
     control_description = control_dict['statement'][0] if isinstance(control_dict['statement'], list) else control_dict['statement']
@@ -134,7 +173,7 @@ def map_control(control_dict: dict, output_dir: str, top_k: int = 5, service_pre
     if additional_prose:
         control_description += "\n\nAdditional requirements:\n" + "\n".join(f"- {prose}" for prose in additional_prose)
     
-    relevant_chunks = get_relevant_chunks(control_description, output_dir, top_k, service_prefix)
+    relevant_chunks = get_relevant_chunks(control_description, output_dir, top_k)
 
     # Try up to 3 times to get a valid response
     max_retries = 3

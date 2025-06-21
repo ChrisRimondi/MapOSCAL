@@ -5,10 +5,17 @@ maposcal.llm.prompt_templates
 Central store for all LLM prompt templates used by MapOSCAL.
 
 This module contains all the prompt templates used for different LLM interactions:
+- Service security overview generation
 - File-level security/compliance summaries
-- OSCAL control implementation generation
-- Control validation and revision
+- OSCAL control implementation generation with security context
+- Control validation and revision with security overview integration
 - Quality evaluation of existing controls
+
+Key Features:
+- Security overview integration for improved control mapping accuracy
+- Context-aware prompting with service-level security understanding
+- Structured JSON output with deterministic formatting
+- Comprehensive validation and revision capabilities
 
 Tips
 ----
@@ -16,6 +23,7 @@ Tips
 * Keep a dedicated **instructions** section so you can tweak style centrally.
 * Use f-strings or `.format()` for lightweight variable replacement.
 * Templates are designed to be deterministic and produce consistent JSON output.
+* Security overview context is integrated into control mapping for better accuracy.
 """
 
 from textwrap import dedent

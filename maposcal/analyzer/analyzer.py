@@ -23,52 +23,54 @@ logger = logging.getLogger()
 
 class Analyzer:
     """
-    Main analyzer class for processing repository code and generating embeddings.
+    Analyzes a repository to extract and embed code files for OSCAL generation.
     
-    This class orchestrates the analysis workflow including:
-    - Chunking and embedding repository files
-    - Extracting security features
-    - Generating file-level summaries
+    This class performs comprehensive analysis of code repositories using a three-pass system:
+    1. Vector embedding of code/config/docs for semantic search
+    2. Semantic security summaries for file-level understanding
+    3. Rule-based feature extraction for specific security patterns
+    
+    The analyzer generates FAISS indices and metadata files that enable efficient
+    similarity search and provide the foundation for OSCAL control mapping.
+    
+    Key Features:
+    - Intelligent file chunking based on file type and structure
+    - Local embedding generation using sentence transformers
+    - FAISS index creation for efficient similarity search
+    - Security-focused file summarization using LLM analysis
+    - Rule-based security pattern detection and flagging
     """
     
-    def __init__(self, repo_path: str, output_dir: str = ".oscalgen", service_prefix: str = None):
+    def __init__(self, repo_path: str, output_dir: str = ".oscalgen"):
         """
         Initialize the analyzer.
         
         Args:
             repo_path: Path to the repository to analyze
-            output_dir: Directory to store analysis outputs (default: ".oscalgen")
-            service_prefix: Prefix for output files (default: None)
+            output_dir: Directory to store analysis results (default: .oscalgen)
         """
         self.repo_path = Path(repo_path)
         self.output_dir = Path(output_dir)
-        self.service_prefix = service_prefix
-        self.output_dir.mkdir(parents=True, exist_ok=True)
+        self.output_dir.mkdir(exist_ok=True)
+        
+        # Storage for analysis results
+        self.chunks = []
+        self.file_summaries = {}
 
     def run(self) -> None:
         """
-        Run the complete analysis workflow.
-        
-        This method executes the analysis in three steps:
-        1. Chunk and embed repository files
-        2. Extract security features
-        3. Generate file summaries
+        Run the analysis workflow: chunk, embed, and summarize files.
         """
-        print("Starting repository analysis...")
-        self.chunk_and_embed()
-        self.extract_features()
-        self.summarize_files()
+        import maposcal.analyzer.chunker as chunker
+        import maposcal.analyzer.rules as rules
+        import maposcal.embeddings.local_embedder as local_embedder
+        import maposcal.embeddings.faiss_index as faiss_index
+        import maposcal.embeddings.meta_store as meta_store
+        import maposcal.llm.prompt_templates as pt
+        import maposcal.llm.llm_handler as llm_handler
+        import logging
+        logger = logging.getLogger(__name__)
 
-    def chunk_and_embed(self) -> None:
-        """
-        Chunk repository files and generate embeddings.
-        
-        This method:
-        1. Chunks repository files into manageable pieces
-        2. Generates embeddings for each chunk
-        3. Creates and saves a FAISS index for similarity search
-        4. Saves chunk metadata
-        """
         logger.info("Chunking and embedding files...")
         self.chunks = chunker.analyze_repo(self.repo_path)
         logger.debug(f"Found {len(self.chunks)} chunks from repository")
@@ -84,26 +86,25 @@ class Analyzer:
         index = faiss_index.build_faiss_index(embeddings)
         
         # Debug logging for file paths
-        index_path = self.output_dir / f"{self.service_prefix}_index.faiss"
-        meta_path = self.output_dir / f"{self.service_prefix}_meta.json"
+        index_path = self.output_dir / f"index.faiss"
+        meta_path = self.output_dir / f"meta.json"
         logger.debug(f"Saving index to: {index_path}")
         logger.debug(f"Saving metadata to: {meta_path}")
         
         faiss_index.save_index(index, index_path)
         meta_store.save_metadata(self.chunks, meta_path)
 
+        self.extract_features()
+        self.summarize_files()
+
     def extract_features(self) -> None:
         """
-        Extract security features from chunks using rule-based analysis.
-        
-        This method:
-        1. Applies security rules to each chunk
-        2. Updates chunk metadata with security flags and control hints
-        3. Saves updated metadata
+        Extract rule-based features from the chunks.
         """
-        print("Extracting rule-based features...")
+        import maposcal.analyzer.rules as rules
         self.chunks = rules.apply_rules(self.chunks)
-        meta_store.save_metadata(self.chunks, self.output_dir / f"{self.service_prefix}_meta.json")
+        import maposcal.embeddings.meta_store as meta_store
+        meta_store.save_metadata(self.chunks, self.output_dir / f"meta.json")
 
     def summarize_files(self) -> None:
         """
@@ -153,8 +154,8 @@ class Analyzer:
             summary_index = faiss_index.build_faiss_index(all_vectors)
             
             # Debug logging for summary file paths
-            summary_index_path = self.output_dir / f"{self.service_prefix}_summary_index.faiss"
-            summary_meta_path = self.output_dir / f"{self.service_prefix}_summary_meta.json"
+            summary_index_path = self.output_dir / f"summary_index.faiss"
+            summary_meta_path = self.output_dir / f"summary_meta.json"
             logger.debug(f"Saving summary index to: {summary_index_path}")
             logger.debug(f"Saving summary metadata to: {summary_meta_path}")
             
