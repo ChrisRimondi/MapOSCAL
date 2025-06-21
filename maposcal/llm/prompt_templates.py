@@ -220,6 +220,7 @@ Return only valid, minified JSON.
 CONTROL_IMPL_PROMPT_HEADER = (
     "{system}\n\n{instructions}\n\n"
     "Control ID requested: **{control_id}**\n\n"
+    "{security_overview_section}"
     "Semantic evidence chunks (top-{k}):\n"
 )
 
@@ -245,6 +246,7 @@ You will receive a dictionary of an OSCAL `implemented_requirements` object.
 
 Goal: identify any remaining structural or content issues that need fixing.
 
+{security_overview_section}
 OUTPUT FORMAT  
 Return a JSON object:
 {{
@@ -274,6 +276,7 @@ You are given:
 Task: produce a **repaired** version of the array that resolves *every* violation,
 without altering any other content.
 
+{security_overview_section}
 Return the full, minified JSON array—nothing else.
 
 INPUT
@@ -341,7 +344,7 @@ CONTROL TO EVALUATE:
 """
 
 
-def build_control_prompt(control_id: str, control_name: str, control_description: str, evidence_chunks: List[dict], k: int, main_uuid: str, statement_uuid: str) -> str:
+def build_control_prompt(control_id: str, control_name: str, control_description: str, evidence_chunks: List[dict], k: int, main_uuid: str, statement_uuid: str, security_overview: str = None) -> str:
     """
     Build a prompt for generating OSCAL control implementations.
     
@@ -353,6 +356,7 @@ def build_control_prompt(control_id: str, control_name: str, control_description
         k: Number of top evidence chunks to include
         main_uuid: UUID for the main control
         statement_uuid: UUID for the control statement
+        security_overview: Optional security overview content to include as reference
         
     Returns:
         str: Formatted prompt for LLM
@@ -364,11 +368,24 @@ def build_control_prompt(control_id: str, control_name: str, control_description
         main_uuid=main_uuid,
         statement_uuid=statement_uuid
     )
+    
+    # Format security overview section if provided
+    security_overview_section = ""
+    if security_overview:
+        security_overview_section = (
+            "## SERVICE SECURITY OVERVIEW (Reference)\n"
+            "The following provides a high-level security overview of the service. "
+            "Use this as context when analyzing the specific control implementation:\n\n"
+            f"{security_overview}\n\n"
+            "---\n\n"
+        )
+    
     header = CONTROL_IMPL_PROMPT_HEADER.format(
         system=CONTROL_IMPL_SYSTEM,
         instructions=instructions,
         control_id=control_id,
         k=k,
+        security_overview_section=security_overview_section
     )
     body = ""
     for c in evidence_chunks:
@@ -381,36 +398,62 @@ def build_control_prompt(control_id: str, control_name: str, control_description
         )
     return header + body + CONTROL_IMPL_PROMPT_FOOTER
 
-def build_critique_prompt(implemented_requirements: List[dict]) -> str:
+def build_critique_prompt(implemented_requirements: List[dict], security_overview: str = None) -> str:
     """
     Build a prompt for critiquing implemented requirements.
     
     Args:
         implemented_requirements: List of implemented requirement dictionaries
+        security_overview: Optional security overview content to include as reference
         
     Returns:
         str: Formatted prompt for LLM critique
     """
+    # Format security overview section if provided
+    security_overview_section = ""
+    if security_overview:
+        security_overview_section = (
+            "## SERVICE SECURITY OVERVIEW (Reference)\n"
+            "The following provides a high-level security overview of the service. "
+            "Use this as context when validating the control implementations:\n\n"
+            f"{security_overview}\n\n"
+            "---\n\n"
+        )
+    
     return CRITIQUE_PROMPT.format(
         system=CRITIQUE_REVISE_SYSTEM,
-        implemented_requirements_json=json.dumps(implemented_requirements)
+        implemented_requirements_json=json.dumps(implemented_requirements),
+        security_overview_section=security_overview_section
     )
 
-def build_revise_prompt(implemented_requirements: List[dict], violations: List[dict]) -> str:
+def build_revise_prompt(implemented_requirements: List[dict], violations: List[dict], security_overview: str = None) -> str:
     """
     Build a prompt for revising implemented requirements based on violations.
     
     Args:
         implemented_requirements: List of implemented requirement dictionaries
         violations: List of validation violations to fix
+        security_overview: Optional security overview content to include as reference
         
     Returns:
         str: Formatted prompt for LLM revision
     """
+    # Format security overview section if provided
+    security_overview_section = ""
+    if security_overview:
+        security_overview_section = (
+            "## SERVICE SECURITY OVERVIEW (Reference)\n"
+            "The following provides a high-level security overview of the service. "
+            "Use this as context when fixing the control implementations:\n\n"
+            f"{security_overview}\n\n"
+            "---\n\n"
+        )
+    
     return REVISE_PROMPT.format(
         system=CRITIQUE_REVISE_SYSTEM,
         implemented_requirements_json=json.dumps(implemented_requirements),
-        critique_violations_json=json.dumps(violations)
+        critique_violations_json=json.dumps(violations),
+        security_overview_section=security_overview_section
     )
 
 def build_evaluate_prompt(requirement: dict) -> str:

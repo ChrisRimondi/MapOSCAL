@@ -94,6 +94,18 @@ def map_control(control_dict: dict, output_dir: str, top_k: int = 5, service_pre
     logger.info(f"Mapping control: {control_dict['id']} - {control_dict['title']}")
     llm_handler = LLMHandler()
     
+    # Load security overview if available
+    security_overview = None
+    if service_prefix:
+        security_overview_path = Path(output_dir) / f"{service_prefix}_security_overview.md"
+        if security_overview_path.exists():
+            try:
+                with open(security_overview_path, 'r') as f:
+                    security_overview = f.read().strip()
+                logger.info(f"Loaded security overview from {security_overview_path}")
+            except Exception as e:
+                logger.warning(f"Failed to load security overview: {e}")
+    
     # Get the control statement and handle ODP substitution
     control_description = control_dict['statement'][0] if isinstance(control_dict['statement'], list) else control_dict['statement']
     
@@ -138,7 +150,8 @@ def map_control(control_dict: dict, output_dir: str, top_k: int = 5, service_pre
             relevant_chunks,
             top_k,
             main_uuid,
-            statement_uuid
+            statement_uuid,
+            security_overview
         )
         response = llm_handler.query(prompt=prompt)
         
