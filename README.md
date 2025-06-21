@@ -26,6 +26,15 @@ MapOSCAL includes comprehensive validation and evaluation capabilities to ensure
 - **Quality Evaluation**: AI-powered assessment of control mapping quality and completeness
 - **Comprehensive Reporting**: Detailed validation failures and evaluation results
 
+### Security Overview Integration
+
+MapOSCAL now includes a comprehensive security overview generation feature that provides high-level security context for all control mapping operations:
+
+- **Service Security Summary**: Generates detailed security overviews including authentication, encryption, and audit capabilities
+- **Context-Aware Control Mapping**: Uses the security overview as reference context for more accurate control assessments
+- **Enhanced Validation**: Incorporates security context into critique and revision processes
+- **Improved Accuracy**: Better control status determination through comprehensive service understanding
+
 ### Future Growth
 
 The industry is currently struggling to have a clean, clear, and actionable way to describe systems for security and compliance purposes.  Our view is that the ideal path forward to improve this problem space is two-fold:
@@ -33,6 +42,42 @@ The industry is currently struggling to have a clean, clear, and actionable way 
 1. **Foundational open source adoption** -  Having a wide-spread use of OSCAL across both commercial/propriatary as well as commonly-used open source projects is key to future, normalized usage and adoption.  With such service definitions an accurate, building-block approach can be achieved to accurately describe complex systems.  This movement grows everytime a project is defined in OSCAL and available for usage by others.
 
 2. **Robust commercial support** - While this project is foundational and released as open source, requires significant investment in ongoing compliance-related content generation and maintenance.  As such, it is desirable to have commercial add-ons in the future to benefit users with turn-key compliance needs.
+
+## Recent Improvements
+
+MapOSCAL has undergone significant improvements to enhance usability, accuracy, and maintainability:
+
+### Security Overview Integration
+- **New `summarize` command**: Generates comprehensive security overviews of services
+- **Context-aware control mapping**: Uses security overview as reference for better accuracy
+- **Enhanced validation**: Incorporates security context into critique and revision processes
+- **Improved explanations**: Better control status determination through service understanding
+
+### Simplified File Management
+- **Removed service prefixes**: All files now use simple, consistent naming
+- **Unique output directories**: Each service uses a dedicated output directory for isolation
+- **Cleaner file structure**: Simplified file paths and naming conventions
+- **Better organization**: Clear separation of analysis, generation, and evaluation outputs
+
+### Enhanced CLI Experience
+- **Consistent command interface**: All commands now use config files for simplicity
+- **Improved error handling**: Better error messages and guidance for users
+- **Streamlined workflow**: Logical progression from analysis to evaluation
+- **Better documentation**: Comprehensive help text and usage examples
+
+### Improved Code Quality
+- **Function-based architecture**: Removed unnecessary class instantiations
+- **Better error handling**: More robust error handling and recovery
+- **Enhanced logging**: Improved logging throughout the codebase
+- **Cleaner imports**: Simplified import structure and dependencies
+
+### Validation and Quality Assurance
+- **Comprehensive validation**: Multi-layer validation with automatic fixes
+- **LLM-assisted resolution**: Intelligent fixing of complex validation issues
+- **Quality evaluation**: AI-powered assessment of control mapping quality
+- **Detailed reporting**: Comprehensive validation and evaluation reports
+
+These improvements make MapOSCAL more user-friendly, accurate, and maintainable while providing better security context for control mapping operations.
 
 ## Installation
 
@@ -84,7 +129,7 @@ max_critique_retries: 3  # Number of validation/fix attempts
 
 ### Commands
 
-The tool provides three main commands:
+The tool provides four main commands:
 
 1. **Analyze Repository**
 ```bash
@@ -92,19 +137,32 @@ maposcal analyze config.yaml
 ```
 This command analyzes your repository and generates initial OSCAL component definitions.
 
-2. **Generate OSCAL Component**
+2. **Generate Security Overview**
+```bash
+maposcal summarize config.yaml
+```
+This command generates a comprehensive security overview of the service, including:
+- Service architecture and technical stack
+- Authentication and authorization mechanisms
+- Encryption and data protection measures
+- Audit logging and monitoring capabilities
+
+The security overview is used as reference context for improved control mapping accuracy.
+
+3. **Generate OSCAL Component**
 ```bash
 maposcal generate config.yaml
 ```
 This command generates the final OSCAL component definitions based on the analysis and control mappings. It includes:
 - Individual control validation with automatic fixes
 - LLM-assisted resolution of complex issues
+- Security overview integration for better context
 - Comprehensive validation reporting
 - Generation of validation failure logs
 
-3. **Evaluate OSCAL Component Quality**
+4. **Evaluate OSCAL Component Quality**
 ```bash
-maposcal evaluate path/to/implemented_requirements.json
+maposcal evaluate config.yaml
 ```
 This command evaluates the quality of existing OSCAL component definitions using AI-powered assessment:
 - Scores each control on 4 quality dimensions (0-2 scale)
@@ -116,13 +174,20 @@ This command evaluates the quality of existing OSCAL component definitions using
 
 The tool generates several output files in the specified `output_dir`:
 
+#### Analysis Files
+- `meta.json` - Code chunk metadata and embeddings
+- `index.faiss` - FAISS index for semantic search
+- `summary_meta.json` - File-level summary metadata
+- `summary_index.faiss` - FAISS index for summary search
+
 #### Generated Files
-- `{service_prefix}_implemented_requirements.json` - Validated OSCAL component definitions
-- `{service_prefix}_validation_failures.json` - Detailed validation failure information
-- `{service_prefix}_unvalidated_requirements.json` - Requirements that failed validation
+- `implemented_requirements.json` - Validated OSCAL component definitions
+- `validation_failures.json` - Detailed validation failure information
+- `unvalidated_requirements.json` - Requirements that failed validation
+- `security_overview.md` - Comprehensive service security overview
 
 #### Evaluation Files
-- `{filename}_evaluation_results.json` - Quality assessment results with scores and recommendations
+- `implemented_requirements_evaluation_results.json` - Quality assessment results with scores and recommendations
 
 ### Validation Features
 
@@ -135,6 +200,7 @@ The tool generates several output files in the specified `output_dir`:
 #### LLM-Assisted Fixes
 - **Automatic Fixes**: Simple issues fixed automatically (file extensions, missing fields)
 - **Intelligent Resolution**: Complex issues sent to LLM for context-aware fixing
+- **Security Context Integration**: Uses security overview for better understanding
 - **Retry Logic**: Multiple attempts to resolve validation issues
 
 #### Quality Evaluation
@@ -162,14 +228,19 @@ max_critique_retries: 3
 maposcal analyze config.yaml
 ```
 
-3. Generate the OSCAL component:
+3. Generate security overview:
+```bash
+maposcal summarize config.yaml
+```
+
+4. Generate the OSCAL component:
 ```bash
 maposcal generate config.yaml
 ```
 
-4. Evaluate the quality of generated components:
+5. Evaluate the quality of generated components:
 ```bash
-maposcal evaluate .oscalgen/abc123_implemented_requirements.json
+maposcal evaluate config.yaml
 ```
 
 ## Project Structure
@@ -182,7 +253,7 @@ maposcal evaluate .oscalgen/abc123_implemented_requirements.json
     - `prompt_templates.py` - LLM prompt templates for generation and evaluation
   - `embeddings/` - Code embedding functionality
   - `utils/` - Utility functions
-  - `cli.py` - Command-line interface with analyze, generate, and evaluate commands
+  - `cli.py` - Command-line interface with analyze, summarize, generate, and evaluate commands
 
 - `tests/` - Test suite
 - `examples/` - Example configurations and outputs

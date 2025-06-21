@@ -5,12 +5,19 @@ maposcal.cli
 Command-line interface for MapOSCAL.
 
 This module provides the main CLI commands for analyzing repositories,
-generating OSCAL components, and evaluating existing components.
+generating security overviews, creating OSCAL components, and evaluating existing components.
 
 Commands:
 - analyze: Analyze a repository and generate initial OSCAL definitions
-- generate: Generate validated OSCAL components with comprehensive validation
+- summarize: Generate comprehensive security overview of the service
+- generate: Generate validated OSCAL components with comprehensive validation and security context
 - evaluate: Evaluate the quality of existing OSCAL components using AI assessment
+
+Key Features:
+- Security overview integration for improved control mapping accuracy
+- Comprehensive validation with automatic fixes and LLM-assisted resolution
+- Quality evaluation with detailed scoring and recommendations
+- Simplified file naming without service prefixes
 
 The CLI uses Typer for command-line argument parsing and provides
 comprehensive error handling, progress reporting, and output generation.
@@ -26,7 +33,6 @@ from maposcal.generator.profile_control_extractor import ProfileControlExtractor
 from maposcal.embeddings import faiss_index, meta_store, local_embedder
 from pathlib import Path
 import re
-import hashlib
 from maposcal.generator.validation import validate_unique_uuids, validate_control_status, validate_implemented_requirement
 from maposcal.llm.prompt_templates import build_critique_prompt, build_revise_prompt, build_evaluate_prompt, build_service_overview_prompt
 from maposcal.llm.llm_handler import LLMHandler
@@ -82,10 +88,8 @@ def analyze(config: str = typer.Argument(None, help="Path to the configuration f
     config_data = load_config(config)
     repo_path = config_data.get("repo_path")
     output_dir = config_data.get("output_dir", ".oscalgen")
-    title = config_data.get("title", "")
-    service_prefix = hashlib.md5(title.encode()).hexdigest()[:6]
 
-    analyzer = Analyzer(repo_path=repo_path, output_dir=output_dir, service_prefix=service_prefix)
+    analyzer = Analyzer(repo_path=repo_path, output_dir=output_dir)
     analyzer.run()
 
 @app.command()
@@ -105,12 +109,10 @@ def summarize(config: str = typer.Argument(None, help="Path to the configuration
     config_data = load_config(config)
     repo_path = config_data.get("repo_path")
     output_dir = config_data.get("output_dir", ".oscalgen")
-    title = config_data.get("title", "")
-    service_prefix = hashlib.md5(title.encode()).hexdigest()[:6]
 
     # Check if analysis has already been run
-    meta_path = os.path.join(output_dir, f"{service_prefix}_meta.json")
-    summary_meta_path = os.path.join(output_dir, f"{service_prefix}_summary_meta.json")
+    meta_path = os.path.join(output_dir, "meta.json")
+    summary_meta_path = os.path.join(output_dir, "summary_meta.json")
     
     if not os.path.exists(meta_path):
         typer.echo(f"Analysis files not found. Please run 'analyze' command first.")
@@ -129,7 +131,7 @@ def summarize(config: str = typer.Argument(None, help="Path to the configuration
     security_query = "security authentication authorization encryption logging monitoring audit data protection"
     
     try:
-        relevant_chunks = get_relevant_chunks(security_query, output_dir, top_k=50, service_prefix=service_prefix)
+        relevant_chunks = get_relevant_chunks(security_query, output_dir, top_k=50)
         
         for chunk in relevant_chunks:
             if chunk.get("content"):
@@ -171,7 +173,7 @@ def summarize(config: str = typer.Argument(None, help="Path to the configuration
     response = llm_handler.query(prompt=prompt)
     
     # Save the markdown response to disk
-    summary_path = os.path.join(output_dir, f"{service_prefix}_security_overview.md")
+    summary_path = os.path.join(output_dir, "security_overview.md")
     with open(summary_path, "w") as f:
         f.write(response)
     
@@ -261,15 +263,13 @@ def generate(config: str = typer.Argument(None, help="Path to the configuration 
     7. **Reporting**: Generates comprehensive validation reports and failure logs
     
     The command produces three main output files:
-    - {service_prefix}_implemented_requirements.json: Validated OSCAL components
-    - {service_prefix}_validation_failures.json: Detailed validation failure information
-    - {service_prefix}_unvalidated_requirements.json: Requirements that failed validation
+    - implemented_requirements.json: Validated OSCAL components
+    - validation_failures.json: Detailed validation failure information
+    - unvalidated_requirements.json: Requirements that failed validation
     """
     config_data = load_config(config)
     output_dir = config_data.get("output_dir", ".oscalgen")
     top_k = config_data.get("top_k", 5)
-    title = config_data.get("title", "")
-    service_prefix = hashlib.md5(title.encode()).hexdigest()[:6]
     max_critique_retries = config_data.get("max_critique_retries", 3)
     
     # Get catalog and profile paths from config
@@ -304,7 +304,7 @@ def generate(config: str = typer.Argument(None, help="Path to the configuration 
     
     # Load security overview if available
     security_overview = None
-    security_overview_path = os.path.join(output_dir, f"{service_prefix}_security_overview.md")
+    security_overview_path = os.path.join(output_dir, "security_overview.md")
     if os.path.exists(security_overview_path):
         try:
             with open(security_overview_path, 'r') as f:
@@ -330,8 +330,7 @@ def generate(config: str = typer.Argument(None, help="Path to the configuration 
         result = map_control(
             control_data,
             output_dir,
-            top_k,
-            service_prefix
+            top_k
         )
 
         # Parse the LLM response as JSON
@@ -481,14 +480,14 @@ def generate(config: str = typer.Argument(None, help="Path to the configuration 
         validation_failures = {
             "failed_controls": all_failures
         }
-        failures_path = os.path.join(output_dir, f"{service_prefix}_validation_failures.json")
+        failures_path = os.path.join(output_dir, "validation_failures.json")
         with open(failures_path, "w") as f:
             json.dump(validation_failures, f, indent=2)
         typer.echo(f"Validation failures written to {failures_path}")
 
     # Write unvalidated requirements to JSON file
     if unvalidated_requirements:
-        unvalidated_path = os.path.join(output_dir, f"{service_prefix}_unvalidated_requirements.json")
+        unvalidated_path = os.path.join(output_dir, "unvalidated_requirements.json")
         with open(unvalidated_path, "w") as f:
             json.dump({"unvalidated_requirements": unvalidated_requirements}, f, indent=2)
         typer.echo(f"Unvalidated requirements written to {unvalidated_path}")
@@ -504,14 +503,14 @@ def generate(config: str = typer.Argument(None, help="Path to the configuration 
                     typer.echo(f"    Suggestion: {detail['suggestion']}")
 
     # Write all implemented requirements to a single JSON file
-    output_path = os.path.join(output_dir, f"{service_prefix}_implemented_requirements.json")
+    output_path = os.path.join(output_dir, "implemented_requirements.json")
     with open(output_path, "w") as f:
         json.dump({"implemented_requirements": implemented_requirements}, f, indent=2)
     typer.echo(f"Generated OSCAL component written to {output_path}")
     typer.echo(f"Successfully processed {len(implemented_requirements)} out of {len(controls_dict)} controls")
 
 @app.command()
-def evaluate(requirements_file: str = typer.Argument(..., help="Path to the implemented_requirements.json file.")):
+def evaluate(config: str = typer.Argument(..., help="Path to the configuration file.")):
     """
     Evaluate the quality of existing OSCAL component definitions using AI-powered assessment.
     
@@ -532,8 +531,16 @@ def evaluate(requirements_file: str = typer.Argument(..., help="Path to the impl
     - {filename}_evaluation_results.json: Detailed evaluation results with scores and recommendations
     - Summary statistics including average scores and success rates
     """
+    # Load config to get output directory
+    config_data = load_config(config)
+    output_dir = config_data.get("output_dir", ".oscalgen")
+    
+    # Construct the path to implemented_requirements.json
+    requirements_file = os.path.join(output_dir, "implemented_requirements.json")
+    
     if not os.path.exists(requirements_file):
         typer.echo(f"Requirements file not found: {requirements_file}")
+        typer.echo("Please run 'generate' command first to create the implemented_requirements.json file.")
         raise typer.Exit(code=1)
     
     try:
@@ -585,8 +592,7 @@ def evaluate(requirements_file: str = typer.Argument(..., help="Path to the impl
             })
     
     # Write evaluation results
-    output_dir = os.path.dirname(requirements_file) or "."
-    base_name = os.path.splitext(os.path.basename(requirements_file))[0]
+    base_name = "implemented_requirements"
     
     evaluation_output = {
         "evaluation_results": evaluation_results,
