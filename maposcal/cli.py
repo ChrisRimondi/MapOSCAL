@@ -177,13 +177,14 @@ def summarize(config: str = typer.Argument(None, help="Path to the configuration
     
     typer.echo(f"Security overview written to: {summary_path}")
 
-def critique_and_revise(implemented_requirements: List[dict], max_retries: int = 3) -> List[dict]:
+def critique_and_revise(implemented_requirements: List[dict], max_retries: int = 3, security_overview: str = None) -> List[dict]:
     """
     Critique and revise implemented requirements until valid or max retries reached.
     
     Args:
         implemented_requirements: List of implemented requirement dictionaries
         max_retries: Maximum number of critique-revise cycles
+        security_overview: Optional security overview content to include as reference
         
     Returns:
         List of revised implemented requirements
@@ -192,7 +193,7 @@ def critique_and_revise(implemented_requirements: List[dict], max_retries: int =
     
     for attempt in range(max_retries):
         # Critique the current requirements
-        critique_prompt = build_critique_prompt(implemented_requirements)
+        critique_prompt = build_critique_prompt(implemented_requirements, security_overview)
         critique_response = llm_handler.query(prompt=critique_prompt)
         critique_result = parse_llm_response(critique_response)
         
@@ -232,7 +233,7 @@ def critique_and_revise(implemented_requirements: List[dict], max_retries: int =
                         logger.warning(f"    Suggestion: {v.get('suggestion')}")
             
         # If not valid, revise based on violations
-        revise_prompt = build_revise_prompt(implemented_requirements, violations)
+        revise_prompt = build_revise_prompt(implemented_requirements, violations, security_overview)
         revise_response = llm_handler.query(prompt=revise_prompt)
         revised_requirements = parse_llm_response(revise_response)
         
@@ -300,6 +301,19 @@ def generate(config: str = typer.Argument(None, help="Path to the configuration 
                 controls_dict[import_item] = control_data
     
     typer.echo(f"Found {len(controls_dict)} controls to process")
+    
+    # Load security overview if available
+    security_overview = None
+    security_overview_path = os.path.join(output_dir, f"{service_prefix}_security_overview.md")
+    if os.path.exists(security_overview_path):
+        try:
+            with open(security_overview_path, 'r') as f:
+                security_overview = f.read().strip()
+            typer.echo(f"Loaded security overview from {security_overview_path}")
+        except Exception as e:
+            typer.echo(f"Warning: Failed to load security overview: {e}")
+    else:
+        typer.echo(f"Security overview not found at {security_overview_path}. Run 'summarize' command first for better results.")
     
     # Process each control and collect implemented requirements
     implemented_requirements = []
@@ -414,7 +428,7 @@ def generate(config: str = typer.Argument(None, help="Path to the configuration 
                         })
                     
                     # Use LLM to fix remaining issues
-                    revise_prompt = build_revise_prompt([parsed], llm_violations)
+                    revise_prompt = build_revise_prompt([parsed], llm_violations, security_overview)
                     revise_response = llm_handler.query(prompt=revise_prompt)
                     revised_requirement = parse_llm_response(revise_response)
                     
