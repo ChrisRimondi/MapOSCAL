@@ -21,14 +21,14 @@ from maposcal.analyzer.analyzer import Analyzer
 import os
 import yaml
 import json
-from maposcal.generator.control_mapper import map_control, parse_llm_response
+from maposcal.generator.control_mapper import map_control, parse_llm_response, get_relevant_chunks
 from maposcal.generator.profile_control_extractor import ProfileControlExtractor
 from maposcal.embeddings import faiss_index, meta_store, local_embedder
 from pathlib import Path
 import re
 import hashlib
 from maposcal.generator.validation import validate_unique_uuids, validate_control_status, validate_implemented_requirement
-from maposcal.llm.prompt_templates import build_critique_prompt, build_revise_prompt, build_evaluate_prompt
+from maposcal.llm.prompt_templates import build_critique_prompt, build_revise_prompt, build_evaluate_prompt, build_service_overview_prompt
 from maposcal.llm.llm_handler import LLMHandler
 import logging
 from typing import List
@@ -87,6 +87,95 @@ def analyze(config: str = typer.Argument(None, help="Path to the configuration f
 
     analyzer = Analyzer(repo_path=repo_path, output_dir=output_dir, service_prefix=service_prefix)
     analyzer.run()
+
+@app.command()
+def summarize(config: str = typer.Argument(None, help="Path to the configuration file.")):
+    """
+    Generate a comprehensive security overview of the service.
+    
+    This command analyzes the repository and generates a detailed security summary that includes:
+    - Service overview and architecture
+    - Authentication and authorization mechanisms
+    - Encryption and data protection measures
+    - Audit logging and monitoring capabilities
+    
+    The summary provides a high-level security assessment based on the codebase analysis
+    and serves as a foundation for understanding the service's security posture.
+    """
+    config_data = load_config(config)
+    repo_path = config_data.get("repo_path")
+    output_dir = config_data.get("output_dir", ".oscalgen")
+    title = config_data.get("title", "")
+    service_prefix = hashlib.md5(title.encode()).hexdigest()[:6]
+
+    # Check if analysis has already been run
+    meta_path = os.path.join(output_dir, f"{service_prefix}_meta.json")
+    summary_meta_path = os.path.join(output_dir, f"{service_prefix}_summary_meta.json")
+    
+    if not os.path.exists(meta_path):
+        typer.echo(f"Analysis files not found. Please run 'analyze' command first.")
+        typer.echo(f"Expected file: {meta_path}")
+        raise typer.Exit(code=1)
+    
+    if not os.path.exists(summary_meta_path):
+        typer.echo(f"Summary analysis files not found. Please run 'analyze' command first.")
+        typer.echo(f"Expected file: {summary_meta_path}")
+        raise typer.Exit(code=1)
+    
+    # Load the analysis data to create context
+    context_parts = []
+    
+
+    security_query = "security authentication authorization encryption logging monitoring audit data protection"
+    
+    try:
+        relevant_chunks = get_relevant_chunks(security_query, output_dir, top_k=50, service_prefix=service_prefix)
+        
+        for chunk in relevant_chunks:
+            if chunk.get("content"):
+                context_parts.append(f"File: {chunk.get('source_file', 'unknown')}")
+                context_parts.append(f"Content: {chunk.get('content')}")
+                context_parts.append("---")
+            elif chunk.get("summary"):
+                context_parts.append(f"File Summary: {chunk.get('source_file', 'unknown')}")
+                context_parts.append(f"Summary: {chunk.get('summary')}")
+                context_parts.append("---")
+    except Exception as e:
+        typer.echo(f"Warning: Could not retrieve relevant chunks using FAISS search: {e}")
+        typer.echo("Falling back to loading all chunks...")
+        
+        # Fallback: load all chunks if FAISS search fails
+        chunks = meta_store.load_metadata(meta_path)
+        for chunk in chunks:
+            if chunk.get("content"):
+                context_parts.append(f"File: {chunk.get('source_file', 'unknown')}")
+                context_parts.append(f"Content: {chunk.get('content')}")
+                context_parts.append("---")
+        
+        # Add file summaries
+        summary_meta = meta_store.load_metadata(summary_meta_path)
+        for file_path, summary_data in summary_meta.items():
+            if summary_data.get("summary"):
+                context_parts.append(f"File Summary: {file_path}")
+                context_parts.append(f"Summary: {summary_data.get('summary')}")
+                context_parts.append("---")
+    
+    context = "\n".join(context_parts)
+    
+    # Build the service overview prompt
+    prompt = build_service_overview_prompt(context)
+    
+    # Query the LLM
+    llm_handler = LLMHandler(model="gpt-4.1")
+    typer.echo("Generating service security overview...")
+    response = llm_handler.query(prompt=prompt)
+    
+    # Save the markdown response to disk
+    summary_path = os.path.join(output_dir, f"{service_prefix}_security_overview.md")
+    with open(summary_path, "w") as f:
+        f.write(response)
+    
+    typer.echo(f"Security overview written to: {summary_path}")
 
 def critique_and_revise(implemented_requirements: List[dict], max_retries: int = 3) -> List[dict]:
     """
