@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+import settings
 from typing import Tuple
 import tiktoken
 from openai import OpenAI
@@ -18,7 +18,7 @@ class LLMHandler:
     """
     A class to handle interactions with the LLM.
     """
-    def __init__(self, model: str = "gpt-4.1-mini"):
+    def __init__(self, model: str = settings.openai_model):
         """
         Initialize the LLM handler.
         
@@ -28,9 +28,9 @@ class LLMHandler:
         self.model = model
         self.client = OpenAI(
             api_key=os.getenv("OPENAI_API_KEY"),
-            base_url=os.getenv("OPENAI_API_BASE", "https://api.openai.com/v1")
+            base_url=os.getenv("OPENAI_API_BASE", settings.openai_base_url)
         )
-        self.encoding = tiktoken.get_encoding("cl100k_base")    
+        self.encoding = tiktoken.get_encoding(settings.tiktoken_encoding)    
     
     def count_tokens(self, text: str) -> int:
         """
