@@ -4,7 +4,7 @@ Local embedding utilities using sentence-transformers.
 This module provides functions for loading and using local embedding models
 to convert text into vector representations.
 """
-
+import settings
 import os
 from sentence_transformers import SentenceTransformer
 import numpy as np
@@ -15,7 +15,7 @@ logger = logging.getLogger()
 
 # Global model instance and name
 _model = None
-_model_name = "all-MiniLM-L6-v2"  # or "thenlper/gte-small", etc.
+_model_name = settings.local_embeddings_model  # or "thenlper/gte-small", etc.
 
 def load_model(model_name: str = None):
     """
