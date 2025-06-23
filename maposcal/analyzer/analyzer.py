@@ -62,7 +62,7 @@ class Analyzer:
         Run the analysis workflow: chunk, embed, and summarize files.
         """
         logger.info("Chunking and embedding files...")
-        self.chunks = chunker.analyze_repo(self.repo_path)
+        self.chunks, self.file_paths = chunker.analyze_repo(self.repo_path)
         logger.debug(f"Found {len(self.chunks)} chunks from repository")
         
         if not self.chunks:
@@ -84,15 +84,8 @@ class Analyzer:
         faiss_index.save_index(index, index_path)
         meta_store.save_metadata(self.chunks, meta_path)
 
-        self.extract_features()
         self.summarize_files()
 
-    def extract_features(self) -> None:
-        """
-        Extract rule-based features from the chunks.
-        """
-        self.chunks = rules.apply_rules(self.chunks)
-        meta_store.save_metadata(self.chunks, self.output_dir / f"meta.json")
 
     def summarize_files(self) -> None:
         """
@@ -122,6 +115,9 @@ class Analyzer:
             if chunk_type not in ["code", "config"]:
                 continue
             try:
+                # Begin manual enrichment before LLM involvement
+                file_inspector_results = file_inspector_results = rules.begin_inspection(file_path)
+
                 content = file_path.read_text(encoding="utf-8")
                 prompt = pt.build_file_summary_prompt(file_path.name, content)
                 summary = llm_handler.query(prompt=prompt)
@@ -129,7 +125,8 @@ class Analyzer:
                 vectors.append(vec)
                 summary_meta[str(file_path)] = {
                     "summary": summary,
-                    "vector_id": idx
+                    "vector_id": idx,
+                    "inspector_results" : file_inspector_results
                 }
                 idx += 1
                 logger.debug(f"Processed file: {file_path}")

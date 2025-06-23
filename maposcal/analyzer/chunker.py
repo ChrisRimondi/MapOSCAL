@@ -23,8 +23,11 @@ def analyze_repo(repo_path: Path) -> List[Dict[str, Any]]:
         - chunk_type: Type of chunk (code, config, doc, or unknown)
         - start_line: Starting line number (if applicable)
         - end_line: Ending line number (if applicable)
+        List of all applicable file names used to generate the chunks.
     """
     chunks = []
+    file_names = []
+
     for file_path in repo_path.rglob("*"):
         if not file_path.is_file() or file_path.suffix in [".png", ".jpg", ".exe", ".dll"]:
             continue
@@ -33,13 +36,17 @@ def analyze_repo(repo_path: Path) -> List[Dict[str, Any]]:
             continue
         try:
             parsed = parse_file(file_path)
+            logger.info(f"Parsing file ({file_path}) into chunks.")
+            file_names.append(file_path)
+            
             for chunk in parsed:
                 chunk["source_file"] = str(file_path)
                 chunk["chunk_type"] = detect_chunk_type(file_path.suffix)
                 chunks.append(chunk)
         except Exception:
             continue
-    return chunks
+
+    return chunks, file_names
 
 def detect_chunk_type(suffix: str) -> str:
     """
