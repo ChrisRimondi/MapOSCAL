@@ -14,10 +14,9 @@ import os
 import numpy as np
 from maposcal.analyzer.chunker import detect_chunk_type
 import logging
+import settings
 
 os.environ["TOKENIZERS_PARALLELISM"] = "false"
-
-EXCLUDED_FILENAME_PATTERNS = ["test", "mock", "example", "sample"]
 
 logger = logging.getLogger()
 
@@ -56,6 +55,7 @@ class Analyzer:
         # Storage for analysis results
         self.chunks = []
         self.file_summaries = {}
+
 
     def run(self) -> None:
         """
@@ -106,17 +106,18 @@ class Analyzer:
         llm_handler = LLMHandler()
 
         for file_path in self.repo_path.rglob("*"):
-            if not file_path.is_file() or file_path.suffix in [".png", ".jpg", ".exe", ".dll", ".gitignore", ".idx",  ".pack"]:
+            if not file_path.is_file() or file_path.suffix in settings.ignored_file_extensions:
                 continue
             # Exclude files with certain patterns in the name
-            if any(pattern in file_path.name.lower() for pattern in EXCLUDED_FILENAME_PATTERNS):
+            if any(pattern in file_path.name.lower() for pattern in settings.ignored_filename_patterns):
                 continue
             chunk_type = detect_chunk_type(file_path.suffix)
             if chunk_type not in ["code", "config"]:
                 continue
             try:
                 # Begin manual enrichment before LLM involvement
-                file_inspector_results = rules.begin_inspection(file_path)
+                logger.info(f"Beginning rules-based inspection of {file_path}")
+                file_inspector_results = rules.begin_inspection(str(file_path))
 
                 content = file_path.read_text(encoding="utf-8")
                 prompt = pt.build_file_summary_prompt(file_path.name, content)

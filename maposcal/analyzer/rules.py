@@ -1,5 +1,9 @@
-from maposcal.inspectors import inspect_lang_python
+from maposcal.inspectors import inspect_lang_python, inspect_lang_golang
 from typing import List, Dict, Any
+from traceback import format_exc
+import logging
+
+logger = logging.getLogger()
 
 
 def begin_inspection(file_path):
@@ -26,14 +30,19 @@ def begin_inspection(file_path):
   # Identify appropriate inspector(s) - Language specific
   if '.py' in file_path.lower():
     logger.info(f"Marking {file_path} as type (Python) and running local inspector.")
-    inspection_results = inspect_lang_python.start_inspection(file_path)
+    try:
+      inspection_results = inspect_lang_python.start_inspection(file_path)
+    except:
+      logger.error(f"Failed to launch Python inspector - {format_exc()}")
 
     # semgrep_results = TODO
 
   if '.go' in file_path.lower():
     logger.info(f"Marking {file_path} as type (Golang) and running local inspector.")
-    inspection_results = inspect_lang_golang.start_inspection(file_path)
-
+    try:
+      inspection_results = inspect_lang_golang.start_inspection(file_path)
+    except:
+      logger.error(f"Failed to launch Golang inspector - {format_exc()}")
   return inspection_results
 
 

@@ -6,6 +6,9 @@ Python, YAML, and Markdown files.
 
 from pathlib import Path
 from typing import List, Dict, Any
+import logging
+
+logger = logging.getLogger()
 
 def parse_python(file_path: Path) -> List[Dict[str, Any]]:
     """
@@ -89,6 +92,8 @@ def parse_file(file_path: Path) -> List[Dict[str, Any]]:
         - Markdown: Only includes content
         - Other: Only includes content
     """
+    logger.info(f"Parsing file {file_path}")
+    
     ext = file_path.suffix.lower()
     if ext == ".py":
         return parse_python(file_path)

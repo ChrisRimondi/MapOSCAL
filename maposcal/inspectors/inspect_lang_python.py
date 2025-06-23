@@ -1,6 +1,10 @@
 from traceback import format_exc
 import maposcal.utils.sample_control_hints as control_hints
 from maposcal.utils.utilities import parse_file_into_strings, control_hints_strings_search
+import logging
+
+logger = logging.getLogger()
+
 
 def start_inspection(file_path):
     """
@@ -28,8 +32,8 @@ def start_inspection(file_path):
 
     try: 
         logger.debug(f"Opening Python file ({file_path}) for inspection.")
-        with open(file_path, 'r') as python_fh:
-            file_contents = python_fh.read()
+        with open(file_path, 'r') as fh:
+            file_contents = fh.read()
     except:
         logger.error(f"Failed opening Python file ({file_path}) - {format_exc()} ")
 
@@ -54,8 +58,3 @@ def start_inspection(file_path):
     python_inspection_results['error_handling'] = error_handling
 
     return python_inspection_results
-
-
-
-if __name__ == "__main__":
-    start_inspection("inspect_lang_python.py")
