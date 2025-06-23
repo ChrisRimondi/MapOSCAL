@@ -6,8 +6,11 @@ This module handles the analysis of repository files and their chunking based on
 from pathlib import Path
 from typing import List, Dict, Any
 from maposcal.analyzer.parser import parse_file
-
-EXCLUDED_FILENAME_PATTERNS = ["test", "mock", "example", "sample"]
+from maposcal.analyzer.analyzer import (
+    EXCLUDED_FILENAME_PATTERNS, 
+    EXCLUDED_FILE_EXTENSIONS, 
+    EXCLUDED_DIRECTORY_PATTERNS
+)
 
 def analyze_repo(repo_path: Path) -> List[Dict[str, Any]]:
     """
@@ -26,11 +29,21 @@ def analyze_repo(repo_path: Path) -> List[Dict[str, Any]]:
     """
     chunks = []
     for file_path in repo_path.rglob("*"):
-        if not file_path.is_file() or file_path.suffix in [".png", ".jpg", ".exe", ".dll"]:
+        if not file_path.is_file():
             continue
+            
+        # Skip files with excluded extensions
+        if file_path.suffix.lower() in EXCLUDED_FILE_EXTENSIONS:
+            continue
+            
+        # Skip files in excluded directories
+        if any(pattern in str(file_path) for pattern in EXCLUDED_DIRECTORY_PATTERNS):
+            continue
+            
         # Exclude files with certain patterns in the name
         if any(pattern in file_path.name.lower() for pattern in EXCLUDED_FILENAME_PATTERNS):
             continue
+            
         try:
             parsed = parse_file(file_path)
             for chunk in parsed:

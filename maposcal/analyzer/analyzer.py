@@ -17,7 +17,39 @@ import logging
 
 os.environ["TOKENIZERS_PARALLELISM"] = "false"
 
-EXCLUDED_FILENAME_PATTERNS = ["test", "mock", "example", "sample"]
+EXCLUDED_FILENAME_PATTERNS = [
+    "test", "mock", "example", "sample",
+    ".golangci.yml", ".golangci.yaml",
+    ".goreleaser.yml", ".goreleaser.yaml"
+]
+
+# Additional excluded file types that should not be analyzed
+EXCLUDED_FILE_EXTENSIONS = [
+    ".png", ".jpg", ".jpeg", ".gif", ".bmp", ".svg", ".ico", ".webp",  # Images
+    ".exe", ".dll", ".so", ".dylib", ".bin", ".app",  # Executables and binaries
+    ".gitignore", ".idx", ".pack", ".lock",  # Git and lock files
+    ".zip", ".tar", ".gz", ".rar", ".7z",  # Archives
+    ".pdf", ".doc", ".docx", ".xls", ".xlsx",  # Documents
+    ".mp3", ".mp4", ".avi", ".mov", ".wav",  # Media files
+    ".log", ".tmp", ".temp", ".cache",  # Temporary and log files
+    ".min.js", ".min.css",  # Minified files
+    ".map",  # Source maps
+]
+
+# Directory patterns to exclude from analysis
+EXCLUDED_DIRECTORY_PATTERNS = [
+    "node_modules", "vendor", "dist", "build", "target",  # Dependencies and build artifacts
+    ".git", ".svn", ".hg", ".github",  # Version control
+    ".vscode", ".idea", ".vs",  # IDE files
+    "coverage", ".nyc_output",  # Test coverage
+    "logs", "log",  # Log directories
+    "cache", ".cache",  # Cache directories
+    "tmp", "temp",  # Temporary directories
+    "uploads", "downloads",  # User upload/download directories
+    ".terraform", "terraform.tfstate",  # Terraform files
+    "migrations",  # Database migrations
+    "seeds", "fixtures",  # Test data
+]
 
 logger = logging.getLogger()
 
@@ -125,11 +157,21 @@ class Analyzer:
         llm_handler = LLMHandler()
 
         for file_path in self.repo_path.rglob("*"):
-            if not file_path.is_file() or file_path.suffix in [".png", ".jpg", ".exe", ".dll", ".gitignore", ".idx",  ".pack"]:
+            if not file_path.is_file():
                 continue
+                
+            # Skip files with excluded extensions
+            if file_path.suffix.lower() in EXCLUDED_FILE_EXTENSIONS:
+                continue
+                
+            # Skip files in excluded directories
+            if any(pattern in str(file_path) for pattern in EXCLUDED_DIRECTORY_PATTERNS):
+                continue
+                
             # Exclude files with certain patterns in the name
             if any(pattern in file_path.name.lower() for pattern in EXCLUDED_FILENAME_PATTERNS):
                 continue
+                
             chunk_type = detect_chunk_type(file_path.suffix)
             if chunk_type not in ["code", "config"]:
                 continue
