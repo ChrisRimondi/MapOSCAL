@@ -61,16 +61,6 @@ class Analyzer:
         """
         Run the analysis workflow: chunk, embed, and summarize files.
         """
-        import maposcal.analyzer.chunker as chunker
-        import maposcal.analyzer.rules as rules
-        import maposcal.embeddings.local_embedder as local_embedder
-        import maposcal.embeddings.faiss_index as faiss_index
-        import maposcal.embeddings.meta_store as meta_store
-        import maposcal.llm.prompt_templates as pt
-        import maposcal.llm.llm_handler as llm_handler
-        import logging
-        logger = logging.getLogger(__name__)
-
         logger.info("Chunking and embedding files...")
         self.chunks = chunker.analyze_repo(self.repo_path)
         logger.debug(f"Found {len(self.chunks)} chunks from repository")
@@ -101,9 +91,7 @@ class Analyzer:
         """
         Extract rule-based features from the chunks.
         """
-        import maposcal.analyzer.rules as rules
         self.chunks = rules.apply_rules(self.chunks)
-        import maposcal.embeddings.meta_store as meta_store
         meta_store.save_metadata(self.chunks, self.output_dir / f"meta.json")
 
     def summarize_files(self) -> None:
