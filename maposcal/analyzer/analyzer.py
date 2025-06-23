@@ -62,7 +62,7 @@ class Analyzer:
         Run the analysis workflow: chunk, embed, and summarize files.
         """
         logger.info("Chunking and embedding files...")
-        self.chunks, self.file_paths = chunker.analyze_repo(self.repo_path)
+        self.chunks = chunker.analyze_repo(self.repo_path)
         logger.debug(f"Found {len(self.chunks)} chunks from repository")
         
         if not self.chunks:
@@ -116,7 +116,7 @@ class Analyzer:
                 continue
             try:
                 # Begin manual enrichment before LLM involvement
-                file_inspector_results = file_inspector_results = rules.begin_inspection(file_path)
+                file_inspector_results = rules.begin_inspection(file_path)
 
                 content = file_path.read_text(encoding="utf-8")
                 prompt = pt.build_file_summary_prompt(file_path.name, content)

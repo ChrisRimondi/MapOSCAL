@@ -3,6 +3,10 @@ This file contains sample keywords mapped to NIST 800-53 Control IDs.  These are
 to a certain configuration.  An example of this would be "tls", and it's applicability to the NIST 800-53' SC-8 Control.  This is sample
 content only and limited to SC8 as a working example.
 """
+global sc8
+global sc8_golang
+global sc8_python
+
 # Generic SC8 strings mappings
 sc8 = ['ssl', 'tls', 'https', 'starttls', 'openssl', 'boringssl', 'libressl', 'securetransport', 'schannel', 'gnutls', 'ssl_ctx', 'ssl_new', 'ssl_connect', 'dtls', 'tls.config', 'sslsocket', 'grpc.ssl_target_name_override', 'tm', 'alg_tcp_aes', 'cipher_suite', 'truststore', 'keystore', 'ssl_ctx_set_verify', 'tls_server_prefer_cipher_suites', 'client_min_tls_version', 'server_max_tls_version']
 # Language-specific mappings

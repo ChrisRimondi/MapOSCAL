@@ -1,87 +1,61 @@
-"""
-results = {
-                file_path = "",
-                control_hints = ['sc-8'],      -- This is additive, with this module also doing one based on sample_control_hints.
-                loaded_modules = ['module_name'],
-                file_system_interactions = ['file_path.test'],
-                cryptography = {
-                  transit_crypto_modules = {
-                    library = 'boringssl',
-                    cipher = 'cipher_123',
-                    key_length = '256',
-                    }
-                  },
-                  at_rest_crypto_modules = {
-                    library = 'openssl',
-                    cipher = 'aes256',
-                    key_length = '256',
-                    }
-                  },
-                identified_vulernabilities = {
-                  cve_id = '',
-                  ...
-                  },
-                access_controls = {
-                  TODO
-                  - Role checks
-                  - ACLs / usage validation,
-                  - Session timeouts, cookie usage, token expiration
-                },
-                authn_authz = {
-                  suspected_authn = bool,
-                  suspected_authz = bool,
-                  suspected_password_storage = bool,
-                  identified_passwords = bool,
-                  mfa_usage = bool,
-                },
-                input_validation = {
-                  validation_modules_identified = []
-                },
-                logging = {
-                  logging_engine = '',
-                  logging_location = '',
-                  log_level = '',
-                  log_file_contents = {
-                    variable_log_content = bool,
-                  }
-                }
-                error_handling = {
-                  TODO
-                  suspected_data_leakage_on_error = ""
-                }
-            }
-"""
-
-from maposcal.util.sample_control_hints as control_hints_def
-from maposcal.util.utilities import parse_file_into_strings 
+from traceback import format_exc
+import maposcal.utils.sample_control_hints as control_hints
+from maposcal.utils.utilities import parse_file_into_strings, control_hints_strings_search
 
 def start_inspection(file_path):
-"""
-"""
-
-    # Open file
-
-    # Parse for string-based control hints
-    # Generic hints
-
-    # Language-specific hints
-    applicable_control_hints_language_strings = control_hints_strings_search_python(file_contents)
-
-
-def control_hints_strings_search_python(file_contents):
     """
-    Takes the contents of a Python file and parses it for known strings associated with control mappings.
+    Takes a Python file and begins a non-generative inspection with the goal of returning a standardized inspection report covering many
+    areas related to security and compliance.
+
+    Args:
+        file_path (str): Path to the Python file that will be inspected
+
+    Returns
+        python_inspection_results (dict): See README for full formatting details of the response.
     """
+    python_inspection_results = {}
+    applicable_control_hints = []
+    loaded_modules = []
+    file_system_interactions = []
+    file_contents = ''
+    cryptography = {}
+    identified_vulnerabilities = {}
+    access_controls = {}
+    authn_authz = {}
+    input_validation = {}
+    logging = {}
+    error_handling = {}
 
-    # Parse into strings - utility
-    identified_strings = parse_file_into_strings(file_contents)
-    # Find hits - but we start with the smallest string set, which is the defined strings, not all the strings in the file's contents.
-    for control_hit_strings_python in control_hints_def.sc8_python:
-        for lang_string in identified_strings: 
-            # Identify any hits
+    try: 
+        logger.debug(f"Opening Python file ({file_path}) for inspection.")
+        with open(file_path, 'r') as python_fh:
+            file_contents = python_fh.read()
+    except:
+        logger.error(f"Failed opening Python file ({file_path}) - {format_exc()} ")
 
+    if file_contents:
+        # Parse for string-based control hints, first generic strings, then language-specific hits.
+        applicable_control_hints_strings = control_hints_strings_search(file_contents, control_hints.sc8, 'SC-8' )
+        applicable_control_hints.append(applicable_control_hints_strings)
+        # Language-specific hits.
+        applicable_control_hints_language_strings = control_hints_strings_search(file_contents, control_hints.sc8_python, 'SC-8' )
+        applicable_control_hints.append(applicable_control_hints_language_strings)
+
+    python_inspection_results['file_path'] = file_path
+    python_inspection_results['control_hints'] = applicable_control_hints
+    python_inspection_results['loaded_modules'] = loaded_modules
+    python_inspection_results['file_system_interactions'] = file_system_interactions
+    python_inspection_results['cryptography'] = cryptography
+    python_inspection_results['identified_vulnerabilities'] = identified_vulnerabilities
+    python_inspection_results['access_controls'] = access_controls
+    python_inspection_results['authn_authz'] = authn_authz
+    python_inspection_results['input_validation'] = input_validation
+    python_inspection_results['logging'] = logging
+    python_inspection_results['error_handling'] = error_handling
+
+    return python_inspection_results
 
 
 
 if __name__ == "__main__":
-    start_inspection("test-python.py")
+    start_inspection("inspect_lang_python.py")
