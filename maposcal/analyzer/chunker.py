@@ -12,6 +12,24 @@ import settings
 
 logger = logging.getLogger()
 
+
+def should_ignore_path(path: Path) -> bool:
+    """
+    Check if a path should be ignored based on directory patterns.
+    
+    Args:
+        path: Path to check
+        
+    Returns:
+        True if the path should be ignored, False otherwise
+    """
+    # Check if any part of the path matches ignored directory patterns
+    for part in path.parts:
+        if any(pattern in part.lower() for pattern in settings.ignored_directory_patterns):
+            return True
+    return False
+
+
 def analyze_repo(repo_path: Path) -> List[Dict[str, Any]]:
     """
     Analyze a repository and break its files into chunks.
@@ -31,10 +49,19 @@ def analyze_repo(repo_path: Path) -> List[Dict[str, Any]]:
     chunks = []
     for file_path in repo_path.rglob("*"):
         logger.debug(f"Analyzing repo ({repo_path}) and file {file_path}")
-        if (
-            not file_path.is_file()
-            or file_path.suffix in settings.ignored_file_extensions
-        ):
+        
+        # Skip if not a file
+        if not file_path.is_file():
+            continue
+            
+        # Skip if path contains ignored directory patterns
+        if should_ignore_path(file_path):
+            logger.debug(f"Skipping {file_path} due to ignored directory pattern")
+            continue
+            
+        # Skip if file extension is ignored
+        if file_path.suffix in settings.ignored_file_extensions:
+            logger.debug(f"Skipping {file_path} due to ignored file extension")
             continue
             
         # Exclude files with certain patterns in the name
@@ -42,6 +69,7 @@ def analyze_repo(repo_path: Path) -> List[Dict[str, Any]]:
             pattern in file_path.name.lower()
             for pattern in settings.ignored_filename_patterns
         ):
+            logger.debug(f"Skipping {file_path} due to ignored filename pattern")
             continue
             
         try:
