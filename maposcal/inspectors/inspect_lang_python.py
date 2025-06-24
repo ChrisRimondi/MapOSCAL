@@ -39,11 +39,11 @@ def start_inspection(file_path):
 
     if file_contents:
         # Parse for string-based control hints, first generic strings, then language-specific hits.
-        applicable_control_hints_strings = control_hints_strings_search(file_contents, control_hints.sc8, 'SC-8' )
-        applicable_control_hints.append(applicable_control_hints_strings)
-        # Language-specific hits.
+        applicable_control_hints_strings = control_hints_strings_search(file_contents, control_hints.sc8 , 'SC-8' )
         applicable_control_hints_language_strings = control_hints_strings_search(file_contents, control_hints.sc8_python, 'SC-8' )
-        applicable_control_hints.append(applicable_control_hints_language_strings)
+        
+        if applicable_control_hints_strings or applicable_control_hints_language_strings:
+            applicable_control_hints.append('SC-8')
 
     python_inspection_results['file_path'] = file_path
     python_inspection_results['control_hints'] = applicable_control_hints

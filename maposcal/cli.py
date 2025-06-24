@@ -127,7 +127,6 @@ def summarize(config: str = typer.Argument(None, help="Path to the configuration
     # Load the analysis data to create context
     context_parts = []
     
-
     security_query = "security authentication authorization encryption logging monitoring audit data protection"
     
     try:
