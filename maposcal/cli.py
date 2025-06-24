@@ -154,6 +154,7 @@ def summarize(
     try:
         relevant_chunks = get_relevant_chunks(security_query, output_dir, top_k=50)
 
+
         for chunk in relevant_chunks:
             if chunk.get("content"):
                 context_parts.append(f"File: {chunk.get('source_file', 'unknown')}")
@@ -170,6 +171,7 @@ def summarize(
             f"Warning: Could not retrieve relevant chunks using FAISS search: {e}"
         )
         typer.echo("Falling back to loading all chunks...")
+
 
         # Fallback: load all chunks if FAISS search fails
         chunks = meta_store.load_metadata(meta_path)
@@ -210,6 +212,7 @@ def critique_and_revise(
     max_retries: int = 3,
     security_overview: str = None,
 ) -> List[dict]:
+
     """
     Critique and revise implemented requirements until valid or max retries reached.
 
@@ -225,6 +228,7 @@ def critique_and_revise(
 
     for attempt in range(max_retries):
         # Critique the current requirements
+
         critique_prompt = build_critique_prompt(
             implemented_requirements, security_overview
         )

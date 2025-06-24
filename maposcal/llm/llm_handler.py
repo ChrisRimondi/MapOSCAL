@@ -14,7 +14,6 @@ load_dotenv()
 
 logger = logging.getLogger()
 
-
 class LLMHandler:
     """
     A class to handle interactions with the LLM.
@@ -33,6 +32,7 @@ class LLMHandler:
             base_url=os.getenv("OPENAI_API_BASE", settings.openai_base_url),
         )
         self.encoding = tiktoken.get_encoding(settings.tiktoken_encoding)
+
 
     def count_tokens(self, text: str) -> int:
         """

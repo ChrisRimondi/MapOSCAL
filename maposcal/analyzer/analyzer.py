@@ -24,7 +24,6 @@ logger = logging.getLogger()
 class Analyzer:
     """
     Analyzes a repository to extract and embed code files for OSCAL generation.
-
     This class performs comprehensive analysis of code repositories using a three-pass system:
     1. Vector embedding of code/config/docs for semantic search
     2. Semantic security summaries for file-level understanding
@@ -61,6 +60,7 @@ class Analyzer:
         """
         Run the analysis workflow: chunk, embed, and summarize files.
         """
+
         logger.info("Chunking and embedding files...")
         self.chunks = chunker.analyze_repo(self.repo_path)
         logger.debug(f"Found {len(self.chunks)} chunks from repository")
@@ -112,12 +112,14 @@ class Analyzer:
                 or file_path.suffix in settings.ignored_file_extensions
             ):
                 continue
+                
             # Exclude files with certain patterns in the name
             if any(
                 pattern in file_path.name.lower()
                 for pattern in settings.ignored_filename_patterns
             ):
                 continue
+                
             chunk_type = detect_chunk_type(file_path.suffix)
             if chunk_type not in ["code", "config"]:
                 continue

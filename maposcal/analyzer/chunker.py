@@ -12,7 +12,6 @@ import settings
 
 logger = logging.getLogger()
 
-
 def analyze_repo(repo_path: Path) -> List[Dict[str, Any]]:
     """
     Analyze a repository and break its files into chunks.
@@ -37,12 +36,14 @@ def analyze_repo(repo_path: Path) -> List[Dict[str, Any]]:
             or file_path.suffix in settings.ignored_file_extensions
         ):
             continue
+            
         # Exclude files with certain patterns in the name
         if any(
             pattern in file_path.name.lower()
             for pattern in settings.ignored_filename_patterns
         ):
             continue
+            
         try:
             logger.info(f"Parsing file ({file_path}) into chunks.")
             try:
