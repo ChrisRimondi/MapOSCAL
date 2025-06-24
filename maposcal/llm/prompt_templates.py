@@ -77,30 +77,32 @@ Context:
     """
 )
 
-SERVICE_OVERVIEW_PROMPT = (
-    "{system}\n\n{instructions}"
-)
+SERVICE_OVERVIEW_PROMPT = "{system}\n\n{instructions}"
+
 
 def build_service_overview_prompt(context: str) -> str:
     """
     Build a prompt for generating comprehensive service security overviews.
-    
+
     Args:
         context: Context from the service's code and documentation
-        
+
     Returns:
         str: Formatted prompt for LLM
     """
     return SERVICE_OVERVIEW_PROMPT.format(
         system=SERVICE_OVERVIEW_SYSTEM,
-        instructions=SERVICE_OVERVIEW_INSTRUCTIONS.format(context=context)
+        instructions=SERVICE_OVERVIEW_INSTRUCTIONS.format(context=context),
     )
+
 
 # ---------------------------------------------------------------------------
 # 1. FILE-LEVEL SECURITY / COMPLIANCE SUMMARY
 # ---------------------------------------------------------------------------
 
-FILE_SUMMARY_SYSTEM = "You are a seasoned security auditor specialising in source-code reviews."
+FILE_SUMMARY_SYSTEM = (
+    "You are a seasoned security auditor specialising in source-code reviews."
+)
 FILE_SUMMARY_INSTRUCTIONS = dedent(
     """
     Summarise the file below with a focus on:
@@ -126,11 +128,11 @@ FILE_SUMMARY_PROMPT = (
 def build_file_summary_prompt(filename: str, file_content: str) -> str:
     """
     Build a prompt for generating file-level security summaries.
-    
+
     Args:
         filename: Name of the file being analyzed
         file_content: Content of the file to analyze
-        
+
     Returns:
         str: Formatted prompt for LLM
     """
@@ -146,7 +148,9 @@ def build_file_summary_prompt(filename: str, file_content: str) -> str:
 # 2. OSCAL CONTROL IMPLEMENTATION GENERATION
 # ---------------------------------------------------------------------------
 
-CONTROL_IMPL_SYSTEM = "You are a compliance automation assistant that writes OSCAL component definitions."
+CONTROL_IMPL_SYSTEM = (
+    "You are a compliance automation assistant that writes OSCAL component definitions."
+)
 CONTROL_IMPL_INSTRUCTIONS = dedent(
     """
 You are a security compliance expert analyzing a service's implementation of a specific security control.
@@ -352,10 +356,19 @@ CONTROL TO EVALUATE:
 """
 
 
-def build_control_prompt(control_id: str, control_name: str, control_description: str, evidence_chunks: List[dict], k: int, main_uuid: str, statement_uuid: str, security_overview: str = None) -> str:
+def build_control_prompt(
+    control_id: str,
+    control_name: str,
+    control_description: str,
+    evidence_chunks: List[dict],
+    k: int,
+    main_uuid: str,
+    statement_uuid: str,
+    security_overview: str = None,
+) -> str:
     """
     Build a prompt for generating OSCAL control implementations.
-    
+
     Args:
         control_id: The control identifier (e.g., "AC-1")
         control_name: Human-readable name of the control
@@ -365,7 +378,7 @@ def build_control_prompt(control_id: str, control_name: str, control_description
         main_uuid: UUID for the main control
         statement_uuid: UUID for the control statement
         security_overview: Optional security overview content to include as reference
-        
+
     Returns:
         str: Formatted prompt for LLM
     """
@@ -374,9 +387,9 @@ def build_control_prompt(control_id: str, control_name: str, control_description
         control_name=control_name,
         control_description=control_description,
         main_uuid=main_uuid,
-        statement_uuid=statement_uuid
+        statement_uuid=statement_uuid,
     )
-    
+
     # Format security overview section if provided
     security_overview_section = ""
     if security_overview:
@@ -387,13 +400,13 @@ def build_control_prompt(control_id: str, control_name: str, control_description
             f"{security_overview}\n\n"
             "---\n\n"
         )
-    
+
     header = CONTROL_IMPL_PROMPT_HEADER.format(
         system=CONTROL_IMPL_SYSTEM,
         instructions=instructions,
         control_id=control_id,
         k=k,
-        security_overview_section=security_overview_section
+        security_overview_section=security_overview_section,
     )
     body = ""
     for c in evidence_chunks:
@@ -402,18 +415,23 @@ def build_control_prompt(control_id: str, control_name: str, control_description
             source=c.get("source_file", "N/A"),
             start=c.get("start_line", "?"),
             end=c.get("end_line", "?"),
-            content=(c.get("content") or c.get("summary", "")).strip()[:800],  # protect context length
+            content=(c.get("content") or c.get("summary", "")).strip()[
+                :800
+            ],  # protect context length
         )
     return header + body + CONTROL_IMPL_PROMPT_FOOTER
 
-def build_critique_prompt(implemented_requirements: List[dict], security_overview: str = None) -> str:
+
+def build_critique_prompt(
+    implemented_requirements: List[dict], security_overview: str = None
+) -> str:
     """
     Build a prompt for critiquing implemented requirements.
-    
+
     Args:
         implemented_requirements: List of implemented requirement dictionaries
         security_overview: Optional security overview content to include as reference
-        
+
     Returns:
         str: Formatted prompt for LLM critique
     """
@@ -427,22 +445,27 @@ def build_critique_prompt(implemented_requirements: List[dict], security_overvie
             f"{security_overview}\n\n"
             "---\n\n"
         )
-    
+
     return CRITIQUE_PROMPT.format(
         system=CRITIQUE_REVISE_SYSTEM,
         implemented_requirements_json=json.dumps(implemented_requirements),
-        security_overview_section=security_overview_section
+        security_overview_section=security_overview_section,
     )
 
-def build_revise_prompt(implemented_requirements: List[dict], violations: List[dict], security_overview: str = None) -> str:
+
+def build_revise_prompt(
+    implemented_requirements: List[dict],
+    violations: List[dict],
+    security_overview: str = None,
+) -> str:
     """
     Build a prompt for revising implemented requirements based on violations.
-    
+
     Args:
         implemented_requirements: List of implemented requirement dictionaries
         violations: List of validation violations to fix
         security_overview: Optional security overview content to include as reference
-        
+
     Returns:
         str: Formatted prompt for LLM revision
     """
@@ -456,25 +479,25 @@ def build_revise_prompt(implemented_requirements: List[dict], violations: List[d
             f"{security_overview}\n\n"
             "---\n\n"
         )
-    
+
     return REVISE_PROMPT.format(
         system=CRITIQUE_REVISE_SYSTEM,
         implemented_requirements_json=json.dumps(implemented_requirements),
         critique_violations_json=json.dumps(violations),
-        security_overview_section=security_overview_section
+        security_overview_section=security_overview_section,
     )
+
 
 def build_evaluate_prompt(requirement: dict) -> str:
     """
     Build a prompt for evaluating a single implemented requirement.
-    
+
     Args:
         requirement: Single implemented requirement dictionary
-        
+
     Returns:
         str: Formatted prompt for LLM evaluation
     """
     return EVALUATE_PROMPT.format(
-        system=EVALUATE_SYSTEM,
-        control_json=json.dumps(requirement, indent=2)
+        system=EVALUATE_SYSTEM, control_json=json.dumps(requirement, indent=2)
     )

@@ -20,21 +20,25 @@ def control_hints_strings_search(file_contents, search_strings, control_name):
 
     # Parse into strings - utility
     identified_strings = parse_file_into_strings(file_contents)
-    logger.info(f"Parsing contents for any hits from list of {len(search_strings)} defined strings related to control {control_name}")
+    logger.info(
+        f"Parsing contents for any hits from list of {len(search_strings)} defined strings related to control {control_name}"
+    )
 
     #   This is where future magic has to happen to identify all the applicable control families, not just SC-8.
     # The current configuration is for example purposes only, scale requires a different model of storing these.
 
-    #   Find hits - but we start with the smallest string set, which is the defined strings, not all the strings in 
+    #   Find hits - but we start with the smallest string set, which is the defined strings, not all the strings in
     # the file's contents.  This is really a job for Redis, etc., but sufficient as an example.
     for control_hit_string in search_strings:
         logger.debug(f"Searching for string ({control_hit_string})...")
-        for lang_string in identified_strings: 
+        for lang_string in identified_strings:
             # Identify any hits
             if control_hit_string == lang_string.lower():
                 #   We don't care about additional hits, the control hint is now active.  However, future work
                 # might add weight to the findings based on the number of occurances...
-                logger.info(f"Identified ({control_name}) control applicability based on string ({control_hit_string}).")
+                logger.info(
+                    f"Identified ({control_name}) control applicability based on string ({control_hit_string})."
+                )
                 control_hint_applicable = True
                 break
 
@@ -54,7 +58,7 @@ def parse_file_into_strings(file_contents):
     logger.debug(f"Beginning strings parsing.")
     listed_strings = []
     listed_strings = file_contents.strip().split()
-    
+
     logger.debug(f"Identified ({len(listed_strings)}) strings in file contents.")
 
     return listed_strings

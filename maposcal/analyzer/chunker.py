@@ -12,13 +12,14 @@ import settings
 
 logger = logging.getLogger()
 
+
 def analyze_repo(repo_path: Path) -> List[Dict[str, Any]]:
     """
     Analyze a repository and break its files into chunks.
-    
+
     Args:
         repo_path: Path to the repository root
-        
+
     Returns:
         List of dictionaries containing chunk information including:
         - content: The text content of the chunk
@@ -31,10 +32,16 @@ def analyze_repo(repo_path: Path) -> List[Dict[str, Any]]:
     chunks = []
     for file_path in repo_path.rglob("*"):
         logger.debug(f"Analyzing repo ({repo_path}) and file {file_path}")
-        if not file_path.is_file() or file_path.suffix in settings.ignored_file_extensions:
+        if (
+            not file_path.is_file()
+            or file_path.suffix in settings.ignored_file_extensions
+        ):
             continue
         # Exclude files with certain patterns in the name
-        if any(pattern in file_path.name.lower() for pattern in settings.ignored_filename_patterns):
+        if any(
+            pattern in file_path.name.lower()
+            for pattern in settings.ignored_filename_patterns
+        ):
             continue
         try:
             logger.info(f"Parsing file ({file_path}) into chunks.")
@@ -44,7 +51,7 @@ def analyze_repo(repo_path: Path) -> List[Dict[str, Any]]:
                 logger.error(f"Faile to parse ({file_path}) - {format_exc()}")
 
             logger.debug(f"Parsing ({file_path}) completed.")
-            
+
             for chunk in parsed:
                 chunk["source_file"] = str(file_path)
                 chunk["chunk_type"] = detect_chunk_type(file_path.suffix)
@@ -54,13 +61,14 @@ def analyze_repo(repo_path: Path) -> List[Dict[str, Any]]:
 
     return chunks
 
+
 def detect_chunk_type(suffix: str) -> str:
     """
     Determine the type of chunk based on file extension.
-    
+
     Args:
         suffix: File extension (including the dot)
-        
+
     Returns:
         String indicating chunk type: "code", "config", "doc", or "unknown"
     """
@@ -73,5 +81,3 @@ def detect_chunk_type(suffix: str) -> str:
         return "doc"
     else:
         return "unknown"
-
-

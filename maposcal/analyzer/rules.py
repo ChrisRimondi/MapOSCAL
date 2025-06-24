@@ -7,43 +7,47 @@ logger = logging.getLogger()
 
 
 def begin_inspection(file_path):
-  """
-  Takes a list of files (the same files that have been chunked for LLM inspection), but will now be used in a non-generative
-  method using modular inspection techniques.  This function will:
-    * Identify the appropriate inspector(s) for each file
-    * Run a strings-based search to identify appropriate control hints.
-    * Run the identified inspector(s)
-    * Consolidate the returned results
-    * Consolidate all control hints
-    * Send discovered results for assignment as metadata
+    """
+    Takes a list of files (the same files that have been chunked for LLM inspection), but will now be used in a non-generative
+    method using modular inspection techniques.  This function will:
+      * Identify the appropriate inspector(s) for each file
+      * Run a strings-based search to identify appropriate control hints.
+      * Run the identified inspector(s)
+      * Consolidate the returned results
+      * Consolidate all control hints
+      * Send discovered results for assignment as metadata
 
-  Args:
-    file_path (string): Path to a file that will be inspected for further clarifying details.
+    Args:
+      file_path (string): Path to a file that will be inspected for further clarifying details.
 
-  Returns:
-    inspection_results (dict): See README in inspectors directory for full formatting details of the response.
-  """
-  inspection_results = {}
+    Returns:
+      inspection_results (dict): See README in inspectors directory for full formatting details of the response.
+    """
+    inspection_results = {}
 
-  logger.info(f"Beginning inspection of {file_path}.")
+    logger.info(f"Beginning inspection of {file_path}.")
 
-  # Identify appropriate inspector(s) - Language specific
-  if '.py' in file_path.lower():
-    logger.info(f"Marking {file_path} as type (Python) and running local inspector.")
-    try:
-      inspection_results = inspect_lang_python.start_inspection(file_path)
-    except:
-      logger.error(f"Failed to launch Python inspector - {format_exc()}")
+    # Identify appropriate inspector(s) - Language specific
+    if ".py" in file_path.lower():
+        logger.info(
+            f"Marking {file_path} as type (Python) and running local inspector."
+        )
+        try:
+            inspection_results = inspect_lang_python.start_inspection(file_path)
+        except:
+            logger.error(f"Failed to launch Python inspector - {format_exc()}")
 
-    # semgrep_results = TODO
+        # semgrep_results = TODO
 
-  if '.go' in file_path.lower():
-    logger.info(f"Marking {file_path} as type (Golang) and running local inspector.")
-    try:
-      inspection_results = inspect_lang_golang.start_inspection(file_path)
-    except:
-      logger.error(f"Failed to launch Golang inspector - {format_exc()}")
-  return inspection_results
+    if ".go" in file_path.lower():
+        logger.info(
+            f"Marking {file_path} as type (Golang) and running local inspector."
+        )
+        try:
+            inspection_results = inspect_lang_golang.start_inspection(file_path)
+        except:
+            logger.error(f"Failed to launch Golang inspector - {format_exc()}")
+    return inspection_results
 
 
 """ OLD CODE

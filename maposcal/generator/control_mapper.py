@@ -34,28 +34,33 @@ import uuid
 
 logger = logging.getLogger()
 
-def get_relevant_chunks(control_description: str, output_dir: str, top_k: int = 5) -> List[Dict]:
+
+def get_relevant_chunks(
+    control_description: str, output_dir: str, top_k: int = 5
+) -> List[Dict]:
     """
     Query both index.faiss and summary_index.faiss using the control_description as the query.
     Combine and deduplicate the results to return relevant chunks.
-    
+
     This function performs semantic search across both code chunks and file summaries
     to find the most relevant evidence for control mapping. It uses FAISS indices
     for efficient similarity search and combines results from both chunk-level and
     summary-level analysis.
-    
+
     Args:
         control_description (str): The control description to use as the query.
         output_dir (str): The directory containing the FAISS indices and metadata.
         top_k (int): Number of top chunks to retrieve from each index.
-        
+
     Returns:
         List[Dict]: A list of relevant chunks with source file information and content.
-        
+
     Raises:
         FileNotFoundError: If required FAISS indices or metadata files are missing.
     """
-    logger.info(f"Querying relevant chunks for control description: {control_description}")
+    logger.info(
+        f"Querying relevant chunks for control description: {control_description}"
+    )
     # Embed the control description for querying
     query_embedding = local_embedder.embed_one(control_description)
 
@@ -63,11 +68,17 @@ def get_relevant_chunks(control_description: str, output_dir: str, top_k: int = 
     index_path = Path(output_dir) / "index.faiss"
     meta_path = Path(output_dir) / "meta.json"
     if not index_path.exists() or not meta_path.exists():
-        raise FileNotFoundError(f"Could not find {index_path} or {meta_path}. Please run analyze first.")
+        raise FileNotFoundError(
+            f"Could not find {index_path} or {meta_path}. Please run analyze first."
+        )
     index = faiss_index.load_index(index_path)
     meta = meta_store.load_metadata(meta_path)
     chunk_indices, _ = faiss_index.search_index(index, query_embedding, k=top_k)
-    chunk_results = [meta_store.get_chunk_by_index(meta, idx) for idx in chunk_indices if idx < len(meta)]
+    chunk_results = [
+        meta_store.get_chunk_by_index(meta, idx)
+        for idx in chunk_indices
+        if idx < len(meta)
+    ]
 
     # Query summary_index.faiss (file-level summaries)
     summary_index_path = Path(output_dir) / "summary_index.faiss"
@@ -76,7 +87,9 @@ def get_relevant_chunks(control_description: str, output_dir: str, top_k: int = 
     if summary_index_path.exists() and summary_meta_path.exists():
         summary_index = faiss_index.load_index(summary_index_path)
         summary_meta = meta_store.load_metadata(summary_meta_path)
-        summary_indices, _ = faiss_index.search_index(summary_index, query_embedding, k=top_k)
+        summary_indices, _ = faiss_index.search_index(
+            summary_index, query_embedding, k=top_k
+        )
         for idx in summary_indices:
             if str(idx) in summary_meta:
                 summary_results.append(summary_meta[str(idx)])
@@ -104,6 +117,7 @@ def get_relevant_chunks(control_description: str, output_dir: str, top_k: int = 
 
     return unique_relevant_chunks
 
+
 def map_control(control_dict: dict, output_dir: str, top_k: int = 5) -> str:
     """
     Maps chunks to an OSCAL control using LLM summarization with security context.
@@ -124,7 +138,7 @@ def map_control(control_dict: dict, output_dir: str, top_k: int = 5) -> str:
 
     Returns:
         str: The LLM response for the control mapping prompt.
-        
+
     Features:
         - Security overview integration for better context understanding
         - Semantic evidence retrieval from both code chunks and file summaries
@@ -133,46 +147,58 @@ def map_control(control_dict: dict, output_dir: str, top_k: int = 5) -> str:
     """
     logger.info(f"Mapping control: {control_dict['id']} - {control_dict['title']}")
     llm_handler = LLMHandler()
-    
+
     # Load security overview if available
     security_overview = None
     security_overview_path = Path(output_dir) / "security_overview.md"
     if security_overview_path.exists():
         try:
-            with open(security_overview_path, 'r') as f:
+            with open(security_overview_path, "r") as f:
                 security_overview = f.read().strip()
             logger.info(f"Loaded security overview from {security_overview_path}")
         except Exception as e:
             logger.warning(f"Failed to load security overview: {e}")
-    
+
     # Get the control statement and handle ODP substitution
-    control_description = control_dict['statement'][0] if isinstance(control_dict['statement'], list) else control_dict['statement']
-    
+    control_description = (
+        control_dict["statement"][0]
+        if isinstance(control_dict["statement"], list)
+        else control_dict["statement"]
+    )
+
     # Handle ODP parameter substitution and collect prose
     additional_prose = []
-    if 'params' in control_dict:
-        for param in control_dict['params']:
-            param_id = param['id']
+    if "params" in control_dict:
+        for param in control_dict["params"]:
+            param_id = param["id"]
             # Look for the parameter placeholder in the statement
             placeholder = f"{{{{ insert: param, {param_id} }}}}"
             if placeholder in control_description:
                 # Replace with resolved values if available
-                if param.get('resolved-values'):
-                    resolved_value = param['resolved-values'][0]  # Take the first resolved value
-                    control_description = control_description.replace(placeholder, resolved_value)
+                if param.get("resolved-values"):
+                    resolved_value = param["resolved-values"][
+                        0
+                    ]  # Take the first resolved value
+                    control_description = control_description.replace(
+                        placeholder, resolved_value
+                    )
                 # If no resolved values, use the prose
-                elif param.get('prose'):
-                    prose_value = param['prose'][0]  # Take the first prose value
-                    control_description = control_description.replace(placeholder, prose_value)
-            
+                elif param.get("prose"):
+                    prose_value = param["prose"][0]  # Take the first prose value
+                    control_description = control_description.replace(
+                        placeholder, prose_value
+                    )
+
             # Collect prose for additional context
-            if param.get('prose'):
-                additional_prose.extend(param['prose'])
-    
+            if param.get("prose"):
+                additional_prose.extend(param["prose"])
+
     # Append additional prose if available
     if additional_prose:
-        control_description += "\n\nAdditional requirements:\n" + "\n".join(f"- {prose}" for prose in additional_prose)
-    
+        control_description += "\n\nAdditional requirements:\n" + "\n".join(
+            f"- {prose}" for prose in additional_prose
+        )
+
     relevant_chunks = get_relevant_chunks(control_description, output_dir, top_k)
 
     # Try up to 3 times to get a valid response
@@ -181,26 +207,26 @@ def map_control(control_dict: dict, output_dir: str, top_k: int = 5) -> str:
         # Generate new UUIDs for each attempt
         main_uuid = str(uuid.uuid4())
         statement_uuid = str(uuid.uuid4())
-        
+
         prompt = prompt_templates.build_control_prompt(
-            control_dict['id'],
-            control_dict['title'],
+            control_dict["id"],
+            control_dict["title"],
             control_description,
             relevant_chunks,
             top_k,
             main_uuid,
             statement_uuid,
-            security_overview
+            security_overview,
         )
         response = llm_handler.query(prompt=prompt)
-        
+
         # Parse and validate the response
         parsed = parse_llm_response(response)
         if isinstance(parsed, dict):
             is_valid, error_msg = validate_control_mapping(parsed)
             if is_valid:
                 return response
-            
+
             # If validation failed and we have retries left, try again with error feedback
             if attempt < max_retries - 1:
                 error_prompt = f"Here is the validation error—fix it: {error_msg}\n\nPlease regenerate the control mapping with the following requirements:\n"
@@ -209,23 +235,26 @@ def map_control(control_dict: dict, output_dir: str, top_k: int = 5) -> str:
                 error_prompt += "- Use valid UUID format for all UUIDs\n"
                 error_prompt += "- Ensure no duplicate UUIDs are used\n\n"
                 error_prompt += "Original prompt:\n" + prompt
-                
+
                 response = llm_handler.query(prompt=error_prompt)
                 continue
-            
+
             # If we're out of retries, log the error and return the last response
-            logger.error(f"Failed to generate valid control mapping after {max_retries} attempts. Last error: {error_msg}")
+            logger.error(
+                f"Failed to generate valid control mapping after {max_retries} attempts. Last error: {error_msg}"
+            )
             return response
-    
+
     return response
+
 
 def parse_llm_response(result: str) -> dict:
     """
     Clean and parse the LLM response as JSON.
-    
+
     Args:
         result (str): The raw LLM response string.
-        
+
     Returns:
         dict: The parsed JSON object. If parsing fails, returns a dict with the raw response.
     """
