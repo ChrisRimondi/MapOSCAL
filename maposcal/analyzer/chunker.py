@@ -10,7 +10,6 @@ from traceback import format_exc
 import logging
 import settings
 
-EXCLUDED_FILENAME_PATTERNS = ["test", "mock", "example", "sample"]
 logger = logging.getLogger()
 
 def analyze_repo(repo_path: Path) -> List[Dict[str, Any]]:
@@ -35,7 +34,7 @@ def analyze_repo(repo_path: Path) -> List[Dict[str, Any]]:
         if not file_path.is_file() or file_path.suffix in settings.ignored_file_extensions:
             continue
         # Exclude files with certain patterns in the name
-        if any(pattern in file_path.name.lower() for pattern in EXCLUDED_FILENAME_PATTERNS):
+        if any(pattern in file_path.name.lower() for pattern in settings.ignored_filename_patterns):
             continue
         try:
             logger.info(f"Parsing file ({file_path}) into chunks.")
