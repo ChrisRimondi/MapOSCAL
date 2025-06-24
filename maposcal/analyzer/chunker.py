@@ -6,19 +6,19 @@ This module handles the analysis of repository files and their chunking based on
 from pathlib import Path
 from typing import List, Dict, Any
 from maposcal.analyzer.parser import parse_file
-from maposcal.analyzer.analyzer import (
-    EXCLUDED_FILENAME_PATTERNS, 
-    EXCLUDED_FILE_EXTENSIONS, 
-    EXCLUDED_DIRECTORY_PATTERNS
-)
+from traceback import format_exc
+import logging
+import settings
+
+logger = logging.getLogger()
 
 def analyze_repo(repo_path: Path) -> List[Dict[str, Any]]:
     """
     Analyze a repository and break its files into chunks.
-    
+
     Args:
         repo_path: Path to the repository root
-        
+
     Returns:
         List of dictionaries containing chunk information including:
         - content: The text content of the chunk
@@ -26,41 +26,50 @@ def analyze_repo(repo_path: Path) -> List[Dict[str, Any]]:
         - chunk_type: Type of chunk (code, config, doc, or unknown)
         - start_line: Starting line number (if applicable)
         - end_line: Ending line number (if applicable)
+        List of all applicable file names used to generate the chunks.
     """
     chunks = []
     for file_path in repo_path.rglob("*"):
-        if not file_path.is_file():
-            continue
-            
-        # Skip files with excluded extensions
-        if file_path.suffix.lower() in EXCLUDED_FILE_EXTENSIONS:
-            continue
-            
-        # Skip files in excluded directories
-        if any(pattern in str(file_path) for pattern in EXCLUDED_DIRECTORY_PATTERNS):
+        logger.debug(f"Analyzing repo ({repo_path}) and file {file_path}")
+        if (
+            not file_path.is_file()
+            or file_path.suffix in settings.ignored_file_extensions
+        ):
             continue
             
         # Exclude files with certain patterns in the name
-        if any(pattern in file_path.name.lower() for pattern in EXCLUDED_FILENAME_PATTERNS):
+        if any(
+            pattern in file_path.name.lower()
+            for pattern in settings.ignored_filename_patterns
+        ):
             continue
             
         try:
-            parsed = parse_file(file_path)
+            logger.info(f"Parsing file ({file_path}) into chunks.")
+            try:
+                parsed = parse_file(file_path)
+            except:
+                logger.error(f"Faile to parse ({file_path}) - {format_exc()}")
+
+            logger.debug(f"Parsing ({file_path}) completed.")
+
             for chunk in parsed:
                 chunk["source_file"] = str(file_path)
                 chunk["chunk_type"] = detect_chunk_type(file_path.suffix)
                 chunks.append(chunk)
         except Exception:
             continue
+
     return chunks
+
 
 def detect_chunk_type(suffix: str) -> str:
     """
     Determine the type of chunk based on file extension.
-    
+
     Args:
         suffix: File extension (including the dot)
-        
+
     Returns:
         String indicating chunk type: "code", "config", "doc", or "unknown"
     """
@@ -73,5 +82,3 @@ def detect_chunk_type(suffix: str) -> str:
         return "doc"
     else:
         return "unknown"
-
-

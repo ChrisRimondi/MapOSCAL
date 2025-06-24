@@ -2,21 +2,26 @@ import pytest
 from pathlib import Path
 from maposcal.analyzer import chunker
 
+
 # Test detect_chunk_type
-@pytest.mark.parametrize("suffix,expected", [
-    (".py", "code"),
-    (".go", "code"),
-    (".yaml", "config"),
-    (".yml", "config"),
-    (".json", "config"),
-    (".md", "doc"),
-    (".rst", "doc"),
-    (".txt", "doc"),
-    (".exe", "unknown"),
-    (".foo", "unknown"),
-])
+@pytest.mark.parametrize(
+    "suffix,expected",
+    [
+        (".py", "code"),
+        (".go", "code"),
+        (".yaml", "config"),
+        (".yml", "config"),
+        (".json", "config"),
+        (".md", "doc"),
+        (".rst", "doc"),
+        (".txt", "doc"),
+        (".exe", "unknown"),
+        (".foo", "unknown"),
+    ],
+)
 def test_detect_chunk_type(suffix, expected):
     assert chunker.detect_chunk_type(suffix) == expected
+
 
 # Test analyze_repo with a mock parser
 def test_analyze_repo_excludes_patterns(tmp_path, monkeypatch):
@@ -30,6 +35,7 @@ def test_analyze_repo_excludes_patterns(tmp_path, monkeypatch):
     # Mock parse_file to return a simple chunk
     def mock_parse_file(path):
         return [{"content": f"content of {path.name}", "start_line": 1, "end_line": 1}]
+
     monkeypatch.setattr(chunker, "parse_file", mock_parse_file)
 
     chunks = chunker.analyze_repo(tmp_path)
@@ -49,6 +55,7 @@ def test_analyze_repo_excludes_patterns(tmp_path, monkeypatch):
         elif c["source_file"].endswith(".md"):
             assert c["chunk_type"] == "doc"
 
+
 # --- parser.py tests ---
 def test_parse_python(tmp_path):
     code = """
@@ -62,6 +69,7 @@ def baz():
     file = tmp_path / "test.py"
     file.write_text(code)
     from maposcal.analyzer import parser
+
     chunks = parser.parse_python(file)
     # The parser creates chunks for:
     # 1. Initial empty line
@@ -77,6 +85,7 @@ def baz():
     assert class_chunk["start_line"] > 0
     assert class_chunk["end_line"] > class_chunk["start_line"]
 
+
 def test_parse_yaml(tmp_path):
     yaml = """
 foo: bar
@@ -88,10 +97,12 @@ baz: qux
     file = tmp_path / "test.yaml"
     file.write_text(yaml)
     from maposcal.analyzer import parser
+
     chunks = parser.parse_yaml(file)
     assert len(chunks) >= 2
     assert any("foo: bar" in c["content"] for c in chunks)
     assert all(c["start_line"] == 0 for c in chunks)
+
 
 def test_parse_markdown(tmp_path):
     md = """
@@ -104,6 +115,7 @@ Details here
     file = tmp_path / "test.md"
     file.write_text(md)
     from maposcal.analyzer import parser
+
     chunks = parser.parse_markdown(file)
     # The parser creates chunks for:
     # 1. Initial empty line
@@ -118,6 +130,7 @@ Details here
     assert "Some intro" in title_chunk["content"]
     assert "Details here" in section_chunk["content"]
 
+
 def test_parse_file_dispatch(tmp_path):
     py = tmp_path / "a.py"
     py.write_text("def f(): pass\n")
@@ -128,6 +141,7 @@ def test_parse_file_dispatch(tmp_path):
     txt = tmp_path / "d.txt"
     txt.write_text("plain text\n")
     from maposcal.analyzer import parser
+
     assert parser.parse_file(py)[0]["content"].startswith("def f")
     assert parser.parse_file(yaml)[0]["content"].startswith("foo: bar")
     assert parser.parse_file(md)[0]["content"].startswith("# H")

@@ -1,13 +1,58 @@
-"""
-Security rule analysis utilities.
-This module provides functions for analyzing code chunks and identifying
-security-related patterns and control mappings.
-"""
-
+from maposcal.inspectors import inspect_lang_python, inspect_lang_golang
 from typing import List, Dict, Any
+from traceback import format_exc
+import logging
 
-def apply_rules(chunks: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+logger = logging.getLogger()
+
+
+def begin_inspection(file_path):
     """
+    Takes a list of files (the same files that have been chunked for LLM inspection), but will now be used in a non-generative
+    method using modular inspection techniques.  This function will:
+      * Identify the appropriate inspector(s) for each file
+      * Run a strings-based search to identify appropriate control hints.
+      * Run the identified inspector(s)
+      * Consolidate the returned results
+      * Consolidate all control hints
+      * Send discovered results for assignment as metadata
+
+    Args:
+      file_path (string): Path to a file that will be inspected for further clarifying details.
+
+    Returns:
+      inspection_results (dict): See README in inspectors directory for full formatting details of the response.
+    """
+    inspection_results = {}
+
+    logger.info(f"Beginning inspection of {file_path}.")
+
+    # Identify appropriate inspector(s) - Language specific
+    if ".py" in file_path.lower():
+        logger.info(
+            f"Marking {file_path} as type (Python) and running local inspector."
+        )
+        try:
+            inspection_results = inspect_lang_python.start_inspection(file_path)
+        except:
+            logger.error(f"Failed to launch Python inspector - {format_exc()}")
+
+        # semgrep_results = TODO
+
+    if ".go" in file_path.lower():
+        logger.info(
+            f"Marking {file_path} as type (Golang) and running local inspector."
+        )
+        try:
+            inspection_results = inspect_lang_golang.start_inspection(file_path)
+        except:
+            logger.error(f"Failed to launch Golang inspector - {format_exc()}")
+    return inspection_results
+
+
+""" OLD CODE
+def apply_rules(chunks: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+
     Apply security rules to code chunks and identify relevant security controls.
     
     Args:
@@ -17,7 +62,7 @@ def apply_rules(chunks: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
         Updated list of chunks with added security flags and control hints:
         - security_flags: Dictionary of boolean flags for security features
         - control_hints: List of relevant security control identifiers
-    """
+  
     for chunk in chunks:
         content = chunk.get("content", "").lower()
         flags = {
@@ -32,3 +77,4 @@ def apply_rules(chunks: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
         if flags["auth_check"]:
             chunk["control_hints"].append("AC-6")
     return chunks
+    """
