@@ -25,7 +25,7 @@ by the control_mapper.get_relevent_chunks() and included in the overall assessme
 results = {
                 file_path = "",
                 control_hints = ['sc-8'],      -- This is additive, with this module also doing one based on sample_control_hints.
-                loaded_modules = ['module_name'],
+                loaded_modules = {'modules': 'module_name', 'network_modules': 'requests', 'file_system_modules': 'os', 'cryptographic_modules': 'openssl'},
                 file_system_interactions = ['file_path.test'],
                 cryptography = {
                   transit_crypto_modules = {
