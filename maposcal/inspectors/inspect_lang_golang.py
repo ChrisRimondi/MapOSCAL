@@ -152,17 +152,7 @@ def identify_imported_modules(file_contents):
         # This can be multi-line...
         line_number += 1
         line_details = line.split(' ')
-        
-        """
-        import (
-        "encoding/base64"
-        "net/http"
-        "sort"
-        "testing"
 
-        xhttp "github.com/minio/minio/internal/http"
-        )
-        """
         if not modules_section:
             if line_details[0] == 'import':
                 modules_section = True
