@@ -54,6 +54,11 @@ def analyze_repo(repo_path: Path) -> List[Dict[str, Any]]:
         if not file_path.is_file():
             continue
             
+        # Skip hidden files (files that start with ".")
+        if file_path.name.startswith("."):
+            logger.debug(f"Skipping hidden file {file_path}")
+            continue
+            
         # Skip if path contains ignored directory patterns
         if should_ignore_path(file_path):
             logger.debug(f"Skipping {file_path} due to ignored directory pattern")
@@ -70,6 +75,11 @@ def analyze_repo(repo_path: Path) -> List[Dict[str, Any]]:
             for pattern in settings.ignored_filename_patterns
         ):
             logger.debug(f"Skipping {file_path} due to ignored filename pattern")
+            continue
+            
+        # Skip config files - they will be handled separately
+        if detect_chunk_type(file_path.suffix) == "config":
+            logger.debug(f"Skipping config file {file_path} - will be processed separately")
             continue
             
         try:
@@ -104,7 +114,7 @@ def detect_chunk_type(suffix: str) -> str:
 
     if suffix in [".py", ".go", ".java", ".js", ".ts", ".rb", ".cs"]:
         return "code"
-    elif suffix in [".yaml", ".yml", ".json"]:
+    elif suffix in [".yaml", ".yml", ".json", ".toml", ".ini", ".conf", ".properties"]:
         return "config"
     elif suffix in [".md", ".rst", ".txt"]:
         return "doc"

@@ -15,6 +15,12 @@ import numpy as np
 from maposcal.analyzer.chunker import detect_chunk_type
 import logging
 import settings
+import hashlib
+import json
+import mimetypes
+import yaml
+import toml
+import configparser
 
 os.environ["TOKENIZERS_PARALLELISM"] = "false"
 
@@ -72,6 +78,7 @@ class Analyzer:
         # Storage for analysis results
         self.chunks = []
         self.file_summaries = {}
+        self.config_files = []
 
     def run(self) -> None:
         """
@@ -104,6 +111,7 @@ class Analyzer:
         meta_store.save_metadata(self.chunks, meta_path)
 
         self.summarize_files()
+        self.save_config_files()
 
     def summarize_files(self) -> None:
         """
@@ -128,6 +136,11 @@ class Analyzer:
             if not file_path.is_file():
                 continue
                 
+            # Skip hidden files (files that start with ".")
+            if file_path.name.startswith("."):
+                logger.debug(f"Skipping hidden file {file_path}")
+                continue
+                
             # Skip if path contains ignored directory patterns
             if should_ignore_path(file_path):
                 logger.debug(f"Skipping {file_path} due to ignored directory pattern")
@@ -147,6 +160,13 @@ class Analyzer:
                 continue
                 
             chunk_type = detect_chunk_type(file_path.suffix)
+            
+            # Handle config files separately
+            if chunk_type == "config":
+                logger.info(f"Processing config file: {file_path}")
+                self.process_config_file(file_path)
+                continue
+                
             if chunk_type not in ["code", "config"]:
                 continue
             try:
@@ -184,3 +204,211 @@ class Analyzer:
             meta_store.save_metadata(summary_meta, summary_meta_path)
         else:
             logger.warning("No vectors were generated for summaries.")
+
+    def extract_keys_from_config(self, content: str, file_path: Path) -> List[str]:
+        """
+        Extract keys from configuration file content based on file type.
+        
+        Args:
+            content: The file content as a string
+            file_path: Path to the file for determining file type
+            
+        Returns:
+            List of keys found in the configuration file
+        """
+        keys = []
+        
+        try:
+            if file_path.suffix.lower() in ['.yaml', '.yml']:
+                # Parse YAML and extract keys
+                yaml_data = yaml.safe_load(content)
+                if yaml_data:
+                    keys = self._extract_keys_recursive(yaml_data)
+                    
+            elif file_path.suffix.lower() == '.json':
+                # Parse JSON and extract keys
+                json_data = json.loads(content)
+                if json_data:
+                    keys = self._extract_keys_recursive(json_data)
+                    
+            elif file_path.suffix.lower() == '.toml':
+                # Parse TOML and extract keys
+                toml_data = toml.loads(content)
+                if toml_data:
+                    keys = self._extract_keys_recursive(toml_data)
+                    
+            elif file_path.suffix.lower() in ['.ini', '.conf']:
+                # Parse INI/CONF files and extract keys
+                keys = self._extract_keys_from_ini(content)
+                
+            elif file_path.suffix.lower() == '.properties':
+                # Parse PROPERTIES files and extract keys
+                keys = self._extract_keys_from_properties(content)
+                    
+        except Exception as e:
+            logger.warning(f"Error extracting keys from {file_path}: {e}")
+            
+        return keys
+    
+    def _extract_keys_recursive(self, data: Any, prefix: str = "") -> List[str]:
+        """
+        Recursively extract keys from nested data structures.
+        
+        Args:
+            data: The data structure to extract keys from
+            prefix: Current key prefix for nested structures
+            
+        Returns:
+            List of keys found in the data structure
+        """
+        keys = []
+        
+        if isinstance(data, dict):
+            for key, value in data.items():
+                current_key = f"{prefix}.{key}" if prefix else key
+                keys.append(current_key)
+                
+                # Recursively extract keys from nested structures
+                if isinstance(value, (dict, list)):
+                    keys.extend(self._extract_keys_recursive(value, current_key))
+                    
+        elif isinstance(data, list):
+            for i, item in enumerate(data):
+                current_key = f"{prefix}[{i}]" if prefix else f"[{i}]"
+                
+                # Recursively extract keys from nested structures
+                if isinstance(item, (dict, list)):
+                    keys.extend(self._extract_keys_recursive(item, current_key))
+                    
+        return keys
+
+    def _extract_keys_from_ini(self, content: str) -> List[str]:
+        """
+        Extract keys from INI/CONF file content.
+        
+        Args:
+            content: The INI/CONF file content as a string
+            
+        Returns:
+            List of keys found in the INI/CONF file
+        """
+        keys = []
+        
+        try:
+            config = configparser.ConfigParser()
+            config.read_string(content)
+            
+            for section in config.sections():
+                keys.append(f"[{section}]")
+                for option in config.options(section):
+                    keys.append(f"[{section}].{option}")
+                    
+        except Exception as e:
+            logger.warning(f"Error parsing INI/CONF content: {e}")
+            
+        return keys
+    
+    def _extract_keys_from_properties(self, content: str) -> List[str]:
+        """
+        Extract keys from PROPERTIES file content.
+        
+        Args:
+            content: The PROPERTIES file content as a string
+            
+        Returns:
+            List of keys found in the PROPERTIES file
+        """
+        keys = []
+        
+        try:
+            lines = content.split('\n')
+            for line in lines:
+                line = line.strip()
+                # Skip empty lines, comments, and lines without '='
+                if not line or line.startswith('#') or line.startswith('!') or '=' not in line:
+                    continue
+                    
+                # Extract the key part (before the first '=')
+                key = line.split('=', 1)[0].strip()
+                if key:
+                    keys.append(key)
+                    
+        except Exception as e:
+            logger.warning(f"Error parsing PROPERTIES content: {e}")
+            
+        return keys
+
+    def process_config_file(self, file_path: Path) -> None:
+        """
+        Process configuration files separately from the main chunking and embedding workflow.
+        
+        Creates a JSON object for each configuration file with the following structure:
+        {
+          "file_path": "relative/path/to/file",
+          "selection_reason": "extension",
+          "mime": "text/x-yaml",
+          "hash": "sha256:...",
+          "keys": [...]
+        }
+        
+        Args:
+            file_path: Path to the configuration file to process
+        """
+        logger.info(f"Processing configuration file: {file_path}")
+        
+        try:
+            # Read file content
+            content = file_path.read_text(encoding="utf-8")
+            
+            # Calculate SHA256 hash
+            file_hash = hashlib.sha256(content.encode('utf-8')).hexdigest()
+            
+            # Determine MIME type based on file extension
+            mime_type, _ = mimetypes.guess_type(str(file_path))
+            if mime_type is None:
+                # Fallback MIME types for common config formats
+                mime_map = {
+                    '.yaml': 'text/x-yaml',
+                    '.yml': 'text/x-yaml',
+                    '.json': 'application/json',
+                    '.toml': 'text/x-toml',
+                    '.ini': 'text/x-ini',
+                    '.conf': 'text/plain',
+                    '.properties': 'text/x-properties'
+                }
+                mime_type = mime_map.get(file_path.suffix, 'text/plain')
+            
+            # Get relative path from repo root
+            relative_path = file_path.relative_to(self.repo_path)
+            
+            # Create config file object
+            config_obj = {
+                "file_path": str(relative_path),
+                "selection_reason": "extension",
+                "mime": mime_type,
+                "hash": f"sha256:{file_hash}",
+                "keys": self.extract_keys_from_config(content, file_path)
+            }
+            
+            # Add to config files list
+            self.config_files.append(config_obj)
+            
+            logger.debug(f"Processed config file: {file_path}")
+            
+        except Exception as e:
+            logger.error(f"Error processing config file {file_path}: {e}")
+    
+    def save_config_files(self) -> None:
+        """
+        Save the processed configuration files data to a JSON file in the output directory.
+        """
+        if self.config_files:
+            config_output_path = self.output_dir / "config_files.json"
+            try:
+                with open(config_output_path, 'w', encoding='utf-8') as f:
+                    json.dump(self.config_files, f, indent=2, ensure_ascii=False)
+                logger.info(f"Saved {len(self.config_files)} config files to {config_output_path}")
+            except Exception as e:
+                logger.error(f"Error saving config files: {e}")
+        else:
+            logger.info("No config files to save")
