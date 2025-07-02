@@ -8,7 +8,7 @@ from typing import List, Dict, Any
 from maposcal.analyzer.parser import parse_file
 from traceback import format_exc
 import logging
-import settings
+from maposcal import settings
 
 logger = logging.getLogger()
 
@@ -114,7 +114,7 @@ def detect_chunk_type(suffix: str) -> str:
 
     if suffix in [".py", ".go", ".java", ".js", ".ts", ".rb", ".cs"]:
         return "code"
-    elif suffix in [".yaml", ".yml", ".json", ".toml", ".ini", ".conf", ".properties"]:
+    elif suffix in settings.config_file_extensions:
         return "config"
     elif suffix in [".md", ".rst", ".txt"]:
         return "doc"

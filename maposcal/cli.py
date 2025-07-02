@@ -101,12 +101,25 @@ def analyze(config: str = typer.Argument(None, help="Path to the configuration f
 
     The analysis results are stored in the specified output directory
     and serve as the foundation for the generate command.
+    
+    Configuration options:
+    - config_extensions: List of file extensions to treat as configuration files
+    - auto_discover_config: Whether to auto-discover configuration files (default: True)
     """
     config_data = load_config(config)
     repo_path = config_data.get("repo_path")
     output_dir = config_data.get("output_dir", ".oscalgen")
+    
+    # Get configuration file settings
+    config_extensions = config_data.get("config_extensions")
+    auto_discover_config = config_data.get("auto_discover_config", True)
 
-    analyzer = Analyzer(repo_path=repo_path, output_dir=output_dir)
+    analyzer = Analyzer(
+        repo_path=repo_path, 
+        output_dir=output_dir,
+        config_extensions=config_extensions,
+        auto_discover_config=auto_discover_config
+    )
     analyzer.run()
 
 

@@ -8,6 +8,7 @@ global tiktoken_encoding
 global local_embeddings_model
 global ignored_file_extensions
 global ignored_filename_patterns
+global config_file_extensions
 
 openai_model = "gpt-4.1-mini"
 openai_base_url = "https://api.openai.com/v1"
@@ -44,6 +45,11 @@ ignored_directory_patterns = [
      "migrations",  # Database migrations
      "seeds", "fixtures", "test",  # Test data
  ]
+
+# Default configuration file extensions
+config_file_extensions = [
+    ".yaml", ".yml", ".json", ".toml", ".ini", ".conf", ".properties"
+]
 
 if __name__ == "__main__":
     print("This module not intended for interactive use.  Pleaes use cli.py.")

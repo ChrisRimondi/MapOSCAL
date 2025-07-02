@@ -4,7 +4,7 @@ Local embedding utilities using sentence-transformers.
 This module provides functions for loading and using local embedding models
 to convert text into vector representations.
 """
-import settings
+from maposcal import settings
 import os
 from sentence_transformers import SentenceTransformer
 import numpy as np

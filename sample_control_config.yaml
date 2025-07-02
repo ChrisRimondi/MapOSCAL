@@ -4,4 +4,21 @@ repo_path: "/path/to/repository"
 output_dir: ".oscalgen"
 top_k: 5
 catalog_path: "examples/NIST_SP-800-53_rev5_catalog.json"
-profile_path: "examples/NIST_SP-800-53_rev5_HIGH-baseline_profile.json" 
+profile_path: "examples/NIST_SP-800-53_rev5_HIGH-baseline_profile.json"
+
+# Configuration file extensions to process (optional)
+# If not specified, uses default extensions: [".yaml", ".yml", ".json", ".toml", ".ini", ".conf", ".properties"]
+# config_extensions:
+#   - ".yaml"
+#   - ".yml"
+#   - ".json"
+#   - ".toml"
+#   - ".ini"
+#   - ".conf"
+#   - ".properties"
+#   - ".env"
+#   - ".cfg"
+
+# Whether to auto-discover configuration files (default: true)
+# If false, only files with extensions in config_extensions will be processed
+# auto_discover_config: true 

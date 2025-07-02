@@ -294,30 +294,21 @@ class ControlMapping(BaseModel):
         Raises:
             ValueError: If configuration structure is invalid
         """
-        ALLOWED_EXTENSIONS = {
-            ".yaml",
-            ".yml",
-            ".json",
-            ".toml",
-            ".conf",
-            ".ini",
-            ".env",
-            ".py",
-            ".js",
-            ".ts",
-            ".go",
-            ".java",
-            ".cpp",
-            ".c",
-            ".h",
-            ".cs",
-            ".php",
-            ".rb",
-            ".pl",
-            ".sh",
-            ".bash",
-            ".ps1",
-        }
+        # Use configurable extensions from settings, with fallback to defaults
+        try:
+            from maposcal import settings
+            ALLOWED_EXTENSIONS = set(settings.config_file_extensions)
+        except ImportError:
+            # Fallback to default extensions if settings import fails
+            ALLOWED_EXTENSIONS = {
+                ".yaml", ".yml", ".json", ".toml", ".conf", ".ini", ".properties"
+            }
+        
+        # Add common code file extensions
+        ALLOWED_EXTENSIONS.update({
+            ".py", ".js", ".ts", ".go", ".java", ".cpp", ".c", ".h", 
+            ".cs", ".php", ".rb", ".pl", ".sh", ".bash", ".ps1"
+        })
 
         for prop in props:
             if prop.name == "control-configuration":
@@ -535,30 +526,22 @@ def validate_control_configuration(requirement: dict) -> tuple[bool, list]:
                and list_of_violations contains detailed violation information
     """
     violations = []
-    ALLOWED_EXTENSIONS = {
-        ".yaml",
-        ".yml",
-        ".json",
-        ".toml",
-        ".conf",
-        ".ini",
-        ".env",
-        ".py",
-        ".js",
-        ".ts",
-        ".go",
-        ".java",
-        ".cpp",
-        ".c",
-        ".h",
-        ".cs",
-        ".php",
-        ".rb",
-        ".pl",
-        ".sh",
-        ".bash",
-        ".ps1",
-    }
+    
+    # Use configurable extensions from settings, with fallback to defaults
+    try:
+        from maposcal import settings
+        ALLOWED_EXTENSIONS = set(settings.config_file_extensions)
+    except ImportError:
+        # Fallback to default extensions if settings import fails
+        ALLOWED_EXTENSIONS = {
+            ".yaml", ".yml", ".json", ".toml", ".conf", ".ini", ".properties"
+        }
+    
+    # Add common code file extensions
+    ALLOWED_EXTENSIONS.update({
+        ".py", ".js", ".ts", ".go", ".java", ".cpp", ".c", ".h", 
+        ".cs", ".php", ".rb", ".pl", ".sh", ".bash", ".ps1"
+    })
 
     # Find control-status and control-configuration props
     control_status = None

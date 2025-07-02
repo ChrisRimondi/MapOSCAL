@@ -14,7 +14,7 @@ import os
 import numpy as np
 from maposcal.analyzer.chunker import detect_chunk_type
 import logging
-import settings
+from maposcal import settings
 import hashlib
 import json
 import mimetypes
@@ -61,19 +61,33 @@ class Analyzer:
     - FAISS index creation for efficient similarity search
     - Security-focused file summarization using LLM analysis
     - Rule-based security pattern detection and flagging
+    - Configurable configuration file extensions
     """
 
-    def __init__(self, repo_path: str, output_dir: str = ".oscalgen"):
+    def __init__(self, repo_path: str, output_dir: str = ".oscalgen", config_extensions: List[str] = None, auto_discover_config: bool = True):
         """
         Initialize the analyzer.
 
         Args:
             repo_path: Path to the repository to analyze
             output_dir: Directory to store analysis results (default: .oscalgen)
+            config_extensions: List of file extensions to treat as configuration files
+                              (default: None, uses settings.config_file_extensions)
+            auto_discover_config: Whether to auto-discover configuration files or use
+                                 only the provided extensions (default: True)
         """
         self.repo_path = Path(repo_path)
         self.output_dir = Path(output_dir)
         self.output_dir.mkdir(exist_ok=True)
+        
+        # Set configuration file extensions
+        if config_extensions is not None:
+            # Ensure extensions start with dot
+            self.config_extensions = [ext if ext.startswith('.') else f'.{ext}' for ext in config_extensions]
+        else:
+            self.config_extensions = settings.config_file_extensions
+            
+        self.auto_discover_config = auto_discover_config
 
         # Storage for analysis results
         self.chunks = []
@@ -159,16 +173,15 @@ class Analyzer:
                 logger.debug(f"Skipping {file_path} due to ignored filename pattern")
                 continue
                 
-            chunk_type = detect_chunk_type(file_path.suffix)
+            # Check if this is a configuration file using our configurable extensions
+            is_config_file = file_path.suffix.lower() in [ext.lower() for ext in self.config_extensions]
             
             # Handle config files separately
-            if chunk_type == "config":
+            if is_config_file:
                 logger.info(f"Processing config file: {file_path}")
                 self.process_config_file(file_path)
                 continue
-                
-            if chunk_type not in ["code", "config"]:
-                continue
+            
             try:
                 # Begin manual enrichment before LLM involvement
                 logger.info(f"Beginning rules-based inspection of {file_path}")
@@ -219,29 +232,31 @@ class Analyzer:
         keys = []
         
         try:
-            if file_path.suffix.lower() in ['.yaml', '.yml']:
+            suffix_lower = file_path.suffix.lower()
+            
+            if suffix_lower in ['.yaml', '.yml']:
                 # Parse YAML and extract keys
                 yaml_data = yaml.safe_load(content)
                 if yaml_data:
                     keys = self._extract_keys_recursive(yaml_data)
                     
-            elif file_path.suffix.lower() == '.json':
+            elif suffix_lower == '.json':
                 # Parse JSON and extract keys
                 json_data = json.loads(content)
                 if json_data:
                     keys = self._extract_keys_recursive(json_data)
                     
-            elif file_path.suffix.lower() == '.toml':
+            elif suffix_lower == '.toml':
                 # Parse TOML and extract keys
                 toml_data = toml.loads(content)
                 if toml_data:
                     keys = self._extract_keys_recursive(toml_data)
                     
-            elif file_path.suffix.lower() in ['.ini', '.conf']:
+            elif suffix_lower in ['.ini', '.conf']:
                 # Parse INI/CONF files and extract keys
                 keys = self._extract_keys_from_ini(content)
                 
-            elif file_path.suffix.lower() == '.properties':
+            elif suffix_lower == '.properties':
                 # Parse PROPERTIES files and extract keys
                 keys = self._extract_keys_from_properties(content)
                     

@@ -1,6 +1,9 @@
 import pytest
 from pathlib import Path
 from maposcal.analyzer import chunker
+from maposcal.analyzer.analyzer import Analyzer
+import tempfile
+import os
 
 
 # Test detect_chunk_type
@@ -146,3 +149,67 @@ def test_parse_file_dispatch(tmp_path):
     assert parser.parse_file(yaml)[0]["content"].startswith("foo: bar")
     assert parser.parse_file(md)[0]["content"].startswith("# H")
     assert parser.parse_file(txt)[0]["content"].startswith("plain text")
+
+
+def test_analyzer_with_custom_config_extensions():
+    """Test that Analyzer accepts custom configuration file extensions."""
+    with tempfile.TemporaryDirectory() as temp_dir:
+        # Create a temporary repository structure
+        repo_path = Path(temp_dir) / "test_repo"
+        repo_path.mkdir()
+        
+        # Create some test files
+        (repo_path / "config.yaml").write_text("key: value")
+        (repo_path / "config.json").write_text('{"key": "value"}')
+        (repo_path / "config.env").write_text("KEY=value")
+        (repo_path / "main.py").write_text("print('hello')")
+        
+        # Test with custom config extensions
+        custom_extensions = [".yaml", ".env"]
+        analyzer = Analyzer(
+            repo_path=str(repo_path),
+            output_dir=str(repo_path / ".oscalgen"),
+            config_extensions=custom_extensions,
+            auto_discover_config=False
+        )
+        
+        # Verify that only specified extensions are treated as config files
+        assert ".yaml" in analyzer.config_extensions
+        assert ".env" in analyzer.config_extensions
+        assert ".json" not in analyzer.config_extensions
+
+
+def test_analyzer_with_default_config_extensions():
+    """Test that Analyzer uses default configuration file extensions when none specified."""
+    with tempfile.TemporaryDirectory() as temp_dir:
+        repo_path = Path(temp_dir) / "test_repo"
+        repo_path.mkdir()
+        
+        analyzer = Analyzer(
+            repo_path=str(repo_path),
+            output_dir=str(repo_path / ".oscalgen")
+        )
+        
+        # Should use default extensions from settings
+        from maposcal import settings
+        assert analyzer.config_extensions == settings.config_file_extensions
+
+
+def test_analyzer_extension_normalization():
+    """Test that file extensions are properly normalized (add dot if missing)."""
+    with tempfile.TemporaryDirectory() as temp_dir:
+        repo_path = Path(temp_dir) / "test_repo"
+        repo_path.mkdir()
+        
+        # Test extensions without dots
+        custom_extensions = ["yaml", "json", "env"]
+        analyzer = Analyzer(
+            repo_path=str(repo_path),
+            output_dir=str(repo_path / ".oscalgen"),
+            config_extensions=custom_extensions
+        )
+        
+        # Should normalize to include dots
+        assert ".yaml" in analyzer.config_extensions
+        assert ".json" in analyzer.config_extensions
+        assert ".env" in analyzer.config_extensions

@@ -1,4 +1,4 @@
-import settings
+from maposcal import settings
 from typing import Tuple
 import tiktoken
 from openai import OpenAI
