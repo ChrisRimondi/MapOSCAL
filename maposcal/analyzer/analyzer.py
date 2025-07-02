@@ -13,6 +13,7 @@ from typing import List, Dict, Any
 import os
 import numpy as np
 from maposcal.analyzer.chunker import detect_chunk_type
+from traceback import format_exc
 import logging
 import settings
 import hashlib
@@ -171,8 +172,19 @@ class Analyzer:
                 continue
             try:
                 # Begin manual enrichment before LLM involvement
-                logger.info(f"Beginning rules-based inspection of {file_path}")
-                file_inspector_results = rules.begin_inspection(str(file_path))
+                try:
+                    logger.info(f"Beginning rules-based inspection of {file_path}")
+                    file_inspector_results = rules.begin_inspection(str(file_path))
+                except:
+                    logger.error(f"Failed to perform inspection on {str(file_path)} - {format_exc()}")
+                try:
+                    # Create embeddings from inspector's summary
+                    inspector_summary = file_inspector_results['file_summary']
+                    summary_vec = local_embedder.embed_one(inspector_summary)
+                    vectors.append(summary_vec)
+                    logger.info(f"Successfully created embeddings for file {str(file_path)}.")
+                except:
+                    logger.error(f"Failed to generate and store vectorized embeddings for inspector's results on {str(file_path)} - {format_exc()}")
 
                 content = file_path.read_text(encoding="utf-8")
                 prompt = pt.build_file_summary_prompt(file_path.name, content)
