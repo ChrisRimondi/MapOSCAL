@@ -64,7 +64,7 @@ class Analyzer:
     - Configurable configuration file extensions
     """
 
-    def __init__(self, repo_path: str, output_dir: str = ".oscalgen", config_extensions: List[str] = None, auto_discover_config: bool = True):
+    def __init__(self, repo_path: str, output_dir: str = ".oscalgen", config_extensions: List[str] = None, auto_discover_config: bool = True, config_files: List[str] = None):
         """
         Initialize the analyzer.
 
@@ -72,15 +72,17 @@ class Analyzer:
             repo_path: Path to the repository to analyze
             output_dir: Directory to store analysis results (default: .oscalgen)
             config_extensions: List of file extensions to treat as configuration files
-                              (default: None, uses settings.config_file_extensions)
-            auto_discover_config: Whether to auto-discover configuration files or use
-                                 only the provided extensions (default: True)
+                              (used when auto_discover_config is True)
+            auto_discover_config: Whether to auto-discover configuration files by extension
+                                 or use manual file list (default: True)
+            config_files: List of specific file paths to treat as configuration files
+                         (used when auto_discover_config is False)
         """
         self.repo_path = Path(repo_path)
         self.output_dir = Path(output_dir)
         self.output_dir.mkdir(exist_ok=True)
         
-        # Set configuration file extensions
+        # Set configuration file extensions for auto-discovery
         if config_extensions is not None:
             # Ensure extensions start with dot
             self.config_extensions = [ext if ext.startswith('.') else f'.{ext}' for ext in config_extensions]
@@ -88,6 +90,13 @@ class Analyzer:
             self.config_extensions = settings.config_file_extensions
             
         self.auto_discover_config = auto_discover_config
+        
+        # Set manual config files list
+        if config_files is not None:
+            # Convert to Path objects relative to repo root
+            self.config_files_list = [Path(file_path) for file_path in config_files]
+        else:
+            self.config_files_list = []
 
         # Storage for analysis results
         self.chunks = []
@@ -173,8 +182,16 @@ class Analyzer:
                 logger.debug(f"Skipping {file_path} due to ignored filename pattern")
                 continue
                 
-            # Check if this is a configuration file using our configurable extensions
-            is_config_file = file_path.suffix.lower() in [ext.lower() for ext in self.config_extensions]
+            # Check if this is a configuration file
+            is_config_file = False
+            
+            if self.auto_discover_config:
+                # Auto-discover by extension
+                is_config_file = file_path.suffix.lower() in [ext.lower() for ext in self.config_extensions]
+            else:
+                # Manual file specification
+                relative_path = file_path.relative_to(self.repo_path)
+                is_config_file = relative_path in self.config_files_list
             
             # Handle config files separately
             if is_config_file:

@@ -6,8 +6,10 @@ top_k: 5
 catalog_path: "examples/NIST_SP-800-53_rev5_catalog.json"
 profile_path: "examples/NIST_SP-800-53_rev5_HIGH-baseline_profile.json"
 
-# Configuration file extensions to process (optional)
-# If not specified, uses default extensions: [".yaml", ".yml", ".json", ".toml", ".ini", ".conf", ".properties"]
+# Configuration file handling (optional)
+# Option 1: Auto-discover config files by extension (default behavior)
+# If auto_discover_config is true and config_extensions is provided, 
+# files with these extensions will be treated as configuration files
 # config_extensions:
 #   - ".yaml"
 #   - ".yml"
@@ -19,6 +21,11 @@ profile_path: "examples/NIST_SP-800-53_rev5_HIGH-baseline_profile.json"
 #   - ".env"
 #   - ".cfg"
 
-# Whether to auto-discover configuration files (default: true)
-# If false, only files with extensions in config_extensions will be processed
-# auto_discover_config: true 
+# Option 2: Manual list of configuration files
+# If auto_discover_config is false, specify exact files to process as config files
+# auto_discover_config: false
+# config_files:
+#   - "config/database.yaml"
+#   - "config/app.json"
+#   - ".env"
+#   - "docker-compose.yml" 

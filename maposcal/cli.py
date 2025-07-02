@@ -103,8 +103,9 @@ def analyze(config: str = typer.Argument(None, help="Path to the configuration f
     and serve as the foundation for the generate command.
     
     Configuration options:
-    - config_extensions: List of file extensions to treat as configuration files
-    - auto_discover_config: Whether to auto-discover configuration files (default: True)
+    - config_extensions: List of file extensions to treat as configuration files (when auto_discover_config is True)
+    - auto_discover_config: Whether to auto-discover by extension or use manual file list (default: True)
+    - config_files: List of specific file paths to treat as configuration files (when auto_discover_config is False)
     """
     config_data = load_config(config)
     repo_path = config_data.get("repo_path")
@@ -113,12 +114,14 @@ def analyze(config: str = typer.Argument(None, help="Path to the configuration f
     # Get configuration file settings
     config_extensions = config_data.get("config_extensions")
     auto_discover_config = config_data.get("auto_discover_config", True)
+    config_files = config_data.get("config_files")
 
     analyzer = Analyzer(
         repo_path=repo_path, 
         output_dir=output_dir,
         config_extensions=config_extensions,
-        auto_discover_config=auto_discover_config
+        auto_discover_config=auto_discover_config,
+        config_files=config_files
     )
     analyzer.run()
 

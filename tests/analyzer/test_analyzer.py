@@ -4,6 +4,7 @@ from maposcal.analyzer import chunker
 from maposcal.analyzer.analyzer import Analyzer
 import tempfile
 import os
+from maposcal import settings
 
 
 # Test detect_chunk_type
@@ -39,22 +40,30 @@ def test_analyze_repo_excludes_patterns(tmp_path, monkeypatch):
     def mock_parse_file(path):
         return [{"content": f"content of {path.name}", "start_line": 1, "end_line": 1}]
 
-    monkeypatch.setattr(chunker, "parse_file", mock_parse_file)
+    from maposcal.analyzer import parser
+    monkeypatch.setattr(parser, "parse_file", mock_parse_file)
 
+    # Temporarily remove "test" from ignored directory patterns to avoid skipping test directories
+    original_ignored_dirs = settings.ignored_directory_patterns.copy()
+    settings.ignored_directory_patterns = [p for p in settings.ignored_directory_patterns if p != "test"]
+    
+    settings.config_file_extensions = [".yaml", ".yml", ".json", ".toml", ".ini", ".conf", ".properties"]
     chunks = chunker.analyze_repo(tmp_path)
-    # Should not include test_file.py or image.png
+    
+    # Restore original ignored directory patterns
+    settings.ignored_directory_patterns = original_ignored_dirs
+    
+    # Should not include test_file.py, image.png, or config files (handled separately)
     files_in_chunks = {c["source_file"] for c in chunks}
     assert any("file.py" in f for f in files_in_chunks)
-    assert any("file.yaml" in f for f in files_in_chunks)
     assert any("README.md" in f for f in files_in_chunks)
     assert not any("test_file.py" in f for f in files_in_chunks)
     assert not any("image.png" in f for f in files_in_chunks)
+    assert not any("file.yaml" in f for f in files_in_chunks)  # Config files handled separately
     # Check chunk_type
     for c in chunks:
         if c["source_file"].endswith(".py"):
             assert c["chunk_type"] == "code"
-        elif c["source_file"].endswith(".yaml"):
-            assert c["chunk_type"] == "config"
         elif c["source_file"].endswith(".md"):
             assert c["chunk_type"] == "doc"
 
@@ -213,3 +222,69 @@ def test_analyzer_extension_normalization():
         assert ".yaml" in analyzer.config_extensions
         assert ".json" in analyzer.config_extensions
         assert ".env" in analyzer.config_extensions
+
+
+def test_analyzer_with_manual_config_files():
+    """Test that Analyzer accepts manual list of configuration files."""
+    with tempfile.TemporaryDirectory() as temp_dir:
+        # Create a temporary repository structure
+        repo_path = Path(temp_dir) / "test_repo"
+        repo_path.mkdir()
+        
+        # Create some test files
+        (repo_path / "config.yaml").write_text("key: value")
+        (repo_path / "config.json").write_text('{"key": "value"}')
+        (repo_path / "config.env").write_text("KEY=value")
+        (repo_path / "main.py").write_text("print('hello')")
+        
+        # Test with manual file specification
+        manual_files = ["config.yaml", "config.env"]
+        analyzer = Analyzer(
+            repo_path=str(repo_path),
+            output_dir=str(repo_path / ".oscalgen"),
+            auto_discover_config=False,
+            config_files=manual_files
+        )
+        
+        # Verify that manual files are set correctly
+        assert Path("config.yaml") in analyzer.config_files_list
+        assert Path("config.env") in analyzer.config_files_list
+        assert Path("config.json") not in analyzer.config_files_list
+        assert analyzer.auto_discover_config is False
+
+
+def test_analyzer_auto_discovery_vs_manual():
+    """Test the difference between auto-discovery and manual file specification."""
+    with tempfile.TemporaryDirectory() as temp_dir:
+        repo_path = Path(temp_dir) / "test_repo"
+        repo_path.mkdir()
+        
+        # Create test files
+        (repo_path / "config.yaml").write_text("key: value")
+        (repo_path / "config.json").write_text('{"key": "value"}')
+        (repo_path / "main.py").write_text("print('hello')")
+        
+        # Test auto-discovery (should include both yaml and json)
+        analyzer_auto = Analyzer(
+            repo_path=str(repo_path),
+            output_dir=str(repo_path / ".oscalgen"),
+            config_extensions=[".yaml", ".json"],
+            auto_discover_config=True
+        )
+        
+        # Test manual specification (should only include yaml)
+        analyzer_manual = Analyzer(
+            repo_path=str(repo_path),
+            output_dir=str(repo_path / ".oscalgen"),
+            auto_discover_config=False,
+            config_files=["config.yaml"]
+        )
+        
+        # Verify different behaviors
+        assert ".yaml" in analyzer_auto.config_extensions
+        assert ".json" in analyzer_auto.config_extensions
+        assert analyzer_auto.auto_discover_config is True
+        
+        assert Path("config.yaml") in analyzer_manual.config_files_list
+        assert Path("config.json") not in analyzer_manual.config_files_list
+        assert analyzer_manual.auto_discover_config is False
