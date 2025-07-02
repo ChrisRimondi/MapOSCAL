@@ -69,6 +69,10 @@ def start_inspection(file_path):
         loaded_modules['cryptographic_module'] = cryptographic_module
 
         ###
+        # Parse for configuration ingestion (e.g., environmental variables, etc.)
+        ###
+        
+        ###
         # Parse for common file system interactions
         ###
 
@@ -98,6 +102,10 @@ def start_inspection(file_path):
 
         ###
         # Parse to determine error handling practices and failsafes.
+        ###
+
+        ###
+        # Generate LLM context summary
         ###
 
     golang_inspection_results["file_path"] = file_path
