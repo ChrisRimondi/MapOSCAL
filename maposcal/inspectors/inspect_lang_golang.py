@@ -151,6 +151,7 @@ def summarize_discovery_content(golang_inspection_results):
     file_system_results = ""
     logging_results = ""
     configuration_results = ""
+    config_variables = ""
     cryptograhic_results = ""
 
     if len(golang_inspection_results["loaded_modules"]["network_modules"]) > 0:
@@ -169,10 +170,13 @@ def summarize_discovery_content(golang_inspection_results):
         logging_results = "No logging capabilities have been detected in this file."
 
     if len(golang_inspection_results["configuration_settings"]) > 0:
-        configuration_results = f"Configuration settings, either from environmental variables, or other sources are established using {golang_inspection_results["configuration_settings"]}."
+        for config_var in golang_inspection_results["configuration_settings"]:
+            config_variables = f"{config_variables}, {config_var['variable']}".lstrip(',')
+
+        configuration_results = f"Configuration settings, either from environmental variables, or other sources are stored in the following variables: {config_variables}."
     else:
         configuration_results = "No configuration settings (e.g., environmental variables, etc.) have been imported from this file."
-
+  
     if len(golang_inspection_results["loaded_modules"]['cryptographic_module']) > 0:
         cryptograhic_results = f"Potential cryptographic operations are happening using the following modules. {golang_inspection_results["loaded_modules"]['cryptographic_module']}."
 
@@ -318,5 +322,5 @@ def identify_imported_modules(file_contents):
 
 
 if __name__ == "__main__":
-    r = start_inspection('/home/caleb/code/minio/internal/crypto/crypto.go')
+    r = start_inspection('/home/caleb/code/minio/docs/site-replication/gen-oidc-sts-cred.go')
     print(r)
