@@ -360,7 +360,6 @@ def build_control_prompt(
     control_name: str,
     control_description: str,
     evidence_chunks: List[dict],
-    k: int,
     main_uuid: str,
     statement_uuid: str,
     security_overview: str = None,
@@ -374,7 +373,6 @@ def build_control_prompt(
         control_name: Human-readable name of the control
         control_description: Detailed description of the control
         evidence_chunks: List of evidence chunks from code analysis
-        k: Number of top evidence chunks to include
         main_uuid: UUID for the main control
         statement_uuid: UUID for the control statement
         security_overview: Optional security overview content to include as reference
@@ -405,7 +403,7 @@ def build_control_prompt(
         system=CONTROL_IMPL_SYSTEM,
         instructions=instructions,
         control_id=control_id,
-        k=k,
+        k=len(evidence_chunks),
         security_overview_section=security_overview_section,
     )
     body = ""

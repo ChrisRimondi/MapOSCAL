@@ -213,7 +213,6 @@ def map_control(control_dict: dict, output_dir: str, top_k: int = 5) -> str:
             control_dict["title"],
             control_description,
             relevant_chunks,
-            top_k,
             main_uuid,
             statement_uuid,
             security_overview,
