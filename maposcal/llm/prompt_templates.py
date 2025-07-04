@@ -164,7 +164,7 @@ For the control {control_id}: Name: {control_name}, Description: {control_descri
     • "not applicable"
     
     - ✅ If the control is applicable and inherently satisfied — explain how within the JSON control-explanation field.
-    - ✅ If the control is applicable but only satisfied through configuration — explain your reasoning within the JSON control-explanation field and provide the configuration details within the JSON control-configuration field. Make sure to include the file path, key value, and line number of the configuration as applicable. Configuration files should be json or yaml files. Do not reference .md files or other type of documentation type files. 
+    - ✅ If the control is applicable but only satisfied through configuration — explain your reasoning within the JSON control-explanation field and provide the configuration details within the JSON control-configuration field. Make sure to include the file path, key value, and line number of the configuration as applicable. Do not reference .md files or other type of documentation type files. Do not make up any configuration details.
     - ⚠️ If the control is applicable but represents a gap — clearly describe the gap within the JSON control-explanation field.
     - 🚫 If the control is not applicable to the system — provide a brief explanation in the control-explanation field (e.g., "This system does not transmit sensitive data over public networks.").
 
