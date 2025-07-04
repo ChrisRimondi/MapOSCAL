@@ -25,6 +25,14 @@ ignored_file_extensions = [
      ".log", ".tmp", ".temp", ".cache",  # Temporary and log files
      ".min.js", ".min.css",  # Minified files
      ".map",  # Source maps
+     ".pem", ".key", ".crt", ".cer", ".der", ".p12", ".pfx", ".p7b", ".p7c",  # SSL/TLS certificates and keys
+     ".id_rsa", ".id_dsa", ".id_ecdsa", ".id_ed25519", ".ssh",  # SSH keys
+     ".env", ".env.local", ".env.production", ".env.staging", ".env.development",  # Environment files
+     ".secret", ".secrets", ".private", ".priv",  # Generic secret files
+     ".jks", ".keystore", ".truststore",  # Java keystores
+     ".gpg", ".asc", ".pgp",  # GPG/PGP files
+     ".p8", ".p12", ".mobileprovision", ".pem",  # Apple certificates and keys
+     ".p7s", ".p7m",  # PKCS#7 files
 ]
 ignored_filename_patterns = [
     "test", "mock", "example", "sample",
