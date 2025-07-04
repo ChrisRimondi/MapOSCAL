@@ -23,7 +23,22 @@ def begin_inspection(file_path):
     Returns:
       inspection_results (dict): See README in inspectors directory for full formatting details of the response.
     """
-    inspection_results = {}
+    inspection_results = {
+        "file_path": file_path,
+        "language": "unknown",
+        "control_hints": [],
+        "loaded_modules": {"modules": [], "network_modules": [], "file_system_modules": [], "logging_modules": [], "cryptographic_module": []},
+        "configuration_settings": [],
+        "file_system_interactions": [],
+        "cryptography": {},
+        "identified_vulnerabilities": {},
+        "access_controls": {},
+        "authn_authz": {},
+        "input_validation": {},
+        "logging": {},
+        "error_handling": {},
+        "file_summary": f"No specific inspection available for {file_path}. This file type is not currently supported by the automated inspectors."
+    }
 
     logger.info(f"Beginning inspection of {file_path}.")
 

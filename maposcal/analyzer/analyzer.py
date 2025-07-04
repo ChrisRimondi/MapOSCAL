@@ -211,11 +211,13 @@ class Analyzer:
                 
                 try:
                     # Create embeddings from inspector's summary
-                    if file_inspector_results is not None:
+                    if file_inspector_results is not None and 'file_summary' in file_inspector_results:
                         inspector_summary = file_inspector_results['file_summary']
                         summary_vec = local_embedder.embed_one(inspector_summary)
                         vectors.append(summary_vec)
                         logger.info(f"Successfully created embeddings for file {str(file_path)}.")
+                    else:
+                        logger.debug(f"No inspector summary available for {str(file_path)} - skipping inspector embeddings")
                 except:
                     logger.error(f"Failed to generate and store vectorized embeddings for inspector's results on {str(file_path)} - {format_exc()}")
 
