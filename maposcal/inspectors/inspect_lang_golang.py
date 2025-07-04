@@ -193,30 +193,49 @@ def summarize_discovery_content(golang_inspection_results):
     return file_summary
 
 
+import re
+from typing import List, Dict
+
 def identify_imported_configuration_variables(file_contents: str) -> List[Dict[str, str]]:
     """
-    Parses a code file and identifies as many configuration variables as possible that are utilized by the code.
-    Items such as use of dotenv, or loading environmental variables.  Identification of these items allows for
-    other inspectors to cleanly identify configuration details that might otherwise be vague.
-
+    Parses a Go code file and identifies configuration variables used in the code.
+    Includes environment variables, flags, Viper, and struct decoding from file-based sources.
+    
     Args:
         file_contents (str): Code contents of a module to be parsed for imported configuration variables.
+    
     Returns:
-        results (dict): Method of ingestion (e.g., environment variable), variable in code, as well as source name.
+        results (List[Dict[str, str]]): Method of ingestion, variable name, and source key.
     """
 
     patterns = [
         {
             "method": "Environment Variables (os.Getenv)",
-            "regex": r'(?P<var>\w+)\s*:=\s*os\.Getenv\(["\'](?P<key>[^"\']+)["\']\)'
+            "regex": r'(?P<var>\w+)\s*[:=]{1,2}\s*os\.Getenv\(["\'](?P<key>[^"\']+)["\']\)'
         },
         {
-            "method": "Command-line Flags (flag package)",
-            "regex": r'(?P<var>\w+)\s*:=\s*flag\.\w+\(["\'](?P<key>[^"\']+)["\'].*\)'
+            "method": "Environment Lookup (os.LookupEnv)",
+            "regex": r'(?P<var>\w+)\s*,\s*\w+\s*[:=]{1,2}\s*os\.LookupEnv\(["\'](?P<key>[^"\']+)["\']\)'
         },
         {
-            "method": "Environment Profiles (os.LookupEnv)",
-            "regex": r'(?P<var>\w+)\s*,\s*_\s*:=\s*os\.LookupEnv\(["\'](?P<key>[^"\']+)["\']\)'
+            "method": "Command-line Flags (flag.X or flag.Var)",
+            "regex": r'(?P<var>\w+)\s*[:=]{1,2}\s*flag\.(?:String|Int|Bool|Duration|.*Var)\(["\'](?P<key>[^"\']+)["\']'
+        },
+        {
+            "method": "Viper Get (viper.Get*)",
+            "regex": r'(?P<var>\w+)\s*[:=]{1,2}\s*viper\.Get\w*\(["\'](?P<key>[^"\']+)["\']\)'
+        },
+        {
+            "method": "Viper BindEnv",
+            "regex": r'viper\.BindEnv\(["\'](?P<key>[^"\']+)["\']\)'
+        },
+        {
+            "method": "Viper SetDefault",
+            "regex": r'viper\.SetDefault\(["\'](?P<key>[^"\']+)["\']\s*,'
+        },
+        {
+            "method": "Struct Decoding (Unmarshal into config struct)",
+            "regex": r'(?P<decoder>(json|yaml|viper))\.(Unmarshal|UnmarshalExact)\s*\(\s*&(?P<var>\w+)\s*\)'
         }
     ]
 
