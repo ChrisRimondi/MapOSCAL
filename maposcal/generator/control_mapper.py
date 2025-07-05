@@ -260,7 +260,20 @@ def parse_llm_response(result: str) -> dict:
     logger.info("Parsing LLM response")
     try:
         cleaned = result.strip()
-        cleaned = re.sub(r"^```json|```$", "", cleaned, flags=re.MULTILINE).strip()
+        
+        # Try to extract JSON from markdown code blocks first
+        json_block_match = re.search(r'```(?:json)?\s*\n(.*?)\n```', cleaned, re.DOTALL)
+        if json_block_match:
+            json_content = json_block_match.group(1).strip()
+            return json.loads(json_content)
+        
+        # Try to find JSON object in the text (look for { ... })
+        json_match = re.search(r'\{[^{}]*(?:\{[^{}]*\}[^{}]*)*\}', cleaned, re.DOTALL)
+        if json_match:
+            json_content = json_match.group(0)
+            return json.loads(json_content)
+        
+        # If no JSON found, try to parse the entire cleaned string
         return json.loads(cleaned)
     except Exception as e:
         logger.error(f"Failed to parse LLM response as JSON: {e}")

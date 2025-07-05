@@ -479,7 +479,10 @@ def validate_control_status(requirement: dict) -> tuple[bool, Optional[str]]:
 
     # Find the control-status prop
     control_status = None
-    for prop in requirement.get("props", []):
+    props = requirement.get("props", [])
+    if props is None:
+        return False, "Missing 'props' or 'props' is None"
+    for prop in props:
         if prop.get("name") == "control-status":
             control_status = prop.get("value")
             break
@@ -546,8 +549,14 @@ def validate_control_configuration(requirement: dict) -> tuple[bool, list]:
     # Find control-status and control-configuration props
     control_status = None
     control_config = None
-
-    for prop in requirement.get("props", []):
+    props = requirement.get("props", [])
+    if props is None:
+        return False, [{
+            "field": "props",
+            "issue": "Missing required props field or props is None",
+            "suggestion": "Add props field with required properties",
+        }]
+    for prop in props:
         if prop.get("name") == "control-status":
             control_status = prop.get("value")
         elif prop.get("name") == "control-configuration":
@@ -664,7 +673,7 @@ def validate_oscal_structure(requirement: dict) -> tuple[bool, list]:
         )
 
     # Check required props
-    if "props" in requirement:
+    if "props" in requirement and requirement["props"] is not None:
         required_props = {
             "control-status",
             "control-name",
@@ -682,9 +691,17 @@ def validate_oscal_structure(requirement: dict) -> tuple[bool, list]:
                     "suggestion": f"Add missing properties: {', '.join(missing_props)}",
                 }
             )
+    elif "props" not in requirement or requirement["props"] is None:
+        violations.append(
+            {
+                "field": "props",
+                "issue": "Missing required props field or props is None",
+                "suggestion": "Add props field with required properties",
+            }
+        )
 
     # Validate UUID format
-    if "uuid" in requirement:
+    if "uuid" in requirement and requirement["uuid"] is not None:
         try:
             uuid.UUID(requirement["uuid"])
         except ValueError:
@@ -695,6 +712,14 @@ def validate_oscal_structure(requirement: dict) -> tuple[bool, list]:
                     "suggestion": "Use valid UUID format (e.g., 123e4567-e89b-12d3-a456-426614174000)",
                 }
             )
+    elif "uuid" not in requirement or requirement["uuid"] is None:
+        violations.append(
+            {
+                "field": "uuid",
+                "issue": "Missing required uuid field or uuid is None",
+                "suggestion": "Add valid UUID format (e.g., 123e4567-e89b-12d3-a456-426614174000)",
+            }
+        )
 
     # Validate statements if present
     if "statements" in requirement:
