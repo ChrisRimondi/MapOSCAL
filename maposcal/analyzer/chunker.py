@@ -91,7 +91,8 @@ def analyze_repo(repo_path: Path) -> List[Dict[str, Any]]:
             try:
                 parsed = parse_file(file_path)
             except Exception:
-                logger.error(f"Faile to parse ({file_path}) - {format_exc()}")
+                logger.error(f"Failed to parse ({file_path}) - {format_exc()}")
+                continue
 
             logger.debug(f"Parsing ({file_path}) completed.")
 

@@ -154,19 +154,19 @@ def summarize_discovery_content(golang_inspection_results):
     cryptograhic_results = ""
 
     if len(golang_inspection_results["loaded_modules"]["network_modules"]) > 0:
-        networking_results = f"Discovery of networking modules shows the following being used for connectivity: {golang_inspection_results["loaded_modules"]["network_modules"]}."
+        networking_results = f"Discovery of networking modules shows the following being used for connectivity: {golang_inspection_results['loaded_modules']['network_modules']}."
     else:
         networking_results = (
             "No networking capabilities have been detected in this file."
         )
 
     if len(golang_inspection_results["loaded_modules"]["file_system_modules"]) > 0:
-        file_system_results = f"File system access is expected using the discovered modules: {golang_inspection_results["loaded_modules"]["file_system_modules"]}."
+        file_system_results = f"File system access is expected using the discovered modules: {golang_inspection_results['loaded_modules']['file_system_modules']}."
     else:
         file_system_results = "No file system access has been detected in this file."
 
     if len(golang_inspection_results["loaded_modules"]["logging_modules"]) > 0:
-        logging_results = f"Logging capabilities are expected to be using these modules: {golang_inspection_results["loaded_modules"]["logging_modules"]}."
+        logging_results = f"Logging capabilities are expected to be using these modules: {golang_inspection_results['loaded_modules']['logging_modules']}."
     else:
         logging_results = "No logging capabilities have been detected in this file."
 
@@ -181,11 +181,11 @@ def summarize_discovery_content(golang_inspection_results):
         configuration_results = "No configuration settings (e.g., environmental variables, etc.) have been imported from this file."
 
     if len(golang_inspection_results["loaded_modules"]["cryptographic_module"]) > 0:
-        cryptograhic_results = f"Potential cryptographic operations are happening using the following modules. {golang_inspection_results["loaded_modules"]['cryptographic_module']}."
+        cryptograhic_results = f"Potential cryptographic operations are happening using the following modules. {golang_inspection_results['loaded_modules']['cryptographic_module']}."
 
     file_summary = dedent(
         f"""\
-        The file {golang_inspection_results["file_path"]} is written in {golang_inspection_results["language"]}. \
+        The file {golang_inspection_results['file_path']} is written in {golang_inspection_results['language']}. \
 {networking_results} \
 {file_system_results} \
 {logging_results} \
