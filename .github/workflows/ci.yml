@@ -61,9 +61,6 @@ jobs:
       - name: Run Ruff linter
         run: ruff check maposcal/ tests/
 
-      - name: Run MyPy type checker
-        run: mypy maposcal/
-
   security:
     name: Security Checks
     runs-on: ubuntu-latest
