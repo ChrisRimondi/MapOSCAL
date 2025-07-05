@@ -256,9 +256,6 @@ def identify_imported_modules(file_contents):
         logging_modules (list): All logging modules used.
         cryptographic_modules (list): Any modules used for cryptographic operations. 
     """
-    line_number = 0
-    modules_section = False
-
     modules = []
     network_modules = []
     file_system_modules = []
@@ -268,48 +265,36 @@ def identify_imported_modules(file_contents):
     REF_GOLANG_NETWORK_MODULES = ['net', 'net/http', 'net/url', 'crypto/tls', 'net/smtp', 'golang.org/x/net/websocket', 'golang.org/x/net/proxy', 'net/rpc', 'net/rpc/jsonrpc', 'golang.org/x/net/icmp', 'golang.org/x/net/http2']
     REF_GOLANG_FILE_SYSTEM_MODULES = ['io', 'fmt', 'os', 'io/ioutil', 'os/exec', 'path/filepath', 'embed', 'bufio', 'archive/zip', 'tar', 'syscall', 'golang.org/x/sys/unix']
     REF_GOLANG_LOGGING_MODULES = ['log', 'log/syslog', 'logrus', 'zap', 'go.uber.org/zap', 'zerolog', 'klog', 'k8s.io/klog', 'github.com/sirupsen/logrus/hooks', 'github.com/rs/zerolog/log', 'lumberjack', 'logfmt', 'golang.org/x/exp/slog', 'go.uber.org/multierr']
-    REF_GOLANG_CRYPTOGRAPHIC_MODULES = ['crypto/sha256', 'sha512', 'crypto/md5', 'crypto/aes', 'crypto/rsa', 'crypto/tls', 'crypto/x509', 'crypto/rand', 'crypto/des', 'crypto/dsa' 'encoding/base64', 'encoding/hex' 'golang.org/x/crypto', 'golang.org/x/crypto/openpgp', 'golang.org/x/crypto/ssh', 'golang.org/x/crypto/ocsp', 'math/rand']
+    REF_GOLANG_CRYPTOGRAPHIC_MODULES = ['crypto/sha256', 'sha512', 'crypto/md5', 'crypto/aes', 'crypto/rsa', 'crypto/tls', 'crypto/x509', 'crypto/rand', 'crypto/des', 'crypto/dsa', 'encoding/base64', 'encoding/hex', 'golang.org/x/crypto', 'golang.org/x/crypto/openpgp', 'golang.org/x/crypto/ssh', 'golang.org/x/crypto/ocsp', 'math/rand']
 
-    # Split lines
     logger.info(f"Beginning identification of imported Golang modules...")
-    config_lines = file_contents.lower().strip().split('\n')
-    
+    config_lines = file_contents.strip().split('\n')
+    in_import_block = False
+
     for line in config_lines:
-        # This can be multi-line...
-        line_number += 1
-        line_details = line.split(' ')
-
-        if not modules_section:
-            if line_details[0] == 'import':
-                modules_section = True
-
-                # Check for multiple import
-                if line_details[1] == '(':
-                    if len(line_details) > 2:
-                        logger.debug(f"Identified multiple packages on the same line ({line_number}).")
-                        for m in line_details[3:]:
-                            modules.append(m)
-                            logger.info(f"Identified multi-package line with module ({m}) at line {line_number}")
-                    else:
-                        # Move to the next line.
-                        continue
-    
-        if modules_section:
-            # We know that we're inside an import statement
-            # Figure out if we are at the end and need to exit
-            if line_details[0] == ')':
-                modules_section = False
+        stripped = line.strip()
+        # Single-line import: import "os"
+        if stripped.startswith('import ') and not stripped.endswith('('):
+            # e.g., import "os"
+            mod = stripped[len('import '):].strip().strip('"')
+            if mod:
+                modules.append(mod)
+                logger.info(f"Identified single-line import module ({mod})")
+        # Start of multi-line import block
+        elif stripped.startswith('import ('):
+            in_import_block = True
+            continue
+        elif in_import_block:
+            if stripped == ')':
+                in_import_block = False
                 continue
-            else:
-                # Still inside, so discovery continues... and we remove the quotes used in Go
-                m = line_details[0].strip().lstrip('"').rstrip('"')
-                # Ignore blank lines
-                if len(m) > 1:
-                    modules.append(m)
-                    logger.info(f"Identified module ({m}) at line {line_number}")
+            # Each line in the block should be a module name in quotes
+            mod = stripped.strip('"')
+            if mod:
+                modules.append(mod)
+                logger.info(f"Identified multi-line import module ({mod})")
 
-
-    # Assigned catagories from list of identified modules.
+    # Assigned categories from list of identified modules.
     for module in modules:
         if module in REF_GOLANG_NETWORK_MODULES:
             network_modules.append(module)
@@ -322,7 +307,7 @@ def identify_imported_modules(file_contents):
             logger.info(f"Identified likely logging module ({module})")
         if module in REF_GOLANG_CRYPTOGRAPHIC_MODULES:
             cryptographic_modules.append(module)
-            logger.info(f"Identified likely cryptograhic module ({module})")
+            logger.info(f"Identified likely cryptographic module ({module})")
 
     return modules, network_modules, file_system_modules, logging_modules, cryptographic_modules
 

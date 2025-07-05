@@ -1,4 +1,4 @@
-import maposcal.utils.sample_control_hints as control_hints_def
+import maposcal.utils.control_hints as control_hints_def
 import logging
 
 logger = logging.getLogger()

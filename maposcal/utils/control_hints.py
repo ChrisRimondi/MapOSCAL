@@ -18,12 +18,12 @@ sc8 = [
     "tls.config",  # Go‑style TLS configuration object
     "sslsocket",  # Java/Python SSL socket wrappers trigger SC‑8
     "grpc.ssl_target_name_override",  # gRPC field altering TLS target
-    "tm",  # Likely short for ‘trust manager’ → TLS → SC‑8
+    "tm",  # Likely short for 'trust manager' → TLS → SC‑8
     "alg_tcp_aes",  # Example cipher suite reference
     "cipher_suite",  # Generic cipher‑suite configuration hint
     "truststore",  # Java trust‑store indicates TLS / SC‑8
     "keystore",  # Java key‑store ditto
-    "ssl_ctx_set_verify",  # C API setting peer‑cert verification
+    "ssl_ctx_set_verify",  # C API setting peer‑cert verification
     "tls_server_prefer_cipher_suites",  # Server‑side TLS hardening flag
     "client_min_tls_version",  # Minimum TLS version setting
     "server_max_tls_version",  # Maximum TLS version setting
