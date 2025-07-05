@@ -41,7 +41,11 @@ class TestProp:
         """Test Prop with list of objects (for control-configuration)."""
         config_objects = [
             {"file_path": "config.yaml", "key_path": "auth.enabled", "line_number": 10},
-            {"file_path": "settings.json", "key_path": "security.level", "line_number": 25}
+            {
+                "file_path": "settings.json",
+                "key_path": "security.level",
+                "line_number": 25,
+            },
         ]
         prop = Prop(name="control-configuration", value=config_objects, ns="test-ns")
         assert prop.value == config_objects
@@ -73,12 +77,16 @@ class TestAnnotation:
 
     def test_annotation_with_string_value(self):
         """Test Annotation with string value (converts to list)."""
-        annotation = Annotation(name="test-annotation", value="test-value", ns="test-ns")
+        annotation = Annotation(
+            name="test-annotation", value="test-value", ns="test-ns"
+        )
         assert annotation.value == ["test-value"]
 
     def test_annotation_with_list_value(self):
         """Test Annotation with list of strings."""
-        annotation = Annotation(name="test-annotation", value=["value1", "value2"], ns="test-ns")
+        annotation = Annotation(
+            name="test-annotation", value=["value1", "value2"], ns="test-ns"
+        )
         assert annotation.value == ["value1", "value2"]
 
     def test_annotation_with_mixed_list_types(self):
@@ -102,7 +110,7 @@ class TestStatement:
             **{
                 "statement-id": "test-statement",
                 "uuid": test_uuid,
-                "description": "Test statement description"
+                "description": "Test statement description",
             }
         )
         assert statement.statement_id == "test-statement"
@@ -116,7 +124,7 @@ class TestStatement:
                 **{
                     "statement-id": "test-statement",
                     "uuid": "invalid-uuid",
-                    "description": "Test statement description"
+                    "description": "Test statement description",
                 }
             )
 
@@ -128,19 +136,27 @@ class TestControlMapping:
         """Test ControlMapping with minimal required properties."""
         test_uuid = str(uuid.uuid4())
         props = [
-            Prop(name="control-status", value="applicable and inherently satisfied", ns="test-ns"),
+            Prop(
+                name="control-status",
+                value="applicable and inherently satisfied",
+                ns="test-ns",
+            ),
             Prop(name="control-name", value="Test Control", ns="test-ns"),
-            Prop(name="control-description", value="Test control description", ns="test-ns"),
-            Prop(name="control-explanation", value="Test control explanation", ns="test-ns"),
+            Prop(
+                name="control-description",
+                value="Test control description",
+                ns="test-ns",
+            ),
+            Prop(
+                name="control-explanation",
+                value="Test control explanation",
+                ns="test-ns",
+            ),
             Prop(name="control-configuration", value=[], ns="test-ns"),
         ]
 
         control_mapping = ControlMapping(
-            **{
-                "uuid": test_uuid,
-                "control-id": "AC-1",
-                "props": props
-            }
+            **{"uuid": test_uuid, "control-id": "AC-1", "props": props}
         )
         assert control_mapping.uuid == test_uuid
         assert control_mapping.control_id == "AC-1"
@@ -152,10 +168,22 @@ class TestControlMapping:
         statement_uuid = str(uuid.uuid4())
 
         props = [
-            Prop(name="control-status", value="applicable and inherently satisfied", ns="test-ns"),
+            Prop(
+                name="control-status",
+                value="applicable and inherently satisfied",
+                ns="test-ns",
+            ),
             Prop(name="control-name", value="Test Control", ns="test-ns"),
-            Prop(name="control-description", value="Test control description", ns="test-ns"),
-            Prop(name="control-explanation", value="Test control explanation", ns="test-ns"),
+            Prop(
+                name="control-description",
+                value="Test control description",
+                ns="test-ns",
+            ),
+            Prop(
+                name="control-explanation",
+                value="Test control explanation",
+                ns="test-ns",
+            ),
             Prop(name="control-configuration", value=[], ns="test-ns"),
         ]
 
@@ -168,7 +196,7 @@ class TestControlMapping:
                 **{
                     "statement-id": "test-statement",
                     "uuid": statement_uuid,
-                    "description": "Test statement description"
+                    "description": "Test statement description",
                 }
             )
         ]
@@ -179,7 +207,7 @@ class TestControlMapping:
                 "control-id": "AC-1",
                 "props": props,
                 "annotations": annotations,
-                "statements": statements
+                "statements": statements,
             }
         )
         assert len(control_mapping.annotations) == 1
@@ -189,18 +217,16 @@ class TestControlMapping:
         """Test ControlMapping with missing required properties."""
         test_uuid = str(uuid.uuid4())
         props = [
-            Prop(name="control-status", value="applicable and inherently satisfied", ns="test-ns"),
+            Prop(
+                name="control-status",
+                value="applicable and inherently satisfied",
+                ns="test-ns",
+            ),
             # Missing control-name, control-description, control-explanation, control-configuration
         ]
 
         with pytest.raises(ValidationError):
-            ControlMapping(
-                **{
-                    "uuid": test_uuid,
-                    "control-id": "AC-1",
-                    "props": props
-                }
-            )
+            ControlMapping(**{"uuid": test_uuid, "control-id": "AC-1", "props": props})
 
     def test_control_mapping_invalid_control_status(self):
         """Test ControlMapping with invalid control status."""
@@ -208,42 +234,56 @@ class TestControlMapping:
         props = [
             Prop(name="control-status", value="invalid-status", ns="test-ns"),
             Prop(name="control-name", value="Test Control", ns="test-ns"),
-            Prop(name="control-description", value="Test control description", ns="test-ns"),
-            Prop(name="control-explanation", value="Test control explanation", ns="test-ns"),
+            Prop(
+                name="control-description",
+                value="Test control description",
+                ns="test-ns",
+            ),
+            Prop(
+                name="control-explanation",
+                value="Test control explanation",
+                ns="test-ns",
+            ),
             Prop(name="control-configuration", value=[], ns="test-ns"),
         ]
 
         with pytest.raises(ValidationError):
-            ControlMapping(
-                **{
-                    "uuid": test_uuid,
-                    "control-id": "AC-1",
-                    "props": props
-                }
-            )
+            ControlMapping(**{"uuid": test_uuid, "control-id": "AC-1", "props": props})
 
     def test_control_mapping_with_valid_configuration(self):
         """Test ControlMapping with valid configuration structure."""
         test_uuid = str(uuid.uuid4())
         config_objects = [
             {"file_path": "config.yaml", "key_path": "auth.enabled", "line_number": 10},
-            {"file_path": "settings.json", "key_path": "security.level", "line_number": 25}
+            {
+                "file_path": "settings.json",
+                "key_path": "security.level",
+                "line_number": 25,
+            },
         ]
-        
+
         props = [
-            Prop(name="control-status", value="applicable and inherently satisfied", ns="test-ns"),
+            Prop(
+                name="control-status",
+                value="applicable and inherently satisfied",
+                ns="test-ns",
+            ),
             Prop(name="control-name", value="Test Control", ns="test-ns"),
-            Prop(name="control-description", value="Test control description", ns="test-ns"),
-            Prop(name="control-explanation", value="Test control explanation", ns="test-ns"),
+            Prop(
+                name="control-description",
+                value="Test control description",
+                ns="test-ns",
+            ),
+            Prop(
+                name="control-explanation",
+                value="Test control explanation",
+                ns="test-ns",
+            ),
             Prop(name="control-configuration", value=config_objects, ns="test-ns"),
         ]
 
         control_mapping = ControlMapping(
-            **{
-                "uuid": test_uuid,
-                "control-id": "AC-1",
-                "props": props
-            }
+            **{"uuid": test_uuid, "control-id": "AC-1", "props": props}
         )
         assert len(control_mapping.props) == 5
 
@@ -258,26 +298,34 @@ class TestValidationFunctions:
             "uuid": test_uuid,
             "control-id": "AC-1",
             "props": [
-                {"name": "control-status", "value": "applicable and inherently satisfied", "ns": "test-ns"},
+                {
+                    "name": "control-status",
+                    "value": "applicable and inherently satisfied",
+                    "ns": "test-ns",
+                },
                 {"name": "control-name", "value": "Test Control", "ns": "test-ns"},
-                {"name": "control-description", "value": "Test control description", "ns": "test-ns"},
-                {"name": "control-explanation", "value": "Test control explanation", "ns": "test-ns"},
+                {
+                    "name": "control-description",
+                    "value": "Test control description",
+                    "ns": "test-ns",
+                },
+                {
+                    "name": "control-explanation",
+                    "value": "Test control explanation",
+                    "ns": "test-ns",
+                },
                 {"name": "control-configuration", "value": [], "ns": "test-ns"},
-            ]
+            ],
         }
-        
+
         is_valid, error = validate_control_mapping(data)
         assert is_valid
         assert error is None
 
     def test_validate_control_mapping_invalid(self):
         """Test validate_control_mapping with invalid data."""
-        data = {
-            "uuid": "invalid-uuid",
-            "control-id": "AC-1",
-            "props": []
-        }
-        
+        data = {"uuid": "invalid-uuid", "control-id": "AC-1", "props": []}
+
         is_valid, error = validate_control_mapping(data)
         assert not is_valid
         assert error is not None
@@ -286,12 +334,12 @@ class TestValidationFunctions:
         """Test validate_unique_uuids with unique UUIDs."""
         test_uuid1 = str(uuid.uuid4())
         test_uuid2 = str(uuid.uuid4())
-        
+
         mappings = [
             {"uuid": test_uuid1, "control-id": "AC-1"},
             {"uuid": test_uuid2, "control-id": "AC-2"},
         ]
-        
+
         is_valid, error = validate_unique_uuids(mappings)
         assert is_valid
         assert error is None
@@ -299,12 +347,12 @@ class TestValidationFunctions:
     def test_validate_unique_uuids_duplicate(self):
         """Test validate_unique_uuids with duplicate UUIDs."""
         test_uuid = str(uuid.uuid4())
-        
+
         mappings = [
             {"uuid": test_uuid, "control-id": "AC-1"},
             {"uuid": test_uuid, "control-id": "AC-2"},
         ]
-        
+
         is_valid, error = validate_unique_uuids(mappings)
         assert not is_valid
         assert "Duplicate UUID" in error
@@ -313,10 +361,14 @@ class TestValidationFunctions:
         """Test validate_control_status with valid status."""
         requirement = {
             "props": [
-                {"name": "control-status", "value": "applicable and inherently satisfied", "ns": "test-ns"}
+                {
+                    "name": "control-status",
+                    "value": "applicable and inherently satisfied",
+                    "ns": "test-ns",
+                }
             ]
         }
-        
+
         is_valid, error = validate_control_status(requirement)
         assert is_valid
         assert error is None
@@ -328,7 +380,7 @@ class TestValidationFunctions:
                 {"name": "control-status", "value": "invalid-status", "ns": "test-ns"}
             ]
         }
-        
+
         is_valid, error = validate_control_status(requirement)
         assert not is_valid
         assert "Invalid control-status value" in error
@@ -340,7 +392,7 @@ class TestValidationFunctions:
                 {"name": "control-name", "value": "Test Control", "ns": "test-ns"}
             ]
         }
-        
+
         is_valid, error = validate_control_status(requirement)
         assert not is_valid
         assert "Missing 'control-status' property" in error
@@ -349,12 +401,20 @@ class TestValidationFunctions:
         """Test validate_control_configuration with valid structure."""
         requirement = {
             "props": [
-                {"name": "control-configuration", "value": [
-                    {"file_path": "config.yaml", "key_path": "auth.enabled", "line_number": 10}
-                ], "ns": "test-ns"}
+                {
+                    "name": "control-configuration",
+                    "value": [
+                        {
+                            "file_path": "config.yaml",
+                            "key_path": "auth.enabled",
+                            "line_number": 10,
+                        }
+                    ],
+                    "ns": "test-ns",
+                }
             ]
         }
-        
+
         is_valid, violations = validate_control_configuration(requirement)
         assert is_valid
         assert len(violations) == 0
@@ -363,10 +423,16 @@ class TestValidationFunctions:
         """Test validate_control_configuration with invalid structure."""
         requirement = {
             "props": [
-                {"name": "control-status", "value": "applicable but only satisfied through configuration", "ns": "test-ns"},
-                {"name": "control-configuration", "value": [
-                    {"file_path": "test.py"}  # Missing required fields
-                ], "ns": "test-ns"}
+                {
+                    "name": "control-status",
+                    "value": "applicable but only satisfied through configuration",
+                    "ns": "test-ns",
+                },
+                {
+                    "name": "control-configuration",
+                    "value": [{"file_path": "test.py"}],  # Missing required fields
+                    "ns": "test-ns",
+                },
             ]
         }
 
@@ -380,26 +446,34 @@ class TestValidationFunctions:
             "uuid": str(uuid.uuid4()),
             "control-id": "AC-1",
             "props": [
-                {"name": "control-status", "value": "applicable and inherently satisfied", "ns": "test-ns"},
+                {
+                    "name": "control-status",
+                    "value": "applicable and inherently satisfied",
+                    "ns": "test-ns",
+                },
                 {"name": "control-name", "value": "Test Control", "ns": "test-ns"},
-                {"name": "control-description", "value": "Test control description", "ns": "test-ns"},
-                {"name": "control-explanation", "value": "Test control explanation", "ns": "test-ns"},
+                {
+                    "name": "control-description",
+                    "value": "Test control description",
+                    "ns": "test-ns",
+                },
+                {
+                    "name": "control-explanation",
+                    "value": "Test control explanation",
+                    "ns": "test-ns",
+                },
                 {"name": "control-configuration", "value": [], "ns": "test-ns"},
-            ]
+            ],
         }
-        
+
         is_valid, violations = validate_oscal_structure(requirement)
         assert is_valid
         assert len(violations) == 0
 
     def test_validate_oscal_structure_invalid(self):
         """Test validate_oscal_structure with invalid structure."""
-        requirement = {
-            "uuid": "invalid-uuid",
-            "control-id": "AC-1",
-            "props": []
-        }
-        
+        requirement = {"uuid": "invalid-uuid", "control-id": "AC-1", "props": []}
+
         is_valid, violations = validate_oscal_structure(requirement)
         assert not is_valid
         assert len(violations) > 0
@@ -410,26 +484,34 @@ class TestValidationFunctions:
             "uuid": str(uuid.uuid4()),
             "control-id": "AC-1",
             "props": [
-                {"name": "control-status", "value": "applicable and inherently satisfied", "ns": "test-ns"},
+                {
+                    "name": "control-status",
+                    "value": "applicable and inherently satisfied",
+                    "ns": "test-ns",
+                },
                 {"name": "control-name", "value": "Test Control", "ns": "test-ns"},
-                {"name": "control-description", "value": "Test control description", "ns": "test-ns"},
-                {"name": "control-explanation", "value": "Test control explanation", "ns": "test-ns"},
+                {
+                    "name": "control-description",
+                    "value": "Test control description",
+                    "ns": "test-ns",
+                },
+                {
+                    "name": "control-explanation",
+                    "value": "Test control explanation",
+                    "ns": "test-ns",
+                },
                 {"name": "control-configuration", "value": [], "ns": "test-ns"},
-            ]
+            ],
         }
-        
+
         is_valid, violations = validate_implemented_requirement(requirement)
         assert is_valid
         assert len(violations) == 0
 
     def test_validate_implemented_requirement_invalid(self):
         """Test validate_implemented_requirement with invalid requirement."""
-        requirement = {
-            "uuid": "invalid-uuid",
-            "control-id": "AC-1",
-            "props": []
-        }
-        
+        requirement = {"uuid": "invalid-uuid", "control-id": "AC-1", "props": []}
+
         is_valid, violations = validate_implemented_requirement(requirement)
         assert not is_valid
         assert len(violations) > 0
@@ -441,12 +523,14 @@ class TestValidationFunctions:
             "control-id": "AC-1",
             "props": [
                 {"name": "control-status", "value": "invalid-status", "ns": "test-ns"},
-                {"name": "control-configuration", "value": [
-                    {"file_path": "test.py"}  # Missing required fields
-                ], "ns": "test-ns"}
-            ]
+                {
+                    "name": "control-configuration",
+                    "value": [{"file_path": "test.py"}],  # Missing required fields
+                    "ns": "test-ns",
+                },
+            ],
         }
-        
+
         is_valid, violations = validate_implemented_requirement(requirement)
         assert not is_valid
         assert len(violations) >= 2  # Should have multiple violations
@@ -457,24 +541,16 @@ class TestValidationEdgeCases:
 
     def test_none_values(self):
         """Test validation with None values."""
-        requirement = {
-            "uuid": None,
-            "control-id": None,
-            "props": None
-        }
-        
+        requirement = {"uuid": None, "control-id": None, "props": None}
+
         is_valid, violations = validate_implemented_requirement(requirement)
         assert not is_valid
         assert len(violations) > 0
 
     def test_empty_props(self):
         """Test validation with empty props list."""
-        requirement = {
-            "uuid": str(uuid.uuid4()),
-            "control-id": "AC-1",
-            "props": []
-        }
-        
+        requirement = {"uuid": str(uuid.uuid4()), "control-id": "AC-1", "props": []}
+
         is_valid, violations = validate_implemented_requirement(requirement)
         assert not is_valid
         assert len(violations) > 0
@@ -485,11 +561,14 @@ class TestValidationEdgeCases:
             "uuid": str(uuid.uuid4()),
             "control-id": "AC-1",
             "props": [
-                {"name": "control-status", "value": "applicable and inherently satisfied"},  # Missing ns
+                {
+                    "name": "control-status",
+                    "value": "applicable and inherently satisfied",
+                },  # Missing ns
                 {"name": "control-name", "ns": "test-ns"},  # Missing value
-            ]
+            ],
         }
-        
+
         is_valid, violations = validate_implemented_requirement(requirement)
         assert not is_valid
         assert len(violations) > 0
@@ -501,14 +580,18 @@ class TestValidationEdgeCases:
             "uuid": str(uuid.uuid4()),
             "control-id": "AC-1",
             "props": [
-                {"name": "control-status", "value": "applicable and inherently satisfied", "ns": "test-ns"},
+                {
+                    "name": "control-status",
+                    "value": "applicable and inherently satisfied",
+                    "ns": "test-ns",
+                },
                 {"name": "control-name", "value": long_value, "ns": "test-ns"},
                 {"name": "control-description", "value": long_value, "ns": "test-ns"},
                 {"name": "control-explanation", "value": long_value, "ns": "test-ns"},
                 {"name": "control-configuration", "value": [], "ns": "test-ns"},
-            ]
+            ],
         }
-        
+
         is_valid, violations = validate_implemented_requirement(requirement)
         # Should still be valid, just with long values
         assert is_valid
@@ -521,14 +604,26 @@ class TestValidationEdgeCases:
             "uuid": str(uuid.uuid4()),
             "control-id": "AC-1",
             "props": [
-                {"name": "control-status", "value": "applicable and inherently satisfied", "ns": "test-ns"},
+                {
+                    "name": "control-status",
+                    "value": "applicable and inherently satisfied",
+                    "ns": "test-ns",
+                },
                 {"name": "control-name", "value": special_value, "ns": "test-ns"},
-                {"name": "control-description", "value": special_value, "ns": "test-ns"},
-                {"name": "control-explanation", "value": special_value, "ns": "test-ns"},
+                {
+                    "name": "control-description",
+                    "value": special_value,
+                    "ns": "test-ns",
+                },
+                {
+                    "name": "control-explanation",
+                    "value": special_value,
+                    "ns": "test-ns",
+                },
                 {"name": "control-configuration", "value": [], "ns": "test-ns"},
-            ]
+            ],
         }
 
         is_valid, violations = validate_implemented_requirement(requirement)
         assert is_valid
-        assert len(violations) == 0 
+        assert len(violations) == 0

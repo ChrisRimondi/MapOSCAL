@@ -72,5 +72,5 @@ def search_index(index: faiss.IndexFlatL2, query: np.ndarray, k: int = 5):
         Tuple of (indices, distances) for the k nearest neighbors
     """
     logger.debug(f"Searching index with query shape: {query.shape}")
-    D, I = index.search(query.reshape(1, -1), k)
-    return I[0], D[0]  # Return top-k indices and distances
+    D, indices = index.search(query.reshape(1, -1), k)
+    return indices[0], D[0]  # Return top-k indices and distances

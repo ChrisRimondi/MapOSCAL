@@ -25,8 +25,7 @@ Usage:
 """
 
 from pydantic import BaseModel, Field, field_validator
-from typing import List, Optional, Union, Any
-import re
+from typing import List, Optional, Union
 import uuid
 
 
@@ -297,18 +296,40 @@ class ControlMapping(BaseModel):
         # Use configurable extensions from settings, with fallback to defaults
         try:
             from maposcal import settings
+
             ALLOWED_EXTENSIONS = set(settings.config_file_extensions)
         except ImportError:
             # Fallback to default extensions if settings import fails
             ALLOWED_EXTENSIONS = {
-                ".yaml", ".yml", ".json", ".toml", ".conf", ".ini", ".properties"
+                ".yaml",
+                ".yml",
+                ".json",
+                ".toml",
+                ".conf",
+                ".ini",
+                ".properties",
             }
-        
+
         # Add common code file extensions
-        ALLOWED_EXTENSIONS.update({
-            ".py", ".js", ".ts", ".go", ".java", ".cpp", ".c", ".h", 
-            ".cs", ".php", ".rb", ".pl", ".sh", ".bash", ".ps1"
-        })
+        ALLOWED_EXTENSIONS.update(
+            {
+                ".py",
+                ".js",
+                ".ts",
+                ".go",
+                ".java",
+                ".cpp",
+                ".c",
+                ".h",
+                ".cs",
+                ".php",
+                ".rb",
+                ".pl",
+                ".sh",
+                ".bash",
+                ".ps1",
+            }
+        )
 
         for prop in props:
             if prop.name == "control-configuration":
@@ -529,33 +550,57 @@ def validate_control_configuration(requirement: dict) -> tuple[bool, list]:
                and list_of_violations contains detailed violation information
     """
     violations = []
-    
+
     # Use configurable extensions from settings, with fallback to defaults
     try:
         from maposcal import settings
+
         ALLOWED_EXTENSIONS = set(settings.config_file_extensions)
     except ImportError:
         # Fallback to default extensions if settings import fails
         ALLOWED_EXTENSIONS = {
-            ".yaml", ".yml", ".json", ".toml", ".conf", ".ini", ".properties"
+            ".yaml",
+            ".yml",
+            ".json",
+            ".toml",
+            ".conf",
+            ".ini",
+            ".properties",
         }
-    
+
     # Add common code file extensions
-    ALLOWED_EXTENSIONS.update({
-        ".py", ".js", ".ts", ".go", ".java", ".cpp", ".c", ".h", 
-        ".cs", ".php", ".rb", ".pl", ".sh", ".bash", ".ps1"
-    })
+    ALLOWED_EXTENSIONS.update(
+        {
+            ".py",
+            ".js",
+            ".ts",
+            ".go",
+            ".java",
+            ".cpp",
+            ".c",
+            ".h",
+            ".cs",
+            ".php",
+            ".rb",
+            ".pl",
+            ".sh",
+            ".bash",
+            ".ps1",
+        }
+    )
 
     # Find control-status and control-configuration props
     control_status = None
     control_config = None
     props = requirement.get("props", [])
     if props is None:
-        return False, [{
-            "field": "props",
-            "issue": "Missing required props field or props is None",
-            "suggestion": "Add props field with required properties",
-        }]
+        return False, [
+            {
+                "field": "props",
+                "issue": "Missing required props field or props is None",
+                "suggestion": "Add props field with required properties",
+            }
+        ]
     for prop in props:
         if prop.get("name") == "control-status":
             control_status = prop.get("value")

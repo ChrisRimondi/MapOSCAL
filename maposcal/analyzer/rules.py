@@ -1,5 +1,4 @@
 from maposcal.inspectors import inspect_lang_python, inspect_lang_golang
-from typing import List, Dict, Any
 from traceback import format_exc
 import logging
 
@@ -27,7 +26,13 @@ def begin_inspection(file_path):
         "file_path": file_path,
         "language": "unknown",
         "control_hints": [],
-        "loaded_modules": {"modules": [], "network_modules": [], "file_system_modules": [], "logging_modules": [], "cryptographic_module": []},
+        "loaded_modules": {
+            "modules": [],
+            "network_modules": [],
+            "file_system_modules": [],
+            "logging_modules": [],
+            "cryptographic_module": [],
+        },
         "configuration_settings": [],
         "file_system_interactions": [],
         "cryptography": {},
@@ -37,7 +42,7 @@ def begin_inspection(file_path):
         "input_validation": {},
         "logging": {},
         "error_handling": {},
-        "file_summary": f"No specific inspection available for {file_path}. This file type is not currently supported by the automated inspectors."
+        "file_summary": f"No specific inspection available for {file_path}. This file type is not currently supported by the automated inspectors.",
     }
 
     logger.info(f"Beginning inspection of {file_path}.")
@@ -49,10 +54,8 @@ def begin_inspection(file_path):
         )
         try:
             inspection_results = inspect_lang_python.start_inspection(file_path)
-        except:
+        except Exception:
             logger.error(f"Failed to launch Python inspector - {format_exc()}")
-
-        # semgrep_results = TODO
 
     if ".go" in file_path.lower():
         logger.info(
@@ -60,7 +63,7 @@ def begin_inspection(file_path):
         )
         try:
             inspection_results = inspect_lang_golang.start_inspection(file_path)
-        except:
+        except Exception:
             logger.error(f"Failed to launch Golang inspector - {format_exc()}")
     return inspection_results
 

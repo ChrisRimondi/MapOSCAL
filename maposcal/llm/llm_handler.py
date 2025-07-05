@@ -1,5 +1,4 @@
 from maposcal import settings
-from typing import Tuple
 import tiktoken
 from openai import OpenAI
 from openai import RateLimitError
@@ -13,6 +12,7 @@ from datetime import datetime
 load_dotenv()
 
 logger = logging.getLogger()
+
 
 class LLMHandler:
     """
@@ -32,7 +32,6 @@ class LLMHandler:
             base_url=os.getenv("OPENAI_API_BASE", settings.openai_base_url),
         )
         self.encoding = tiktoken.get_encoding(settings.tiktoken_encoding)
-
 
     def count_tokens(self, text: str) -> int:
         """

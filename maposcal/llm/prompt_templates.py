@@ -95,6 +95,7 @@ def build_service_overview_prompt(context: str) -> str:
         instructions=SERVICE_OVERVIEW_INSTRUCTIONS.format(context=context),
     )
 
+
 # ---------------------------------------------------------------------------
 # 1. FILE-LEVEL SECURITY / COMPLIANCE SUMMARY
 # ---------------------------------------------------------------------------
@@ -364,7 +365,6 @@ def build_control_prompt(
     statement_uuid: str,
     security_overview: str = None,
 ) -> str:
-
     """
     Build a prompt for generating OSCAL control implementations.
 
@@ -423,7 +423,6 @@ def build_control_prompt(
 def build_critique_prompt(
     implemented_requirements: List[dict], security_overview: str = None
 ) -> str:
-
     """
     Build a prompt for critiquing implemented requirements.
 

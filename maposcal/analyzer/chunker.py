@@ -16,16 +16,18 @@ logger = logging.getLogger()
 def should_ignore_path(path: Path) -> bool:
     """
     Check if a path should be ignored based on directory patterns.
-    
+
     Args:
         path: Path to check
-        
+
     Returns:
         True if the path should be ignored, False otherwise
     """
     # Check if any part of the path matches ignored directory patterns
     for part in path.parts:
-        if any(pattern in part.lower() for pattern in settings.ignored_directory_patterns):
+        if any(
+            pattern in part.lower() for pattern in settings.ignored_directory_patterns
+        ):
             return True
     return False
 
@@ -49,26 +51,26 @@ def analyze_repo(repo_path: Path) -> List[Dict[str, Any]]:
     chunks = []
     for file_path in repo_path.rglob("*"):
         logger.debug(f"Analyzing repo ({repo_path}) and file {file_path}")
-        
+
         # Skip if not a file
         if not file_path.is_file():
             continue
-            
+
         # Skip hidden files (files that start with ".")
         if file_path.name.startswith("."):
             logger.debug(f"Skipping hidden file {file_path}")
             continue
-            
+
         # Skip if path contains ignored directory patterns
         if should_ignore_path(file_path):
             logger.debug(f"Skipping {file_path} due to ignored directory pattern")
             continue
-            
+
         # Skip if file extension is ignored
         if file_path.suffix in settings.ignored_file_extensions:
             logger.debug(f"Skipping {file_path} due to ignored file extension")
             continue
-            
+
         # Exclude files with certain patterns in the name
         if any(
             pattern in file_path.name.lower()
@@ -76,17 +78,19 @@ def analyze_repo(repo_path: Path) -> List[Dict[str, Any]]:
         ):
             logger.debug(f"Skipping {file_path} due to ignored filename pattern")
             continue
-            
+
         # Skip config files - they will be handled separately
         if detect_chunk_type(file_path.suffix) == "config":
-            logger.debug(f"Skipping config file {file_path} - will be processed separately")
+            logger.debug(
+                f"Skipping config file {file_path} - will be processed separately"
+            )
             continue
-            
+
         try:
             logger.info(f"Parsing file ({file_path}) into chunks.")
             try:
                 parsed = parse_file(file_path)
-            except:
+            except Exception:
                 logger.error(f"Faile to parse ({file_path}) - {format_exc()}")
 
             logger.debug(f"Parsing ({file_path}) completed.")

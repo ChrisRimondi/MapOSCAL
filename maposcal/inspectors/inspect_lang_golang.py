@@ -36,35 +36,47 @@ def start_inspection(file_path):
         logger.debug(f"Opening Golang file ({file_path}) for inspection.")
         with open(file_path, "r") as fh:
             file_contents = fh.read()
-    except:
+    except Exception:
         logger.error(f"Failed opening Python file ({file_path}) - {format_exc()} ")
 
     if file_contents:
         try:
-        ###
-        # Parse for string-based control hints using the new enumerator
-        # This searches all available controls, not just SC-8
-        ###
+            ###
+            # Parse for string-based control hints using the new enumerator
+            # This searches all available controls, not just SC-8
+            ###
             found_controls = search_control_hints_in_content(file_contents, "golang")
             applicable_control_hints.extend(found_controls)
-            logger.info(f"Found {len(found_controls)} applicable controls in Golang file")
-        except Exception as e:
-            logger.error(f"Failed to parse contents of {file_path} for control hints - {format_exc()}")
+            logger.info(
+                f"Found {len(found_controls)} applicable controls in Golang file"
+            )
+        except Exception:
+            logger.error(
+                f"Failed to parse contents of {file_path} for control hints - {format_exc()}"
+            )
 
         ###
         # Parse for loaded modules - shows what applicable functionality is likely used.
         ###
-        modules, network_modules, file_system_modules, logging_modules, cryptographic_module = identify_imported_modules(file_contents)
-        loaded_modules['modules'] = modules
-        loaded_modules['network_modules'] = network_modules
-        loaded_modules['file_system_modules'] = file_system_modules
-        loaded_modules['logging_modules'] = logging_modules
-        loaded_modules['cryptographic_module'] = cryptographic_module
+        (
+            modules,
+            network_modules,
+            file_system_modules,
+            logging_modules,
+            cryptographic_module,
+        ) = identify_imported_modules(file_contents)
+        loaded_modules["modules"] = modules
+        loaded_modules["network_modules"] = network_modules
+        loaded_modules["file_system_modules"] = file_system_modules
+        loaded_modules["logging_modules"] = logging_modules
+        loaded_modules["cryptographic_module"] = cryptographic_module
 
         ###
         # Parse for configuration ingestion (e.g., environmental variables, etc.)
         ###
-        configuration_settings = identify_imported_configuration_variables(file_contents)
+        configuration_settings = identify_imported_configuration_variables(
+            file_contents
+        )
         ###
         # Parse for common file system interactions
         ###
@@ -102,7 +114,7 @@ def start_inspection(file_path):
         ###
 
     golang_inspection_results["file_path"] = file_path
-    golang_inspection_results["language"] = 'Golang'
+    golang_inspection_results["language"] = "Golang"
     golang_inspection_results["control_hints"] = applicable_control_hints
     golang_inspection_results["loaded_modules"] = loaded_modules
     golang_inspection_results["configuration_settings"] = configuration_settings
@@ -144,7 +156,9 @@ def summarize_discovery_content(golang_inspection_results):
     if len(golang_inspection_results["loaded_modules"]["network_modules"]) > 0:
         networking_results = f"Discovery of networking modules shows the following being used for connectivity: {golang_inspection_results["loaded_modules"]["network_modules"]}."
     else:
-        networking_results = "No networking capabilities have been detected in this file."
+        networking_results = (
+            "No networking capabilities have been detected in this file."
+        )
 
     if len(golang_inspection_results["loaded_modules"]["file_system_modules"]) > 0:
         file_system_results = f"File system access is expected using the discovered modules: {golang_inspection_results["loaded_modules"]["file_system_modules"]}."
@@ -158,39 +172,43 @@ def summarize_discovery_content(golang_inspection_results):
 
     if len(golang_inspection_results["configuration_settings"]) > 0:
         for config_var in golang_inspection_results["configuration_settings"]:
-            config_variables = f"{config_variables}, {config_var['variable']}".lstrip(',')
+            config_variables = f"{config_variables}, {config_var['variable']}".lstrip(
+                ","
+            )
 
         configuration_results = f"Configuration settings, either from environmental variables, or other sources are stored in the following variables: {config_variables}."
     else:
         configuration_results = "No configuration settings (e.g., environmental variables, etc.) have been imported from this file."
-  
-    if len(golang_inspection_results["loaded_modules"]['cryptographic_module']) > 0:
+
+    if len(golang_inspection_results["loaded_modules"]["cryptographic_module"]) > 0:
         cryptograhic_results = f"Potential cryptographic operations are happening using the following modules. {golang_inspection_results["loaded_modules"]['cryptographic_module']}."
 
-
-    file_summary = dedent(f"""\
+    file_summary = dedent(
+        f"""\
         The file {golang_inspection_results["file_path"]} is written in {golang_inspection_results["language"]}. \
 {networking_results} \
 {file_system_results} \
 {logging_results} \
 {configuration_results} \
 {cryptograhic_results}\
-""")
+"""
+    )
 
     return file_summary
 
 
-import re
-from typing import List, Dict
 
-def identify_imported_configuration_variables(file_contents: str) -> List[Dict[str, str]]:
+
+def identify_imported_configuration_variables(
+    file_contents: str,
+) -> List[Dict[str, str]]:
     """
     Parses a Go code file and identifies configuration variables used in the code.
     Includes environment variables, flags, Viper, and struct decoding from file-based sources.
-    
+
     Args:
         file_contents (str): Code contents of a module to be parsed for imported configuration variables.
-    
+
     Returns:
         results (List[Dict[str, str]]): Method of ingestion, variable name, and source key.
     """
@@ -198,32 +216,32 @@ def identify_imported_configuration_variables(file_contents: str) -> List[Dict[s
     patterns = [
         {
             "method": "Environment Variables (os.Getenv)",
-            "regex": r'(?P<var>\w+)\s*[:=]{1,2}\s*os\.Getenv\(["\'](?P<key>[^"\']+)["\']\)'
+            "regex": r'(?P<var>\w+)\s*[:=]{1,2}\s*os\.Getenv\(["\'](?P<key>[^"\']+)["\']\)',
         },
         {
             "method": "Environment Lookup (os.LookupEnv)",
-            "regex": r'(?P<var>\w+)\s*,\s*\w+\s*[:=]{1,2}\s*os\.LookupEnv\(["\'](?P<key>[^"\']+)["\']\)'
+            "regex": r'(?P<var>\w+)\s*,\s*\w+\s*[:=]{1,2}\s*os\.LookupEnv\(["\'](?P<key>[^"\']+)["\']\)',
         },
         {
             "method": "Command-line Flags (flag.X or flag.Var)",
-            "regex": r'(?P<var>\w+)\s*[:=]{1,2}\s*flag\.(?:String|Int|Bool|Duration|.*Var)\(["\'](?P<key>[^"\']+)["\']'
+            "regex": r'(?P<var>\w+)\s*[:=]{1,2}\s*flag\.(?:String|Int|Bool|Duration|.*Var)\(["\'](?P<key>[^"\']+)["\']',
         },
         {
             "method": "Viper Get (viper.Get*)",
-            "regex": r'(?P<var>\w+)\s*[:=]{1,2}\s*viper\.Get\w*\(["\'](?P<key>[^"\']+)["\']\)'
+            "regex": r'(?P<var>\w+)\s*[:=]{1,2}\s*viper\.Get\w*\(["\'](?P<key>[^"\']+)["\']\)',
         },
         {
             "method": "Viper BindEnv",
-            "regex": r'viper\.BindEnv\(["\'](?P<key>[^"\']+)["\']\)'
+            "regex": r'viper\.BindEnv\(["\'](?P<key>[^"\']+)["\']\)',
         },
         {
             "method": "Viper SetDefault",
-            "regex": r'viper\.SetDefault\(["\'](?P<key>[^"\']+)["\']\s*,'
+            "regex": r'viper\.SetDefault\(["\'](?P<key>[^"\']+)["\']\s*,',
         },
         {
             "method": "Struct Decoding (Unmarshal into config struct)",
-            "regex": r'(?P<decoder>(json|yaml|viper))\.(Unmarshal|UnmarshalExact)\s*\(\s*&(?P<var>\w+)\s*\)'
-        }
+            "regex": r"(?P<decoder>(json|yaml|viper))\.(Unmarshal|UnmarshalExact)\s*\(\s*&(?P<var>\w+)\s*\)",
+        },
     ]
 
     results = []
@@ -234,7 +252,7 @@ def identify_imported_configuration_variables(file_contents: str) -> List[Dict[s
             result = {
                 "method": pattern["method"],
                 "variable": match.group("var") if "var" in match.groupdict() else "",
-                "source": match.group("key") if "key" in match.groupdict() else ""
+                "source": match.group("key") if "key" in match.groupdict() else "",
             }
             results.append(result)
 
@@ -254,7 +272,7 @@ def identify_imported_modules(file_contents):
         network_modules (list): All networking modules based on hard-coded reference.
         file_system_modules (list): All modules for interacting with the file system.
         logging_modules (list): All logging modules used.
-        cryptographic_modules (list): Any modules used for cryptographic operations. 
+        cryptographic_modules (list): Any modules used for cryptographic operations.
     """
     modules = []
     network_modules = []
@@ -262,30 +280,88 @@ def identify_imported_modules(file_contents):
     logging_modules = []
     cryptographic_modules = []
 
-    REF_GOLANG_NETWORK_MODULES = ['net', 'net/http', 'net/url', 'crypto/tls', 'net/smtp', 'golang.org/x/net/websocket', 'golang.org/x/net/proxy', 'net/rpc', 'net/rpc/jsonrpc', 'golang.org/x/net/icmp', 'golang.org/x/net/http2']
-    REF_GOLANG_FILE_SYSTEM_MODULES = ['io', 'fmt', 'os', 'io/ioutil', 'os/exec', 'path/filepath', 'embed', 'bufio', 'archive/zip', 'tar', 'syscall', 'golang.org/x/sys/unix']
-    REF_GOLANG_LOGGING_MODULES = ['log', 'log/syslog', 'logrus', 'zap', 'go.uber.org/zap', 'zerolog', 'klog', 'k8s.io/klog', 'github.com/sirupsen/logrus/hooks', 'github.com/rs/zerolog/log', 'lumberjack', 'logfmt', 'golang.org/x/exp/slog', 'go.uber.org/multierr']
-    REF_GOLANG_CRYPTOGRAPHIC_MODULES = ['crypto/sha256', 'sha512', 'crypto/md5', 'crypto/aes', 'crypto/rsa', 'crypto/tls', 'crypto/x509', 'crypto/rand', 'crypto/des', 'crypto/dsa', 'encoding/base64', 'encoding/hex', 'golang.org/x/crypto', 'golang.org/x/crypto/openpgp', 'golang.org/x/crypto/ssh', 'golang.org/x/crypto/ocsp', 'math/rand']
+    REF_GOLANG_NETWORK_MODULES = [
+        "net",
+        "net/http",
+        "net/url",
+        "crypto/tls",
+        "net/smtp",
+        "golang.org/x/net/websocket",
+        "golang.org/x/net/proxy",
+        "net/rpc",
+        "net/rpc/jsonrpc",
+        "golang.org/x/net/icmp",
+        "golang.org/x/net/http2",
+    ]
+    REF_GOLANG_FILE_SYSTEM_MODULES = [
+        "io",
+        "fmt",
+        "os",
+        "io/ioutil",
+        "os/exec",
+        "path/filepath",
+        "embed",
+        "bufio",
+        "archive/zip",
+        "tar",
+        "syscall",
+        "golang.org/x/sys/unix",
+    ]
+    REF_GOLANG_LOGGING_MODULES = [
+        "log",
+        "log/syslog",
+        "logrus",
+        "zap",
+        "go.uber.org/zap",
+        "zerolog",
+        "klog",
+        "k8s.io/klog",
+        "github.com/sirupsen/logrus/hooks",
+        "github.com/rs/zerolog/log",
+        "lumberjack",
+        "logfmt",
+        "golang.org/x/exp/slog",
+        "go.uber.org/multierr",
+    ]
+    REF_GOLANG_CRYPTOGRAPHIC_MODULES = [
+        "crypto/sha256",
+        "sha512",
+        "crypto/md5",
+        "crypto/aes",
+        "crypto/rsa",
+        "crypto/tls",
+        "crypto/x509",
+        "crypto/rand",
+        "crypto/des",
+        "crypto/dsa",
+        "encoding/base64",
+        "encoding/hex",
+        "golang.org/x/crypto",
+        "golang.org/x/crypto/openpgp",
+        "golang.org/x/crypto/ssh",
+        "golang.org/x/crypto/ocsp",
+        "math/rand",
+    ]
 
-    logger.info(f"Beginning identification of imported Golang modules...")
-    config_lines = file_contents.strip().split('\n')
+    logger.info("Beginning identification of imported Golang modules...")
+    config_lines = file_contents.strip().split("\n")
     in_import_block = False
 
     for line in config_lines:
         stripped = line.strip()
         # Single-line import: import "os"
-        if stripped.startswith('import ') and not stripped.endswith('('):
+        if stripped.startswith("import ") and not stripped.endswith("("):
             # e.g., import "os"
-            mod = stripped[len('import '):].strip().strip('"')
+            mod = stripped[len("import ") :].strip().strip('"')
             if mod:
                 modules.append(mod)
                 logger.info(f"Identified single-line import module ({mod})")
         # Start of multi-line import block
-        elif stripped.startswith('import ('):
+        elif stripped.startswith("import ("):
             in_import_block = True
             continue
         elif in_import_block:
-            if stripped == ')':
+            if stripped == ")":
                 in_import_block = False
                 continue
             # Each line in the block should be a module name in quotes
@@ -309,9 +385,17 @@ def identify_imported_modules(file_contents):
             cryptographic_modules.append(module)
             logger.info(f"Identified likely cryptographic module ({module})")
 
-    return modules, network_modules, file_system_modules, logging_modules, cryptographic_modules
+    return (
+        modules,
+        network_modules,
+        file_system_modules,
+        logging_modules,
+        cryptographic_modules,
+    )
 
 
 if __name__ == "__main__":
-    r = start_inspection('/home/caleb/code/minio/docs/site-replication/gen-oidc-sts-cred.go')
+    r = start_inspection(
+        "/home/caleb/code/minio/docs/site-replication/gen-oidc-sts-cred.go"
+    )
     print(r)

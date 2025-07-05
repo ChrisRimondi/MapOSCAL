@@ -3,7 +3,6 @@ from pathlib import Path
 from maposcal.analyzer import chunker
 from maposcal.analyzer.analyzer import Analyzer
 import tempfile
-import os
 from maposcal import settings
 
 
@@ -41,33 +40,54 @@ def test_analyze_repo_excludes_patterns(tmp_path, monkeypatch):
         return [{"content": f"content of {path.name}", "start_line": 1, "end_line": 1}]
 
     from maposcal.analyzer import parser
+
     monkeypatch.setattr(parser, "parse_file", mock_parse_file)
 
     # Temporarily remove "test" from ignored directory patterns to avoid skipping test directories
     original_ignored_dirs = settings.ignored_directory_patterns.copy()
-    settings.ignored_directory_patterns = [p for p in settings.ignored_directory_patterns if p != "test"]
-    
-    settings.config_file_extensions = [".yaml", ".yml", ".json", ".toml", ".ini", ".conf", ".properties"]
+    settings.ignored_directory_patterns = [
+        p for p in settings.ignored_directory_patterns if p != "test"
+    ]
+
+    settings.config_file_extensions = [
+        ".yaml",
+        ".yml",
+        ".json",
+        ".toml",
+        ".ini",
+        ".conf",
+        ".properties",
+    ]
     chunks = chunker.analyze_repo(tmp_path)
-    
+
     # Restore original ignored directory patterns
     settings.ignored_directory_patterns = original_ignored_dirs
-    
+
     # Should not include test_file.py, image.png, or config files (handled separately)
     files_in_chunks = {c["source_file"] for c in chunks}
-    
+
     # Debug: Print what files were actually processed
     print(f"Files in chunks: {files_in_chunks}")
     print(f"All chunks: {chunks}")
-    
+
     # More flexible assertions that check for the presence of expected files
     # rather than exact matches which might fail due to path variations
-    assert any("file.py" in f for f in files_in_chunks), f"file.py not found in {files_in_chunks}"
-    assert any("README.md" in f for f in files_in_chunks), f"README.md not found in {files_in_chunks}"
-    assert not any("test_file.py" in f for f in files_in_chunks), f"test_file.py should not be in {files_in_chunks}"
-    assert not any("image.png" in f for f in files_in_chunks), f"image.png should not be in {files_in_chunks}"
-    assert not any("file.yaml" in f for f in files_in_chunks), f"file.yaml should not be in {files_in_chunks}"
-    
+    assert any(
+        "file.py" in f for f in files_in_chunks
+    ), f"file.py not found in {files_in_chunks}"
+    assert any(
+        "README.md" in f for f in files_in_chunks
+    ), f"README.md not found in {files_in_chunks}"
+    assert not any(
+        "test_file.py" in f for f in files_in_chunks
+    ), f"test_file.py should not be in {files_in_chunks}"
+    assert not any(
+        "image.png" in f for f in files_in_chunks
+    ), f"image.png should not be in {files_in_chunks}"
+    assert not any(
+        "file.yaml" in f for f in files_in_chunks
+    ), f"file.yaml should not be in {files_in_chunks}"
+
     # Check chunk_type
     for c in chunks:
         if c["source_file"].endswith(".py"):
@@ -174,22 +194,22 @@ def test_analyzer_with_custom_config_extensions():
         # Create a temporary repository structure
         repo_path = Path(temp_dir) / "test_repo"
         repo_path.mkdir()
-        
+
         # Create some test files
         (repo_path / "config.yaml").write_text("key: value")
         (repo_path / "config.json").write_text('{"key": "value"}')
         (repo_path / "config.env").write_text("KEY=value")
         (repo_path / "main.py").write_text("print('hello')")
-        
+
         # Test with custom config extensions
         custom_extensions = [".yaml", ".env"]
         analyzer = Analyzer(
             repo_path=str(repo_path),
             output_dir=str(repo_path / ".oscalgen"),
             config_extensions=custom_extensions,
-            auto_discover_config=False
+            auto_discover_config=False,
         )
-        
+
         # Verify that only specified extensions are treated as config files
         assert ".yaml" in analyzer.config_extensions
         assert ".env" in analyzer.config_extensions
@@ -201,14 +221,14 @@ def test_analyzer_with_default_config_extensions():
     with tempfile.TemporaryDirectory() as temp_dir:
         repo_path = Path(temp_dir) / "test_repo"
         repo_path.mkdir()
-        
+
         analyzer = Analyzer(
-            repo_path=str(repo_path),
-            output_dir=str(repo_path / ".oscalgen")
+            repo_path=str(repo_path), output_dir=str(repo_path / ".oscalgen")
         )
-        
+
         # Should use default extensions from settings
         from maposcal import settings
+
         assert analyzer.config_extensions == settings.config_file_extensions
 
 
@@ -217,15 +237,15 @@ def test_analyzer_extension_normalization():
     with tempfile.TemporaryDirectory() as temp_dir:
         repo_path = Path(temp_dir) / "test_repo"
         repo_path.mkdir()
-        
+
         # Test extensions without dots
         custom_extensions = ["yaml", "json", "env"]
         analyzer = Analyzer(
             repo_path=str(repo_path),
             output_dir=str(repo_path / ".oscalgen"),
-            config_extensions=custom_extensions
+            config_extensions=custom_extensions,
         )
-        
+
         # Should normalize to include dots
         assert ".yaml" in analyzer.config_extensions
         assert ".json" in analyzer.config_extensions
@@ -238,22 +258,22 @@ def test_analyzer_with_manual_config_files():
         # Create a temporary repository structure
         repo_path = Path(temp_dir) / "test_repo"
         repo_path.mkdir()
-        
+
         # Create some test files
         (repo_path / "config.yaml").write_text("key: value")
         (repo_path / "config.json").write_text('{"key": "value"}')
         (repo_path / "config.env").write_text("KEY=value")
         (repo_path / "main.py").write_text("print('hello')")
-        
+
         # Test with manual file specification
         manual_files = ["config.yaml", "config.env"]
         analyzer = Analyzer(
             repo_path=str(repo_path),
             output_dir=str(repo_path / ".oscalgen"),
             auto_discover_config=False,
-            config_files=manual_files
+            config_files=manual_files,
         )
-        
+
         # Verify that manual files are set correctly
         assert Path("config.yaml") in analyzer.config_files_list
         assert Path("config.env") in analyzer.config_files_list
@@ -266,33 +286,33 @@ def test_analyzer_auto_discovery_vs_manual():
     with tempfile.TemporaryDirectory() as temp_dir:
         repo_path = Path(temp_dir) / "test_repo"
         repo_path.mkdir()
-        
+
         # Create test files
         (repo_path / "config.yaml").write_text("key: value")
         (repo_path / "config.json").write_text('{"key": "value"}')
         (repo_path / "main.py").write_text("print('hello')")
-        
+
         # Test auto-discovery (should include both yaml and json)
         analyzer_auto = Analyzer(
             repo_path=str(repo_path),
             output_dir=str(repo_path / ".oscalgen"),
             config_extensions=[".yaml", ".json"],
-            auto_discover_config=True
+            auto_discover_config=True,
         )
-        
+
         # Test manual specification (should only include yaml)
         analyzer_manual = Analyzer(
             repo_path=str(repo_path),
             output_dir=str(repo_path / ".oscalgen"),
             auto_discover_config=False,
-            config_files=["config.yaml"]
+            config_files=["config.yaml"],
         )
-        
+
         # Verify different behaviors
         assert ".yaml" in analyzer_auto.config_extensions
         assert ".json" in analyzer_auto.config_extensions
         assert analyzer_auto.auto_discover_config is True
-        
+
         assert Path("config.yaml") in analyzer_manual.config_files_list
         assert Path("config.json") not in analyzer_manual.config_files_list
         assert analyzer_manual.auto_discover_config is False

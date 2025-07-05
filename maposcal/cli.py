@@ -34,9 +34,7 @@ from maposcal.generator.control_mapper import (
     get_relevant_chunks,
 )
 from maposcal.generator.profile_control_extractor import ProfileControlExtractor
-from maposcal.embeddings import faiss_index, meta_store, local_embedder
-from pathlib import Path
-import re
+from maposcal.embeddings import meta_store
 from maposcal.generator.validation import (
     validate_unique_uuids,
     validate_control_status,
@@ -101,7 +99,7 @@ def analyze(config: str = typer.Argument(None, help="Path to the configuration f
 
     The analysis results are stored in the specified output directory
     and serve as the foundation for the generate command.
-    
+
     Configuration options:
     - config_extensions: List of file extensions to treat as configuration files (when auto_discover_config is True)
     - auto_discover_config: Whether to auto-discover by extension or use manual file list (default: True)
@@ -110,18 +108,18 @@ def analyze(config: str = typer.Argument(None, help="Path to the configuration f
     config_data = load_config(config)
     repo_path = config_data.get("repo_path")
     output_dir = config_data.get("output_dir", ".oscalgen")
-    
+
     # Get configuration file settings
     config_extensions = config_data.get("config_extensions")
     auto_discover_config = config_data.get("auto_discover_config", True)
     config_files = config_data.get("config_files")
 
     analyzer = Analyzer(
-        repo_path=repo_path, 
+        repo_path=repo_path,
         output_dir=output_dir,
         config_extensions=config_extensions,
         auto_discover_config=auto_discover_config,
-        config_files=config_files
+        config_files=config_files,
     )
     analyzer.run()
 
@@ -143,7 +141,6 @@ def summarize(
     and serves as a foundation for understanding the service's security posture.
     """
     config_data = load_config(config)
-    repo_path = config_data.get("repo_path")
     output_dir = config_data.get("output_dir", ".oscalgen")
 
     # Check if analysis has already been run
@@ -151,13 +148,13 @@ def summarize(
     summary_meta_path = os.path.join(output_dir, "summary_meta.json")
 
     if not os.path.exists(meta_path):
-        typer.echo(f"Analysis files not found. Please run 'analyze' command first.")
+        typer.echo("Analysis files not found. Please run 'analyze' command first.")
         typer.echo(f"Expected file: {meta_path}")
         raise typer.Exit(code=1)
 
     if not os.path.exists(summary_meta_path):
         typer.echo(
-            f"Summary analysis files not found. Please run 'analyze' command first."
+            "Summary analysis files not found. Please run 'analyze' command first."
         )
         typer.echo(f"Expected file: {summary_meta_path}")
         raise typer.Exit(code=1)
@@ -169,7 +166,6 @@ def summarize(
 
     try:
         relevant_chunks = get_relevant_chunks(security_query, output_dir, top_k=50)
-
 
         for chunk in relevant_chunks:
             if chunk.get("content"):
@@ -187,7 +183,6 @@ def summarize(
             f"Warning: Could not retrieve relevant chunks using FAISS search: {e}"
         )
         typer.echo("Falling back to loading all chunks...")
-
 
         # Fallback: load all chunks if FAISS search fails
         chunks = meta_store.load_metadata(meta_path)
@@ -228,7 +223,6 @@ def critique_and_revise(
     max_retries: int = 3,
     security_overview: str = None,
 ) -> List[dict]:
-
     """
     Critique and revise implemented requirements until valid or max retries reached.
 
@@ -718,7 +712,7 @@ def evaluate(config: str = typer.Argument(..., help="Path to the configuration f
     total_score = sum(r.get("total_score", 0) for r in valid_evaluations)
     avg_score = total_score / len(valid_evaluations) if valid_evaluations else 0
 
-    typer.echo(f"\n📊 Evaluation Summary:")
+    typer.echo("\n📊 Evaluation Summary:")
     typer.echo(f"   Total controls evaluated: {len(evaluation_results)}")
     typer.echo(f"   Successful evaluations: {len(valid_evaluations)}")
     typer.echo(f"   Average total score: {avg_score:.1f}/8.0")

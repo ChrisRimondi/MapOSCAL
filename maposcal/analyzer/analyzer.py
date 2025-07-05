@@ -12,7 +12,6 @@ from maposcal.llm import prompt_templates as pt
 from typing import List, Dict, Any
 import os
 import numpy as np
-from maposcal.analyzer.chunker import detect_chunk_type
 from traceback import format_exc
 import logging
 from maposcal import settings
@@ -31,16 +30,18 @@ logger = logging.getLogger()
 def should_ignore_path(path: Path) -> bool:
     """
     Check if a path should be ignored based on directory patterns.
-    
+
     Args:
         path: Path to check
-        
+
     Returns:
         True if the path should be ignored, False otherwise
     """
     # Check if any part of the path matches ignored directory patterns
     for part in path.parts:
-        if any(pattern in part.lower() for pattern in settings.ignored_directory_patterns):
+        if any(
+            pattern in part.lower() for pattern in settings.ignored_directory_patterns
+        ):
             return True
     return False
 
@@ -65,7 +66,14 @@ class Analyzer:
     - Configurable configuration file extensions
     """
 
-    def __init__(self, repo_path: str, output_dir: str = ".oscalgen", config_extensions: List[str] = None, auto_discover_config: bool = True, config_files: List[str] = None):
+    def __init__(
+        self,
+        repo_path: str,
+        output_dir: str = ".oscalgen",
+        config_extensions: List[str] = None,
+        auto_discover_config: bool = True,
+        config_files: List[str] = None,
+    ):
         """
         Initialize the analyzer.
 
@@ -82,16 +90,18 @@ class Analyzer:
         self.repo_path = Path(repo_path)
         self.output_dir = Path(output_dir)
         self.output_dir.mkdir(exist_ok=True)
-        
+
         # Set configuration file extensions for auto-discovery
         if config_extensions is not None:
             # Ensure extensions start with dot
-            self.config_extensions = [ext if ext.startswith('.') else f'.{ext}' for ext in config_extensions]
+            self.config_extensions = [
+                ext if ext.startswith(".") else f".{ext}" for ext in config_extensions
+            ]
         else:
             self.config_extensions = settings.config_file_extensions
-            
+
         self.auto_discover_config = auto_discover_config
-        
+
         # Set manual config files list
         if config_files is not None:
             # Convert to Path objects relative to repo root
@@ -126,8 +136,8 @@ class Analyzer:
         index = faiss_index.build_faiss_index(embeddings)
 
         # Debug logging for file paths
-        index_path = self.output_dir / f"index.faiss"
-        meta_path = self.output_dir / f"meta.json"
+        index_path = self.output_dir / "index.faiss"
+        meta_path = self.output_dir / "meta.json"
         logger.debug(f"Saving index to: {index_path}")
         logger.debug(f"Saving metadata to: {meta_path}")
 
@@ -159,22 +169,22 @@ class Analyzer:
             # Skip if not a file
             if not file_path.is_file():
                 continue
-                
+
             # Skip hidden files (files that start with ".")
             if file_path.name.startswith("."):
                 logger.debug(f"Skipping hidden file {file_path}")
                 continue
-                
+
             # Skip if path contains ignored directory patterns
             if should_ignore_path(file_path):
                 logger.debug(f"Skipping {file_path} due to ignored directory pattern")
                 continue
-                
+
             # Skip if file extension is ignored
             if file_path.suffix in settings.ignored_file_extensions:
                 logger.debug(f"Skipping {file_path} due to ignored file extension")
                 continue
-                
+
             # Exclude files with certain patterns in the name
             if any(
                 pattern in file_path.name.lower()
@@ -182,44 +192,57 @@ class Analyzer:
             ):
                 logger.debug(f"Skipping {file_path} due to ignored filename pattern")
                 continue
-                
+
             # Check if this is a configuration file
             is_config_file = False
-            
+
             if self.auto_discover_config:
                 # Auto-discover by extension
-                is_config_file = file_path.suffix.lower() in [ext.lower() for ext in self.config_extensions]
+                is_config_file = file_path.suffix.lower() in [
+                    ext.lower() for ext in self.config_extensions
+                ]
             else:
                 # Manual file specification
                 relative_path = file_path.relative_to(self.repo_path)
                 is_config_file = relative_path in self.config_files_list
-            
+
             # Handle config files separately
             if is_config_file:
                 logger.info(f"Processing config file: {file_path}")
                 self.process_config_file(file_path)
                 continue
-            
+
             try:
                 # Begin manual enrichment before LLM involvement
                 file_inspector_results = None
                 try:
                     logger.info(f"Beginning rules-based inspection of {file_path}")
                     file_inspector_results = rules.begin_inspection(str(file_path))
-                except:
-                    logger.error(f"Failed to perform inspection on {str(file_path)} - {format_exc()}")
-                
+                except Exception:
+                    logger.error(
+                        f"Failed to perform inspection on {str(file_path)} - {format_exc()}"
+                    )
+
                 try:
                     # Create embeddings from inspector's summary
-                    if file_inspector_results is not None and 'file_summary' in file_inspector_results:
-                        inspector_summary = file_inspector_results['file_summary']
+                    if (
+                        file_inspector_results is not None
+                        and "file_summary" in file_inspector_results
+                    ):
+                        inspector_summary = file_inspector_results["file_summary"]
                         summary_vec = local_embedder.embed_one(inspector_summary)
                         vectors.append(summary_vec)
-                        logger.info(f"Successfully created embeddings for file {str(file_path)}.")
+                        logger.info(
+                            f"Successfully created embeddings for file {str(file_path)}."
+                        )
                     else:
-                        logger.debug(f"No inspector summary available for {str(file_path)} - skipping inspector embeddings")
-                except:
-                    logger.error(f"Failed to generate and store vectorized embeddings for inspector's results on {str(file_path)} - {format_exc()}")
+                        logger.debug(
+                            f"No inspector summary available for {str(file_path)} - skipping inspector embeddings"
+                        )
+                except Exception:
+                    logger.error(
+                        f"Failed to generate and store vectorized embeddings for inspector's results on {str(file_path)} - {format_exc()}"
+                    )
 
                 content = file_path.read_text(encoding="utf-8")
                 prompt = pt.build_file_summary_prompt(file_path.name, content)
@@ -242,8 +265,8 @@ class Analyzer:
             summary_index = faiss_index.build_faiss_index(all_vectors)
 
             # Debug logging for summary file paths
-            summary_index_path = self.output_dir / f"summary_index.faiss"
-            summary_meta_path = self.output_dir / f"summary_meta.json"
+            summary_index_path = self.output_dir / "summary_index.faiss"
+            summary_meta_path = self.output_dir / "summary_meta.json"
             logger.debug(f"Saving summary index to: {summary_index_path}")
             logger.debug(f"Saving summary metadata to: {summary_meta_path}")
 
@@ -255,142 +278,147 @@ class Analyzer:
     def extract_keys_from_config(self, content: str, file_path: Path) -> List[str]:
         """
         Extract keys from configuration file content based on file type.
-        
+
         Args:
             content: The file content as a string
             file_path: Path to the file for determining file type
-            
+
         Returns:
             List of keys found in the configuration file
         """
         keys = []
-        
+
         try:
             suffix_lower = file_path.suffix.lower()
-            
-            if suffix_lower in ['.yaml', '.yml']:
+
+            if suffix_lower in [".yaml", ".yml"]:
                 # Parse YAML and extract keys
                 yaml_data = yaml.safe_load(content)
                 if yaml_data:
                     keys = self._extract_keys_recursive(yaml_data)
-                    
-            elif suffix_lower == '.json':
+
+            elif suffix_lower == ".json":
                 # Parse JSON and extract keys
                 json_data = json.loads(content)
                 if json_data:
                     keys = self._extract_keys_recursive(json_data)
-                    
-            elif suffix_lower == '.toml':
+
+            elif suffix_lower == ".toml":
                 # Parse TOML and extract keys
                 toml_data = toml.loads(content)
                 if toml_data:
                     keys = self._extract_keys_recursive(toml_data)
-                    
-            elif suffix_lower in ['.ini', '.conf']:
+
+            elif suffix_lower in [".ini", ".conf"]:
                 # Parse INI/CONF files and extract keys
                 keys = self._extract_keys_from_ini(content)
-                
-            elif suffix_lower == '.properties':
+
+            elif suffix_lower == ".properties":
                 # Parse PROPERTIES files and extract keys
                 keys = self._extract_keys_from_properties(content)
-                    
+
         except Exception as e:
             logger.warning(f"Error extracting keys from {file_path}: {e}")
-            
+
         return keys
-    
+
     def _extract_keys_recursive(self, data: Any, prefix: str = "") -> List[str]:
         """
         Recursively extract keys from nested data structures.
-        
+
         Args:
             data: The data structure to extract keys from
             prefix: Current key prefix for nested structures
-            
+
         Returns:
             List of keys found in the data structure
         """
         keys = []
-        
+
         if isinstance(data, dict):
             for key, value in data.items():
                 current_key = f"{prefix}.{key}" if prefix else key
                 keys.append(current_key)
-                
+
                 # Recursively extract keys from nested structures
                 if isinstance(value, (dict, list)):
                     keys.extend(self._extract_keys_recursive(value, current_key))
-                    
+
         elif isinstance(data, list):
             for i, item in enumerate(data):
                 current_key = f"{prefix}[{i}]" if prefix else f"[{i}]"
-                
+
                 # Recursively extract keys from nested structures
                 if isinstance(item, (dict, list)):
                     keys.extend(self._extract_keys_recursive(item, current_key))
-                    
+
         return keys
 
     def _extract_keys_from_ini(self, content: str) -> List[str]:
         """
         Extract keys from INI/CONF file content.
-        
+
         Args:
             content: The INI/CONF file content as a string
-            
+
         Returns:
             List of keys found in the INI/CONF file
         """
         keys = []
-        
+
         try:
             config = configparser.ConfigParser()
             config.read_string(content)
-            
+
             for section in config.sections():
                 keys.append(f"[{section}]")
                 for option in config.options(section):
                     keys.append(f"[{section}].{option}")
-                    
+
         except Exception as e:
             logger.warning(f"Error parsing INI/CONF content: {e}")
-            
+
         return keys
-    
+
     def _extract_keys_from_properties(self, content: str) -> List[str]:
         """
         Extract keys from PROPERTIES file content.
-        
+
         Args:
             content: The PROPERTIES file content as a string
-            
+
         Returns:
             List of keys found in the PROPERTIES file
         """
         keys = []
-        
+
         try:
-            lines = content.split('\n')
+            lines = content.split("\n")
             for line in lines:
                 line = line.strip()
                 # Skip empty lines, comments, and lines without '='
-                if not line or line.startswith('#') or line.startswith('!') or '=' not in line:
+                if (
+                    not line
+                    or line.startswith("#")
+                    or line.startswith("!")
+                    or "=" not in line
+                ):
                     continue
-                    
+
                 # Extract the key part (before the first '=')
-                key = line.split('=', 1)[0].strip()
+                key = line.split("=", 1)[0].strip()
                 if key:
                     keys.append(key)
-                    
+
         except Exception as e:
             logger.warning(f"Error parsing PROPERTIES content: {e}")
-            
+
         return keys
 
     def process_config_file(self, file_path: Path) -> None:
         """
         Process configuration files separately from the main chunking and embedding workflow.
-        
+
         Creates a JSON object for each configuration file with the following structure:
         {
           "file_path": "relative/path/to/file",
@@ -399,54 +427,54 @@ class Analyzer:
           "hash": "sha256:...",
           "keys": [...]
         }
-        
+
         Args:
             file_path: Path to the configuration file to process
         """
         logger.info(f"Processing configuration file: {file_path}")
-        
+
         try:
             # Read file content
             content = file_path.read_text(encoding="utf-8")
-            
+
             # Calculate SHA256 hash
-            file_hash = hashlib.sha256(content.encode('utf-8')).hexdigest()
-            
+            file_hash = hashlib.sha256(content.encode("utf-8")).hexdigest()
+
             # Determine MIME type based on file extension
             mime_type, _ = mimetypes.guess_type(str(file_path))
             if mime_type is None:
                 # Fallback MIME types for common config formats
                 mime_map = {
-                    '.yaml': 'text/x-yaml',
-                    '.yml': 'text/x-yaml',
-                    '.json': 'application/json',
-                    '.toml': 'text/x-toml',
-                    '.ini': 'text/x-ini',
-                    '.conf': 'text/plain',
-                    '.properties': 'text/x-properties'
+                    ".yaml": "text/x-yaml",
+                    ".yml": "text/x-yaml",
+                    ".json": "application/json",
+                    ".toml": "text/x-toml",
+                    ".ini": "text/x-ini",
+                    ".conf": "text/plain",
+                    ".properties": "text/x-properties",
                 }
-                mime_type = mime_map.get(file_path.suffix, 'text/plain')
-            
+                mime_type = mime_map.get(file_path.suffix, "text/plain")
+
             # Get relative path from repo root
             relative_path = file_path.relative_to(self.repo_path)
-            
+
             # Create config file object
             config_obj = {
                 "file_path": str(relative_path),
                 "selection_reason": "extension",
                 "mime": mime_type,
                 "hash": f"sha256:{file_hash}",
-                "keys": self.extract_keys_from_config(content, file_path)
+                "keys": self.extract_keys_from_config(content, file_path),
             }
-            
+
             # Add to config files list
             self.config_files.append(config_obj)
-            
+
             logger.debug(f"Processed config file: {file_path}")
-            
+
         except Exception as e:
             logger.error(f"Error processing config file {file_path}: {e}")
-    
+
     def save_config_files(self) -> None:
         """
         Save the processed configuration files data to a JSON file in the output directory.
@@ -454,9 +482,11 @@ class Analyzer:
         if self.config_files:
             config_output_path = self.output_dir / "config_files.json"
             try:
-                with open(config_output_path, 'w', encoding='utf-8') as f:
+                with open(config_output_path, "w", encoding="utf-8") as f:
                     json.dump(self.config_files, f, indent=2, ensure_ascii=False)
-                logger.info(f"Saved {len(self.config_files)} config files to {config_output_path}")
+                logger.info(
+                    f"Saved {len(self.config_files)} config files to {config_output_path}"
+                )
             except Exception as e:
                 logger.error(f"Error saving config files: {e}")
         else:

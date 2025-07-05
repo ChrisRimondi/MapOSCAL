@@ -29,7 +29,7 @@ import json
 from pathlib import Path
 from maposcal.embeddings import faiss_index, meta_store, local_embedder
 import logging
-from .validation import validate_control_mapping, validate_unique_uuids
+from .validation import validate_control_mapping
 import uuid
 
 logger = logging.getLogger()
@@ -41,7 +41,7 @@ def get_relevant_chunks(
     """
     Query both index.faiss and summary_index.faiss using the control_description as the query.
     Combine and deduplicate the results to return relevant chunks.
-    
+
     Additionally, if control_id is provided, include all chunks and summaries from files
     that have matching control hints for that specific control.
 
@@ -55,7 +55,7 @@ def get_relevant_chunks(
         control_description (str): The control description to use as the query.
         output_dir (str): The directory containing the FAISS indices and metadata.
         top_k (int): Number of top chunks to retrieve from each index.
-        control_id (str, optional): The NIST 800-53 control ID (e.g., "AC-4", "SC-5") 
+        control_id (str, optional): The NIST 800-53 control ID (e.g., "AC-4", "SC-5")
                                    to filter by control hints. If provided, includes
                                    all chunks from files with matching control hints.
 
@@ -70,7 +70,7 @@ def get_relevant_chunks(
     )
     if control_id:
         logger.info(f"Also filtering by control hints for control: {control_id}")
-    
+
     # Embed the control description for querying
     query_embedding = local_embedder.embed_one(control_description)
 
@@ -112,16 +112,16 @@ def get_relevant_chunks(
 
     # Combine semantic search results
     relevant_chunks = chunk_results + summary_results
-    
+
     # If control_id is provided, add chunks from files with matching control hints
     if control_id:
         # Convert control_id to control hints format (remove hyphens and convert to lowercase)
         control_hint = control_id.replace("-", "").lower()
         logger.info(f"Looking for control hint: {control_hint}")
-        
+
         # Get all chunks from files with matching control hints
         control_hint_chunks = []
-        
+
         # Check summary metadata for control hints
         if summary_meta_path.exists():
             summary_meta = meta_store.load_metadata(summary_meta_path)
@@ -130,20 +130,22 @@ def get_relevant_chunks(
                     # This is a file path entry
                     inspector_results = summary_data.get("inspector_results", {})
                     control_hints = inspector_results.get("control_hints", [])
-                    
+
                     if control_hint in control_hints:
                         logger.info(f"Found matching control hint in file: {file_path}")
                         # Add the summary
                         control_hint_chunks.append(summary_data)
-                        
+
                         # Add all chunks from this file
                         for chunk in meta:
                             if chunk.get("source_file") == file_path:
                                 control_hint_chunks.append(chunk)
-        
+
         # Add control hint chunks to results
         relevant_chunks.extend(control_hint_chunks)
-        logger.info(f"Added {len(control_hint_chunks)} chunks from files with control hint {control_hint}")
+        logger.info(
+            f"Added {len(control_hint_chunks)} chunks from files with control hint {control_hint}"
+        )
 
     # Deduplicate relevant chunks
     seen = set()
@@ -242,7 +244,9 @@ def map_control(control_dict: dict, output_dir: str, top_k: int = 5) -> str:
             f"- {prose}" for prose in additional_prose
         )
 
-    relevant_chunks = get_relevant_chunks(control_description, output_dir, top_k, control_dict["id"])
+    relevant_chunks = get_relevant_chunks(
+        control_description, output_dir, top_k, control_dict["id"]
+    )
 
     # Try up to 3 times to get a valid response
     max_retries = 3
@@ -303,19 +307,19 @@ def parse_llm_response(result: str) -> dict:
     logger.info("Parsing LLM response")
     try:
         cleaned = result.strip()
-        
+
         # Try to extract JSON from markdown code blocks first
-        json_block_match = re.search(r'```(?:json)?\s*\n(.*?)\n```', cleaned, re.DOTALL)
+        json_block_match = re.search(r"```(?:json)?\s*\n(.*?)\n```", cleaned, re.DOTALL)
         if json_block_match:
             json_content = json_block_match.group(1).strip()
             return json.loads(json_content)
-        
+
         # Try to find JSON object in the text (look for { ... })
-        json_match = re.search(r'\{[^{}]*(?:\{[^{}]*\}[^{}]*)*\}', cleaned, re.DOTALL)
+        json_match = re.search(r"\{[^{}]*(?:\{[^{}]*\}[^{}]*)*\}", cleaned, re.DOTALL)
         if json_match:
             json_content = json_match.group(0)
             return json.loads(json_content)
-        
+
         # If no JSON found, try to parse the entire cleaned string
         return json.loads(cleaned)
     except Exception as e:

@@ -1,6 +1,5 @@
 """Common test fixtures for the MapOSCAL test suite."""
 
-import os
 import pytest
 from pathlib import Path
 

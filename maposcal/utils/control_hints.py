@@ -9,6 +9,7 @@ Each keyword is followed by an inline comment explaining its relationship to the
 
 Generated on: 2025-07-04T20:20:27
 """
+
 # --- ORIGINAL SC‑8 GENERIC AND PER‑LANGUAGE LISTS (from sample) ---
 sc8 = [
     "ssl",  # Transport encryption primitives imply SC‑8

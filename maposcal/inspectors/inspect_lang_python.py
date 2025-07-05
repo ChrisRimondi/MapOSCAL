@@ -17,7 +17,7 @@ logger = logging.getLogger(__name__)
 
 def start_inspection(file_path: str) -> Dict:
     """
-    Takes a Python file and begins a non-generative inspection with the goal of returning 
+    Takes a Python file and begins a non-generative inspection with the goal of returning
     a standardized inspection report covering many areas related to security and compliance.
 
     Args:
@@ -43,35 +43,47 @@ def start_inspection(file_path: str) -> Dict:
         logger.debug(f"Opening Python file ({file_path}) for inspection.")
         with open(file_path, "r") as fh:
             file_contents = fh.read()
-    except Exception as e:
+    except Exception:
         logger.error(f"Failed opening Python file ({file_path}) - {format_exc()}")
 
     if file_contents:
         try:
-        ###
-        # Parse for string-based control hints using the new enumerator
-        # This searches all available controls, not just SC-8
-        ###
+            ###
+            # Parse for string-based control hints using the new enumerator
+            # This searches all available controls, not just SC-8
+            ###
             found_controls = search_control_hints_in_content(file_contents, "python")
             applicable_control_hints.extend(found_controls)
-            logger.info(f"Found {len(found_controls)} applicable controls in Python file")
-        except Exception as e:
-            logger.error(f"Failed to parse contents of {file_path} for control hints - {format_exc()}")
+            logger.info(
+                f"Found {len(found_controls)} applicable controls in Python file"
+            )
+        except Exception:
+            logger.error(
+                f"Failed to parse contents of {file_path} for control hints - {format_exc()}"
+            )
 
         ###
         # Parse for loaded modules - shows what applicable functionality is likely used.
         ###
-        modules, network_modules, file_system_modules, logging_modules, cryptographic_modules = identify_imported_modules(file_contents)
-        loaded_modules['modules'] = modules
-        loaded_modules['network_modules'] = network_modules
-        loaded_modules['file_system_modules'] = file_system_modules
-        loaded_modules['logging_modules'] = logging_modules
-        loaded_modules['cryptographic_modules'] = cryptographic_modules
+        (
+            modules,
+            network_modules,
+            file_system_modules,
+            logging_modules,
+            cryptographic_modules,
+        ) = identify_imported_modules(file_contents)
+        loaded_modules["modules"] = modules
+        loaded_modules["network_modules"] = network_modules
+        loaded_modules["file_system_modules"] = file_system_modules
+        loaded_modules["logging_modules"] = logging_modules
+        loaded_modules["cryptographic_modules"] = cryptographic_modules
 
         ###
         # Parse for configuration ingestion (e.g., environmental variables, etc.)
         ###
-        configuration_settings = identify_imported_configuration_variables(file_contents)
+        configuration_settings = identify_imported_configuration_variables(
+            file_contents
+        )
 
         ###
         # Parse for common file system interactions
@@ -110,7 +122,7 @@ def start_inspection(file_path: str) -> Dict:
         ###
 
     python_inspection_results["file_path"] = file_path
-    python_inspection_results["language"] = 'Python'
+    python_inspection_results["language"] = "Python"
     python_inspection_results["control_hints"] = applicable_control_hints
     python_inspection_results["loaded_modules"] = loaded_modules
     python_inspection_results["configuration_settings"] = configuration_settings
@@ -150,7 +162,9 @@ def summarize_discovery_content(python_inspection_results: Dict) -> str:
     if len(python_inspection_results["loaded_modules"]["network_modules"]) > 0:
         networking_results = f"Discovery of networking modules shows the following being used for connectivity: {python_inspection_results['loaded_modules']['network_modules']}."
     else:
-        networking_results = "No networking capabilities have been detected in this file."
+        networking_results = (
+            "No networking capabilities have been detected in this file."
+        )
 
     if len(python_inspection_results["loaded_modules"]["file_system_modules"]) > 0:
         file_system_results = f"File system access is expected using the discovered modules: {python_inspection_results['loaded_modules']['file_system_modules']}."
@@ -164,55 +178,58 @@ def summarize_discovery_content(python_inspection_results: Dict) -> str:
 
     if len(python_inspection_results["configuration_settings"]) > 0:
         for config_var in python_inspection_results["configuration_settings"]:
-            config_variables = f"{config_variables}, {config_var['variable']}".lstrip(',')
+            config_variables = f"{config_variables}, {config_var['variable']}".lstrip(
+                ","
+            )
 
         configuration_results = f"Configuration settings, either from environmental variables, or other sources are stored in the following variables: {config_variables}."
     else:
         configuration_results = "No configuration settings (e.g., environmental variables, etc.) have been imported from this file."
-  
-    if len(python_inspection_results["loaded_modules"]['cryptographic_modules']) > 0:
+
+    if len(python_inspection_results["loaded_modules"]["cryptographic_modules"]) > 0:
         cryptographic_results = f"Potential cryptographic operations are happening using the following modules. {python_inspection_results['loaded_modules']['cryptographic_modules']}."
 
-    file_summary = dedent(f"""\
+    file_summary = dedent(
+        f"""\
         The file {python_inspection_results["file_path"]} is written in {python_inspection_results["language"]}. \
 {networking_results} \
 {file_system_results} \
 {logging_results} \
 {configuration_results} \
 {cryptographic_results}\
-""")
+"""
+    )
 
     return file_summary
 
 
-def identify_imported_configuration_variables(file_contents: str) -> List[Dict[str, str]]:
+def identify_imported_configuration_variables(
+    file_contents: str,
+) -> List[Dict[str, str]]:
     """
     Parses a Python code file and identifies configuration variables used in the code.
     Includes environment variables, config files, and other configuration sources.
-    
+
     Args:
         file_contents (str): Code contents of a module to be parsed for imported configuration variables.
-    
+
     Returns:
         results (List[Dict[str, str]]): Method of ingestion, variable name, and source key.
     """
     patterns = [
         {
             "method": "Environment Variables (os.getenv)",
-            "regex": r'(?P<var>\w+)\s*=\s*os\.getenv\(["\'](?P<key>[^"\']+)["\']'
+            "regex": r'(?P<var>\w+)\s*=\s*os\.getenv\(["\'](?P<key>[^"\']+)["\']',
         },
         {
             "method": "Environment Variables (os.environ)",
-            "regex": r'(?P<var>\w+)\s*=\s*os\.environ\[["\'](?P<key>[^"\']+)["\']\]'
+            "regex": r'(?P<var>\w+)\s*=\s*os\.environ\[["\'](?P<key>[^"\']+)["\']\]',
         },
-        {
-            "method": "ConfigParser",
-            "regex": r'config\.get\(["\'](?P<key>[^"\']+)["\']'
-        },
+        {"method": "ConfigParser", "regex": r'config\.get\(["\'](?P<key>[^"\']+)["\']'},
         {
             "method": "YAML Configuration",
-            "regex": r'yaml\.load\(.*?["\'](?P<key>[^"\']+)["\']'
-        }
+            "regex": r'yaml\.load\(.*?["\'](?P<key>[^"\']+)["\']',
+        },
     ]
 
     results = []
@@ -223,7 +240,7 @@ def identify_imported_configuration_variables(file_contents: str) -> List[Dict[s
             result = {
                 "method": pattern["method"],
                 "variable": match.group("var") if "var" in match.groupdict() else "",
-                "source": match.group("key") if "key" in match.groupdict() else ""
+                "source": match.group("key") if "key" in match.groupdict() else "",
             }
             results.append(result)
 
@@ -233,7 +250,7 @@ def identify_imported_configuration_variables(file_contents: str) -> List[Dict[s
 def identify_imported_modules(file_contents: str) -> tuple:
     """
     Parses a Python code file and identifies all modules that are imported and used by the code.
-    
+
     Args:
         file_contents (str): Contents of a code module to be parsed for imported modules.
     Returns:
@@ -246,17 +263,44 @@ def identify_imported_modules(file_contents: str) -> tuple:
     cryptographic_modules = []
 
     # Python-specific module patterns
-    REF_PYTHON_NETWORK_MODULES = ['requests', 'urllib', 'urllib3', 'httpx', 'aiohttp', 'socket', 'ssl', 'http', 'https']
-    REF_PYTHON_FILE_SYSTEM_MODULES = ['os', 'pathlib', 'shutil', 'glob', 'fnmatch', 'tempfile', 'zipfile', 'tarfile']
-    REF_PYTHON_LOGGING_MODULES = ['logging', 'loguru', 'structlog']
-    REF_PYTHON_CRYPTOGRAPHIC_MODULES = ['cryptography', 'hashlib', 'hmac', 'base64', 'secrets', 'ssl', 'crypto']
+    REF_PYTHON_NETWORK_MODULES = [
+        "requests",
+        "urllib",
+        "urllib3",
+        "httpx",
+        "aiohttp",
+        "socket",
+        "ssl",
+        "http",
+        "https",
+    ]
+    REF_PYTHON_FILE_SYSTEM_MODULES = [
+        "os",
+        "pathlib",
+        "shutil",
+        "glob",
+        "fnmatch",
+        "tempfile",
+        "zipfile",
+        "tarfile",
+    ]
+    REF_PYTHON_LOGGING_MODULES = ["logging", "loguru", "structlog"]
+    REF_PYTHON_CRYPTOGRAPHIC_MODULES = [
+        "cryptography",
+        "hashlib",
+        "hmac",
+        "base64",
+        "secrets",
+        "ssl",
+        "crypto",
+    ]
 
     # Find import statements
     import_patterns = [
-        r'^import\s+(\w+)',
-        r'^from\s+(\w+)\s+import',
-        r'^import\s+(\w+)\s+as',
-        r'^from\s+(\w+)\.(\w+)\s+import'
+        r"^import\s+(\w+)",
+        r"^from\s+(\w+)\s+import",
+        r"^import\s+(\w+)\s+as",
+        r"^from\s+(\w+)\.(\w+)\s+import",
     ]
 
     for pattern in import_patterns:
@@ -277,10 +321,16 @@ def identify_imported_modules(file_contents: str) -> tuple:
         if module in REF_PYTHON_CRYPTOGRAPHIC_MODULES:
             cryptographic_modules.append(module)
 
-    return modules, network_modules, file_system_modules, logging_modules, cryptographic_modules
+    return (
+        modules,
+        network_modules,
+        file_system_modules,
+        logging_modules,
+        cryptographic_modules,
+    )
 
 
 if __name__ == "__main__":
     # Example usage
-    r = start_inspection('/path/to/example.py')
+    r = start_inspection("/path/to/example.py")
     print(r)

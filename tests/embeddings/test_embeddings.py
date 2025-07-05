@@ -3,7 +3,6 @@
 import pytest
 import numpy as np
 import faiss
-from pathlib import Path
 from maposcal.embeddings import faiss_index
 
 

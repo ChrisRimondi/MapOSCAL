@@ -1,6 +1,4 @@
 import pytest
-from pathlib import Path
-import os
 from maposcal.embeddings import meta_store
 
 

@@ -1,4 +1,3 @@
-import maposcal.utils.control_hints as control_hints_def
 import logging
 
 logger = logging.getLogger()
@@ -55,7 +54,7 @@ def parse_file_into_strings(file_contents):
         strings (list): All strings identified in the file's contents
 
     """
-    logger.debug(f"Beginning strings parsing.")
+    logger.debug("Beginning strings parsing.")
     listed_strings = []
     listed_strings = file_contents.strip().split()
 
