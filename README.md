@@ -536,6 +536,68 @@ ruff check .
 mypy .
 ```
 
+## GitHub Actions
+
+This project includes comprehensive GitHub Actions workflows for continuous integration and release management.
+
+### Workflows
+
+#### CI Workflow (`.github/workflows/ci.yml`)
+Runs on every push to `main`/`develop` branches and pull requests:
+- **Unit Tests**: Runs pytest with coverage across Python 3.9, 3.10, and 3.11
+- **Code Quality**: Checks code formatting (Black), linting (Ruff), and type checking (MyPy)
+- **Security Checks**: Runs Bandit security linter and Safety vulnerability scanner
+- **Package Build**: Validates package can be built and distributed correctly
+
+#### Release Workflow (`.github/workflows/release.yml`)
+Triggers when a release is created or published:
+- **All CI checks**: Runs the same validation as CI workflow
+- **Security Analysis**: Comprehensive security scanning with detailed reports
+- **Package Publishing**: Automatically publishes to PyPI when a version tag is pushed
+- **Release Summary**: Generates a comprehensive release validation report
+
+### Setup Requirements
+
+#### Required Secrets
+To enable PyPI publishing, add the following secret to your GitHub repository:
+
+1. Go to your repository Settings → Secrets and variables → Actions
+2. Add a new repository secret:
+   - **Name**: `PYPI_API_TOKEN`
+   - **Value**: Your PyPI API token (get one from [PyPI account settings](https://pypi.org/manage/account/token/))
+
+#### Optional Integrations
+- **Codecov**: For code coverage reporting (automatically configured in CI workflow)
+- **Dependabot**: For automated dependency updates (recommended)
+
+### Creating Releases
+
+1. **Create a version tag**:
+   ```bash
+   git tag v1.0.0
+   git push origin v1.0.0
+   ```
+
+2. **Create a GitHub release**:
+   - Go to your repository → Releases → "Create a new release"
+   - Select the version tag
+   - Add release notes
+   - Publish the release
+
+3. **Automatic publishing**: The workflow will automatically:
+   - Run all validation checks
+   - Build the package
+   - Publish to PyPI (if all checks pass)
+   - Generate a release summary
+
+### Workflow Features
+
+- **Matrix Testing**: Tests across multiple Python versions
+- **Parallel Execution**: Jobs run in parallel for faster feedback
+- **Artifact Storage**: Security reports and build artifacts are preserved
+- **Conditional Publishing**: Only publishes to PyPI for version tags (v*)
+- **Comprehensive Reporting**: Detailed validation results and release summaries
+
 ## Contributing
 
 1. Fork the repository
