@@ -116,27 +116,27 @@ class TestGetRelevantChunks:
         mock_faiss_index.load_index.return_value = mock_index
         mock_faiss_index.search_index.return_value = ([0], [0.1])
 
-        # Mock regular metadata
+        # Mock regular metadata (using relative paths)
         mock_meta = [
             {
-                "source_file": "/path/to/auth.py",
+                "source_file": "path/to/auth.py",
                 "content": "def authenticate_user(): pass",
             },
             {
-                "source_file": "/path/to/other.py",
+                "source_file": "path/to/other.py",
                 "content": "def other_function(): pass",
             },
         ]
 
-        # Mock summary metadata with control hints
+        # Mock summary metadata with control hints (using relative paths)
         mock_summary_meta = {
-            "/path/to/auth.py": {
-                "source_file": "/path/to/auth.py",
+            "path/to/auth.py": {
+                "source_file": "path/to/auth.py",
                 "summary": "Authentication module",
                 "inspector_results": {"control_hints": ["ac4", "sc5"]},
             },
-            "/path/to/other.py": {
-                "source_file": "/path/to/other.py",
+            "path/to/other.py": {
+                "source_file": "path/to/other.py",
                 "summary": "Other module",
                 "inspector_results": {"control_hints": ["ac6"]},
             },
@@ -175,7 +175,7 @@ class TestGetRelevantChunks:
             auth_chunks = [
                 chunk
                 for chunk in result
-                if chunk.get("source_file") == "/path/to/auth.py"
+                if chunk.get("source_file") == "path/to/auth.py"
             ]
             assert len(auth_chunks) > 0
 

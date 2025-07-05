@@ -126,7 +126,9 @@ def get_relevant_chunks(
         if summary_meta_path.exists():
             summary_meta = meta_store.load_metadata(summary_meta_path)
             for file_path, summary_data in summary_meta.items():
-                if isinstance(file_path, str) and file_path.startswith("/"):
+                # Check if this is a file path entry (not a vector_id)
+                # Since we now use relative paths, we check if it's not a numeric string
+                if isinstance(file_path, str) and not file_path.isdigit():
                     # This is a file path entry
                     inspector_results = summary_data.get("inspector_results", {})
                     control_hints = inspector_results.get("control_hints", [])

@@ -97,7 +97,9 @@ def analyze_repo(repo_path: Path) -> List[Dict[str, Any]]:
             logger.debug(f"Parsing ({file_path}) completed.")
 
             for chunk in parsed:
-                chunk["source_file"] = str(file_path)
+                # Use relative path instead of absolute path
+                relative_path = str(file_path.relative_to(repo_path))
+                chunk["source_file"] = relative_path
                 chunk["chunk_type"] = detect_chunk_type(file_path.suffix)
                 chunks.append(chunk)
         except Exception:

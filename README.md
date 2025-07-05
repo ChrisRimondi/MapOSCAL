@@ -1,7 +1,7 @@
 # MapOSCAL
 
 ## TL;DR
-Software must be accurately described for security and compliance purposes.  NIST's OSCAL appears to be the defined format of the immediate future, however industry adoption hasn't reached its potential.  This project makes OSCAL usable by providing automated discovery in an engineering-friendly CLI tool, which enables your security architects to be focused on the details, not the documentation generation!
+MapOSCAL automatically analyzes your codebase and generates NIST OSCAL compliance documentation using AI-powered discovery. It scans your repository for security controls, maps them to compliance frameworks like NIST SP 800-53, and produces validated OSCAL component definitions. This CLI tool saves security teams weeks of manual documentation work by automating the tedious parts while maintaining accuracy through multi-layer validation.
 
 ## Overview
 

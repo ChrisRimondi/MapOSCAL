@@ -218,6 +218,12 @@ class Analyzer:
                 try:
                     logger.info(f"Beginning rules-based inspection of {file_path}")
                     file_inspector_results = rules.begin_inspection(str(file_path))
+                    
+                    # Update inspector results to use relative path instead of absolute path
+                    if file_inspector_results and "file_path" in file_inspector_results:
+                        relative_path = str(file_path.relative_to(self.repo_path))
+                        file_inspector_results["file_path"] = relative_path
+                        
                 except Exception:
                     logger.error(
                         f"Failed to perform inspection on {str(file_path)} - {format_exc()}"
@@ -249,7 +255,10 @@ class Analyzer:
                 summary = llm_handler.query(prompt=prompt)
                 vec = local_embedder.embed_one(summary)
                 vectors.append(vec)
-                summary_meta[str(file_path)] = {
+                
+                # Use relative path as key instead of absolute path
+                relative_path = str(file_path.relative_to(self.repo_path))
+                summary_meta[relative_path] = {
                     "summary": summary,
                     "vector_id": idx,
                     "inspector_results": file_inspector_results,
