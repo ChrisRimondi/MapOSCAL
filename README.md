@@ -125,7 +125,44 @@ top_k: 5
 catalog_path: "path/to/NIST_catalog.json"
 profile_path: "path/to/NIST_profile.json"
 max_critique_retries: 3  # Number of validation/fix attempts
+
+# Configuration file handling (optional)
+# Option 1: Auto-discover config files by extension (default behavior)
+# If auto_discover_config is true and config_extensions is provided, 
+# files with these extensions will be treated as configuration files
+config_extensions:
+  - ".yaml"
+  - ".yml"
+  - ".json"
+  - ".toml"
+  - ".ini"
+  - ".conf"
+  - ".properties"
+  - ".env"
+  - ".cfg"
+
+# Option 2: Manual list of configuration files
+# If auto_discover_config is false, specify exact files to process as config files
+# auto_discover_config: false
+# config_files:
+#   - "config/database.yaml"
+#   - "config/app.json"
+#   - ".env"
+#   - "docker-compose.yml"
 ```
+
+**Configuration Options:**
+- `title`: Name of your service
+- `description`: Description of your service
+- `repo_path`: Path to the repository to analyze
+- `output_dir`: Directory where analysis and generation outputs will be stored
+- `top_k`: Number of most relevant code chunks to retrieve for each control
+- `catalog_path`: Path to the OSCAL catalog file (e.g., NIST SP 800-53)
+- `profile_path`: Path to the OSCAL profile file (e.g., FedRAMP baseline)
+- `max_critique_retries`: Maximum number of validation/fix attempts (default: 3)
+- `config_extensions`: List of file extensions to treat as configuration files (when `auto_discover_config` is True)
+- `auto_discover_config`: Whether to auto-discover config files by extension or use manual file list (default: True)
+- `config_files`: List of specific file paths to treat as configuration files (when `auto_discover_config` is False)
 
 ### Commands
 
@@ -221,6 +258,14 @@ top_k: 5
 catalog_path: "examples/NIST_SP-800-53_rev5_catalog.json"
 profile_path: "examples/NIST_SP-800-53_rev5_HIGH-baseline_profile.json"
 max_critique_retries: 3
+
+# Optional: Configure which files to treat as configuration files
+config_extensions:
+  - ".yaml"
+  - ".yml"
+  - ".json"
+  - ".env"
+  - ".cfg"
 ```
 
 2. Run the analysis:
@@ -247,17 +292,84 @@ maposcal evaluate config.yaml
 
 - `maposcal/` - Main package directory
   - `analyzer/` - Code analysis components
+    - `analyzer.py` - Main analysis workflow
+    - `chunker.py` - Code chunking logic
+    - `parser.py` - File parsing utilities
+    - `rules.py` - Security rule application
   - `generator/` - OSCAL generation components
+    - `control_mapper.py` - Control mapping logic
+    - `profile_control_extractor.py` - Profile and catalog processing
     - `validation.py` - Comprehensive validation schemas and functions
   - `llm/` - Language model integration
+    - `llm_handler.py` - LLM API interaction
     - `prompt_templates.py` - LLM prompt templates for generation and evaluation
   - `embeddings/` - Code embedding functionality
+    - `faiss_index.py` - FAISS vector index management
+    - `local_embedder.py` - Local embedding generation
+    - `meta_store.py` - Metadata storage and retrieval
+  - `inspectors/` - Language-specific code inspection
+    - `inspect_lang_python.py` - Python code inspection
+    - `inspect_lang_golang.py` - Golang code inspection
   - `utils/` - Utility functions
+    - `control_hints.py` - Security control hint definitions
+    - `control_hints_enumerator.py` - Dynamic control hint discovery
+    - `logging_config.py` - Logging configuration
+    - `utilities.py` - General utility functions
   - `cli.py` - Command-line interface with analyze, summarize, generate, and evaluate commands
+  - `settings.py` - Global configuration settings
 
 - `tests/` - Test suite
+  - `analyzer/` - Analyzer tests
+  - `embeddings/` - Embedding tests
+  - `generator/` - Generator tests
+  - `integration/` - Integration tests
+  - `llm/` - LLM tests
+  - `utils/` - Utility tests
+
 - `examples/` - Example configurations and outputs
+  - `NIST_SP-800-53_rev5_catalog.json` - NIST SP 800-53 Rev 5 catalog
+  - `NIST_SP-800-53_rev5_HIGH-baseline_profile.json` - NIST High baseline profile
+  - `FedRAMP_rev5_HIGH-baseline_profile.json` - FedRAMP High baseline profile
+  - `custom_maposcal_profile.json` - Custom MapOSCAL profile example
+  - `min_baseline.json` - Minimum baseline profile
+  - `test_baseline.json` - Test baseline profile
+
+- `docs/` - Documentation
+  - `diagrams/` - Architecture and workflow diagrams
+    - `analysis_flow.png` - Analysis workflow diagram
+    - `generation_flow.png` - Generation workflow diagram
+
 - `config/` - Configuration templates
+
+## Examples
+
+The `examples/` directory contains several OSCAL catalog and profile files for testing and reference:
+
+### NIST SP 800-53 Files
+- `NIST_SP-800-53_rev5_catalog.json` - Complete NIST SP 800-53 Revision 5 control catalog
+- `NIST_SP-800-53_rev5_HIGH-baseline_profile.json` - NIST High baseline profile with control selections
+
+### FedRAMP Files
+- `FedRAMP_rev5_HIGH-baseline_profile.json` - FedRAMP High baseline profile for cloud services
+
+### Custom Profiles
+- `custom_maposcal_profile.json` - Example custom profile showing how to create targeted control sets
+- `min_baseline.json` - Minimal baseline profile for testing
+- `test_baseline.json` - Test baseline profile for development
+
+### Usage Examples
+
+To use the NIST High baseline:
+```yaml
+catalog_path: "examples/NIST_SP-800-53_rev5_catalog.json"
+profile_path: "examples/NIST_SP-800-53_rev5_HIGH-baseline_profile.json"
+```
+
+To use the FedRAMP High baseline:
+```yaml
+catalog_path: "examples/NIST_SP-800-53_rev5_catalog.json"
+profile_path: "examples/FedRAMP_rev5_HIGH-baseline_profile.json"
+```
 
 ## How it works
 

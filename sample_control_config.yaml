@@ -5,21 +5,22 @@ output_dir: ".oscalgen"
 top_k: 5
 catalog_path: "examples/NIST_SP-800-53_rev5_catalog.json"
 profile_path: "examples/NIST_SP-800-53_rev5_HIGH-baseline_profile.json"
+max_critique_retries: 3
 
 # Configuration file handling (optional)
 # Option 1: Auto-discover config files by extension (default behavior)
 # If auto_discover_config is true and config_extensions is provided, 
 # files with these extensions will be treated as configuration files
-# config_extensions:
-#   - ".yaml"
-#   - ".yml"
-#   - ".json"
-#   - ".toml"
-#   - ".ini"
-#   - ".conf"
-#   - ".properties"
-#   - ".env"
-#   - ".cfg"
+config_extensions:
+  - ".yaml"
+  - ".yml"
+  - ".json"
+  - ".toml"
+  - ".ini"
+  - ".conf"
+  - ".properties"
+  - ".env"
+  - ".cfg"
 
 # Option 2: Manual list of configuration files
 # If auto_discover_config is false, specify exact files to process as config files
