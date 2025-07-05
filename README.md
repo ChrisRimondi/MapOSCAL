@@ -544,14 +544,14 @@ This project includes comprehensive GitHub Actions workflows for continuous inte
 
 #### CI Workflow (`.github/workflows/ci.yml`)
 Runs on every push to `main`/`develop` branches and pull requests:
-- **Unit Tests**: Runs pytest with coverage across Python 3.9, 3.10, and 3.11
+- **Unit Tests**: Runs pytest with coverage on Python 3.13
 - **Code Quality**: Checks code formatting (Black), linting (Ruff), and type checking (MyPy)
 - **Security Checks**: Runs Bandit security linter and Safety vulnerability scanner
 - **Package Build**: Validates package can be built and distributed correctly
 
 #### Release Workflow (`.github/workflows/release.yml`)
 Triggers when a release is created or published:
-- **All CI checks**: Runs the same validation as CI workflow
+- **All CI checks**: Runs the same validation as CI workflow (Python 3.13 testing)
 - **Security Analysis**: Comprehensive security scanning with detailed reports
 - **Package Publishing**: Automatically publishes to PyPI when a version tag is pushed
 - **Release Summary**: Generates a comprehensive release validation report
@@ -592,7 +592,7 @@ To enable PyPI publishing, add the following secret to your GitHub repository:
 
 ### Workflow Features
 
-- **Matrix Testing**: Tests across multiple Python versions
+- **Python 3.13 Testing**: Tests on the latest stable Python version
 - **Parallel Execution**: Jobs run in parallel for faster feedback
 - **Artifact Storage**: Security reports and build artifacts are preserved
 - **Conditional Publishing**: Only publishes to PyPI for version tags (v*)
