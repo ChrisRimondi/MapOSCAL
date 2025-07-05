@@ -3,7 +3,7 @@ from pathlib import Path
 from maposcal.analyzer import chunker
 from maposcal.analyzer.analyzer import Analyzer
 import tempfile
-from maposcal import settings
+
 
 
 # Test detect_chunk_type

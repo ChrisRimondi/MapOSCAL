@@ -15,9 +15,13 @@ We take the security of MapOSCAL seriously. If you believe you have found a secu
 
 **Please do not report security vulnerabilities through public GitHub issues.**
 
-Instead, please report them via email to [security@maposcal.org](mailto:security@maposcal.org).
+Instead, please report them by creating a private security advisory on GitHub:
 
-You should receive a response within 48 hours. If for some reason you do not, please follow up via email to ensure we received your original message.
+1. Go to the [Security tab](https://github.com/chrisrimondi/MapOSCAL/security) on this repository
+2. Click "Report a vulnerability"
+3. Fill out the security advisory form with the details below
+
+You should receive a response within 48 hours. If for some reason you do not, please follow up by commenting on the security advisory to ensure we received your original message.
 
 Please include the requested information listed below (as much as you can provide) to help us better understand the nature and scope of the possible issue:
 
@@ -67,8 +71,8 @@ MapOSCAL includes several security features:
 
 ## Security Contacts
 
-- **Security Team**: [security@maposcal.org](mailto:security@maposcal.org)
 - **Project Maintainer**: [chrisrimondi](https://github.com/chrisrimondi)
+- **Security Reporting**: Use the [Security tab](https://github.com/chrisrimondi/MapOSCAL/security) to report vulnerabilities
 
 ## Acknowledgments
 
