@@ -6,16 +6,24 @@ import maposcal.llm.prompt_templates as prompt_templates
 
 class TestLLMHandler:
     @patch('maposcal.llm.llm_handler.tiktoken')
-    def test_count_tokens(self, mock_tiktoken):
+    @patch('maposcal.llm.llm_handler.OpenAI')
+    @patch.dict(os.environ, {'OPENAI_API_KEY': 'test-key'})
+    def test_count_tokens(self, mock_openai, mock_tiktoken):
         mock_encoding = MagicMock()
         mock_encoding.encode.return_value = [1, 2, 3, 4]
         mock_tiktoken.get_encoding.return_value = mock_encoding
+        
+        # Mock the OpenAI client to avoid API key issues
+        mock_client = MagicMock()
+        mock_openai.return_value = mock_client
+        
         handler = LLMHandler(model="test-model")
         assert handler.count_tokens("test text") == 4
         mock_encoding.encode.assert_called_once_with("test text")
 
     @patch('maposcal.llm.llm_handler.OpenAI')
     @patch('maposcal.llm.llm_handler.tiktoken')
+    @patch.dict(os.environ, {'OPENAI_API_KEY': 'test-key'})
     def test_query_success(self, mock_tiktoken, mock_openai):
         mock_encoding = MagicMock()
         mock_encoding.encode.return_value = [1, 2]
@@ -35,6 +43,7 @@ class TestLLMHandler:
     @patch('maposcal.llm.llm_handler.OpenAI')
     @patch('maposcal.llm.llm_handler.tiktoken')
     @patch('maposcal.llm.llm_handler.logger')
+    @patch.dict(os.environ, {'OPENAI_API_KEY': 'test-key'})
     def test_query_rate_limit(self, mock_logger, mock_tiktoken, mock_openai):
         from openai import RateLimitError
         mock_encoding = MagicMock()
@@ -54,6 +63,7 @@ class TestLLMHandler:
     @patch('maposcal.llm.llm_handler.OpenAI')
     @patch('maposcal.llm.llm_handler.tiktoken')
     @patch('maposcal.llm.llm_handler.logger')
+    @patch.dict(os.environ, {'OPENAI_API_KEY': 'test-key'})
     def test_query_general_exception(self, mock_logger, mock_tiktoken, mock_openai):
         mock_encoding = MagicMock()
         mock_encoding.encode.return_value = [1, 2]

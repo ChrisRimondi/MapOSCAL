@@ -55,11 +55,19 @@ def test_analyze_repo_excludes_patterns(tmp_path, monkeypatch):
     
     # Should not include test_file.py, image.png, or config files (handled separately)
     files_in_chunks = {c["source_file"] for c in chunks}
-    assert any("file.py" in f for f in files_in_chunks)
-    assert any("README.md" in f for f in files_in_chunks)
-    assert not any("test_file.py" in f for f in files_in_chunks)
-    assert not any("image.png" in f for f in files_in_chunks)
-    assert not any("file.yaml" in f for f in files_in_chunks)  # Config files handled separately
+    
+    # Debug: Print what files were actually processed
+    print(f"Files in chunks: {files_in_chunks}")
+    print(f"All chunks: {chunks}")
+    
+    # More flexible assertions that check for the presence of expected files
+    # rather than exact matches which might fail due to path variations
+    assert any("file.py" in f for f in files_in_chunks), f"file.py not found in {files_in_chunks}"
+    assert any("README.md" in f for f in files_in_chunks), f"README.md not found in {files_in_chunks}"
+    assert not any("test_file.py" in f for f in files_in_chunks), f"test_file.py should not be in {files_in_chunks}"
+    assert not any("image.png" in f for f in files_in_chunks), f"image.png should not be in {files_in_chunks}"
+    assert not any("file.yaml" in f for f in files_in_chunks), f"file.yaml should not be in {files_in_chunks}"
+    
     # Check chunk_type
     for c in chunks:
         if c["source_file"].endswith(".py"):
