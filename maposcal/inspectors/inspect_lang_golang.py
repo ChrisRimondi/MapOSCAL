@@ -2,11 +2,7 @@ from traceback import format_exc
 from textwrap import dedent
 import re
 from typing import List, Dict
-import maposcal.utils.sample_control_hints as control_hints
-from maposcal.utils.utilities import (
-    parse_file_into_strings,
-    control_hints_strings_search,
-)
+from maposcal.utils.control_hints_enumerator import search_control_hints_in_content
 import logging
 
 logger = logging.getLogger()
@@ -46,23 +42,14 @@ def start_inspection(file_path):
     if file_contents:
         try:
         ###
-        # Parse for string-based control hints, first generic strings, then language-specific hits.  This is currently limited
-        #   to SC-8 as global variables for the open source release.
+        # Parse for string-based control hints using the new enumerator
+        # This searches all available controls, not just SC-8
         ###
-            applicable_control_hints_strings = control_hints_strings_search(
-                file_contents, control_hints.sc8, "SC-8"
-            )
-            applicable_control_hints_language_strings = control_hints_strings_search(
-                file_contents, control_hints.sc8_golang, "SC-8"
-            )
-
-            if (
-                applicable_control_hints_strings
-                or applicable_control_hints_language_strings
-            ):
-                applicable_control_hints.append("SC-8")
-        except:
-            logger.error(f"Failed to parse contents of {file_path} for strings - {format_exc()}")
+            found_controls = search_control_hints_in_content(file_contents, "golang")
+            applicable_control_hints.extend(found_controls)
+            logger.info(f"Found {len(found_controls)} applicable controls in Golang file")
+        except Exception as e:
+            logger.error(f"Failed to parse contents of {file_path} for control hints - {format_exc()}")
 
         ###
         # Parse for loaded modules - shows what applicable functionality is likely used.
