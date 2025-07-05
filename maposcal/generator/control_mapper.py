@@ -36,21 +36,28 @@ logger = logging.getLogger()
 
 
 def get_relevant_chunks(
-    control_description: str, output_dir: str, top_k: int = 5
+    control_description: str, output_dir: str, top_k: int = 5, control_id: str = None
 ) -> List[Dict]:
     """
     Query both index.faiss and summary_index.faiss using the control_description as the query.
     Combine and deduplicate the results to return relevant chunks.
+    
+    Additionally, if control_id is provided, include all chunks and summaries from files
+    that have matching control hints for that specific control.
 
     This function performs semantic search across both code chunks and file summaries
     to find the most relevant evidence for control mapping. It uses FAISS indices
     for efficient similarity search and combines results from both chunk-level and
-    summary-level analysis.
+    summary-level analysis. When a control_id is provided, it also includes all
+    evidence from files that have been tagged with matching control hints.
 
     Args:
         control_description (str): The control description to use as the query.
         output_dir (str): The directory containing the FAISS indices and metadata.
         top_k (int): Number of top chunks to retrieve from each index.
+        control_id (str, optional): The NIST 800-53 control ID (e.g., "AC-4", "SC-5") 
+                                   to filter by control hints. If provided, includes
+                                   all chunks from files with matching control hints.
 
     Returns:
         List[Dict]: A list of relevant chunks with source file information and content.
@@ -61,6 +68,9 @@ def get_relevant_chunks(
     logger.info(
         f"Querying relevant chunks for control description: {control_description}"
     )
+    if control_id:
+        logger.info(f"Also filtering by control hints for control: {control_id}")
+    
     # Embed the control description for querying
     query_embedding = local_embedder.embed_one(control_description)
 
@@ -100,9 +110,42 @@ def get_relevant_chunks(
                         summary_results.append(v)
                         break
 
-    # Combine and deduplicate relevant chunks
+    # Combine semantic search results
     relevant_chunks = chunk_results + summary_results
-    # Optionally deduplicate by file path or content
+    
+    # If control_id is provided, add chunks from files with matching control hints
+    if control_id:
+        # Convert control_id to control hints format (remove hyphens and convert to lowercase)
+        control_hint = control_id.replace("-", "").lower()
+        logger.info(f"Looking for control hint: {control_hint}")
+        
+        # Get all chunks from files with matching control hints
+        control_hint_chunks = []
+        
+        # Check summary metadata for control hints
+        if summary_meta_path.exists():
+            summary_meta = meta_store.load_metadata(summary_meta_path)
+            for file_path, summary_data in summary_meta.items():
+                if isinstance(file_path, str) and file_path.startswith("/"):
+                    # This is a file path entry
+                    inspector_results = summary_data.get("inspector_results", {})
+                    control_hints = inspector_results.get("control_hints", [])
+                    
+                    if control_hint in control_hints:
+                        logger.info(f"Found matching control hint in file: {file_path}")
+                        # Add the summary
+                        control_hint_chunks.append(summary_data)
+                        
+                        # Add all chunks from this file
+                        for chunk in meta:
+                            if chunk.get("source_file") == file_path:
+                                control_hint_chunks.append(chunk)
+        
+        # Add control hint chunks to results
+        relevant_chunks.extend(control_hint_chunks)
+        logger.info(f"Added {len(control_hint_chunks)} chunks from files with control hint {control_hint}")
+
+    # Deduplicate relevant chunks
     seen = set()
     unique_relevant_chunks = []
     for c in relevant_chunks:
@@ -199,7 +242,7 @@ def map_control(control_dict: dict, output_dir: str, top_k: int = 5) -> str:
             f"- {prose}" for prose in additional_prose
         )
 
-    relevant_chunks = get_relevant_chunks(control_description, output_dir, top_k)
+    relevant_chunks = get_relevant_chunks(control_description, output_dir, top_k, control_dict["id"])
 
     # Try up to 3 times to get a valid response
     max_retries = 3

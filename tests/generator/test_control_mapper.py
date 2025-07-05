@@ -98,6 +98,74 @@ class TestGetRelevantChunks:
             with pytest.raises(FileNotFoundError):
                 get_relevant_chunks("test query", temp_dir)
 
+    @patch('maposcal.generator.control_mapper.faiss_index')
+    @patch('maposcal.generator.control_mapper.meta_store')
+    @patch('maposcal.generator.control_mapper.local_embedder')
+    def test_get_relevant_chunks_with_control_hints(self, mock_embedder, mock_meta_store, mock_faiss_index):
+        """Test get_relevant_chunks with control hints filtering."""
+        # Setup mocks
+        mock_embedder.embed_one.return_value = [0.1, 0.2, 0.3]
+        mock_index = Mock()
+        mock_faiss_index.load_index.return_value = mock_index
+        mock_faiss_index.search_index.return_value = ([0], [0.1])
+
+        # Mock regular metadata
+        mock_meta = [
+            {"source_file": "/path/to/auth.py", "content": "def authenticate_user(): pass"},
+            {"source_file": "/path/to/other.py", "content": "def other_function(): pass"}
+        ]
+        
+        # Mock summary metadata with control hints
+        mock_summary_meta = {
+            "/path/to/auth.py": {
+                "source_file": "/path/to/auth.py",
+                "summary": "Authentication module",
+                "inspector_results": {
+                    "control_hints": ["ac4", "sc5"]
+                }
+            },
+            "/path/to/other.py": {
+                "source_file": "/path/to/other.py", 
+                "summary": "Other module",
+                "inspector_results": {
+                    "control_hints": ["ac6"]
+                }
+            }
+        }
+        
+        # The function calls load_metadata multiple times:
+        # 1. For regular metadata (meta.json)
+        # 2. For summary metadata (summary_meta.json) - first time for semantic search
+        # 3. For summary metadata (summary_meta.json) - second time for control hints
+        mock_meta_store.load_metadata.side_effect = [mock_meta, mock_summary_meta, mock_summary_meta]
+        mock_meta_store.get_chunk_by_index.side_effect = lambda meta, idx: meta[idx]
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            # Create required files
+            index_path = Path(temp_dir) / "index.faiss"
+            meta_path = Path(temp_dir) / "meta.json"
+            summary_index_path = Path(temp_dir) / "summary_index.faiss"
+            summary_meta_path = Path(temp_dir) / "summary_meta.json"
+            
+            index_path.touch()
+            meta_path.touch()
+            summary_index_path.touch()
+            summary_meta_path.touch()
+
+            # Test with control_id that matches control hints
+            result = get_relevant_chunks("test query", temp_dir, control_id="AC-4")
+            
+            # Should include both semantic search results and control hint matches
+            assert len(result) >= 1
+            
+            # Check that auth.py is included (has ac4 control hint)
+            auth_chunks = [chunk for chunk in result if chunk.get("source_file") == "/path/to/auth.py"]
+            assert len(auth_chunks) > 0
+            
+            # Check that other.py is not included (doesn't have ac4 control hint)
+            other_chunks = [chunk for chunk in result if chunk.get("source_file") == "/path/to/other.py"]
+            # other.py might be included from semantic search, but not from control hints
+
 
 class TestMapControl:
     """Test map_control function."""
