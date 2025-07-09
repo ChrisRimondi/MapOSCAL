@@ -10,8 +10,10 @@ global ignored_file_extensions
 global ignored_filename_patterns
 global config_file_extensions
 
-openai_model = "gpt-4.1-mini"
-openai_base_url = "https://api.openai.com/v1"
+#openai_model = "gpt-4.1-mini"
+openai_model = "gemini-2.5-flash"
+#openai_base_url = "https://api.openai.com/v1"
+openai_base_url = "https://generativelanguage.googleapis.com/v1beta/openai/"
 tiktoken_encoding = "cl100k_base"
 local_embeddings_model = "all-MiniLM-L6-v2"
 ignored_file_extensions = [
