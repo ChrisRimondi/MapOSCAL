@@ -82,7 +82,14 @@ def get_relevant_chunks(
             f"Could not find {index_path} or {meta_path}. Please run analyze first."
         )
     index = faiss_index.load_index(index_path)
-    meta = meta_store.load_metadata(meta_path)
+    meta_data = meta_store.load_metadata(meta_path)
+    
+    # Handle new metadata structure (with _metadata) or old structure (direct list)
+    if isinstance(meta_data, dict) and "chunks" in meta_data:
+        meta = meta_data["chunks"]
+    else:
+        meta = meta_data
+    
     chunk_indices, _ = faiss_index.search_index(index, query_embedding, k=top_k)
     chunk_results = [
         meta_store.get_chunk_by_index(meta, idx)
@@ -96,7 +103,14 @@ def get_relevant_chunks(
     summary_results = []
     if summary_index_path.exists() and summary_meta_path.exists():
         summary_index = faiss_index.load_index(summary_index_path)
-        summary_meta = meta_store.load_metadata(summary_meta_path)
+        summary_meta_data = meta_store.load_metadata(summary_meta_path)
+        
+        # Handle new metadata structure (with _metadata) or old structure (direct dict)
+        if isinstance(summary_meta_data, dict) and "_metadata" in summary_meta_data:
+            summary_meta = {k: v for k, v in summary_meta_data.items() if k != "_metadata"}
+        else:
+            summary_meta = summary_meta_data
+            
         summary_indices, _ = faiss_index.search_index(
             summary_index, query_embedding, k=top_k
         )
@@ -124,7 +138,14 @@ def get_relevant_chunks(
 
         # Check summary metadata for control hints
         if summary_meta_path.exists():
-            summary_meta = meta_store.load_metadata(summary_meta_path)
+            summary_meta_data = meta_store.load_metadata(summary_meta_path)
+            
+            # Handle new metadata structure (with _metadata) or old structure (direct dict)
+            if isinstance(summary_meta_data, dict) and "_metadata" in summary_meta_data:
+                summary_meta = {k: v for k, v in summary_meta_data.items() if k != "_metadata"}
+            else:
+                summary_meta = summary_meta_data
+                
             for file_path, summary_data in summary_meta.items():
                 # Check if this is a file path entry (not a vector_id)
                 # Since we now use relative paths, we check if it's not a numeric string
