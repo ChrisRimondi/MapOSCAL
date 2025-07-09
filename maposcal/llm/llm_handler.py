@@ -9,7 +9,7 @@ import time
 from datetime import datetime
 
 # Load environment variables
-load_dotenv()
+load_dotenv(override=True)
 
 logger = logging.getLogger()
 
@@ -52,10 +52,43 @@ class LLMHandler:
         self.base_url = provider_config["base_url"]
         self.api_key_env = provider_config["api_key_env"]
         
+        # Get the API key
+        api_key = os.getenv(self.api_key_env)
+        base_url = os.getenv(f"{self.provider.upper()}_BASE_URL", self.base_url)
+        
+        # Log for debugging (mask the key for security)
+        logger.info(f"Provider: {self.provider}")
+        logger.info(f"Looking for API key in environment variable: {self.api_key_env}")
+        
+        if api_key:
+            masked_key = api_key[:8] + "..." + api_key[-4:] if len(api_key) > 12 else "***"
+            logger.info(f"Found API key: {masked_key}")
+            logger.info(f"Using base URL: {base_url}")
+            
+            # Check if this looks like the right type of API key
+            if self.provider == "openai" and not api_key.startswith("sk-"):
+                logger.warning(f"API key doesn't look like an OpenAI key (should start with 'sk-')")
+            elif self.provider == "gemini" and not api_key.startswith("AIza"):
+                logger.warning(f"API key doesn't look like a Gemini key (should start with 'AIza')")
+        else:
+            logger.error(f"No API key found for environment variable: {self.api_key_env}")
+            logger.error(f"Available environment variables: {[k for k in os.environ.keys() if 'API_KEY' in k]}")
+            
+            # Show all API key environment variables (masked)
+            for key in os.environ.keys():
+                if 'API_KEY' in key:
+                    value = os.environ[key]
+                    masked_value = value[:8] + "..." + value[-4:] if len(value) > 12 else "***"
+                    logger.error(f"  {key}: {masked_value}")
+        
+        # Validate API key
+        if not api_key:
+            raise ValueError(f"No API key found for {self.provider}. Please set the {self.api_key_env} environment variable.")
+        
         # Initialize OpenAI client (works for OpenAI, Azure, and Gemini via OpenAI-compatible API)
         self.client = OpenAI(
-            api_key=os.getenv(self.api_key_env),
-            base_url=os.getenv(f"{self.provider.upper()}_BASE_URL", self.base_url),
+            api_key=api_key,
+            base_url=base_url,
         )
         self.encoding = tiktoken.get_encoding(settings.tiktoken_encoding)
 
