@@ -198,6 +198,39 @@ class TestMapControl:
         # Setup mocks
         mock_llm_handler = Mock()
         mock_llm_handler_class.return_value = mock_llm_handler
+
+    @patch("maposcal.generator.control_mapper.LLMHandler")
+    @patch("maposcal.generator.control_mapper.get_relevant_chunks")
+    def test_map_control_with_llm_config(self, mock_get_chunks, mock_llm_handler_class):
+        """Test map_control with LLM configuration."""
+        # Setup mocks
+        mock_llm_handler = Mock()
+        mock_llm_handler_class.return_value = mock_llm_handler
+        mock_llm_handler.query.return_value = '{"control_id": "AC-1", "props": []}'
+        
+        mock_get_chunks.return_value = [
+            {"source_file": "auth.py", "content": "def authenticate(): pass"}
+        ]
+
+        # Test with LLM config
+        llm_config = {"provider": "gemini", "model": "gemini-2.5-flash"}
+        result = map_control(
+            control_id="AC-1",
+            control_name="Access Control",
+            control_description="Test control",
+            evidence_chunks=[],
+            main_uuid="uuid1",
+            statement_uuid="uuid2",
+            llm_config=llm_config,
+        )
+
+        # Verify LLMHandler was called with correct config
+        mock_llm_handler_class.assert_called_with(
+            provider="gemini",
+            model="gemini-2.5-flash",
+            command="generate"
+        )
+        assert result is not None
         mock_llm_handler.query.return_value = "Mock LLM response"
 
         mock_get_chunks.return_value = [

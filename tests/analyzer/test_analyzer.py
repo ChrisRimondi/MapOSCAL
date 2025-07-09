@@ -1,5 +1,7 @@
 import pytest
+import json
 from pathlib import Path
+from unittest.mock import patch, MagicMock
 from maposcal.analyzer import chunker
 from maposcal.analyzer.analyzer import Analyzer
 import tempfile
@@ -252,3 +254,116 @@ def test_analyzer_auto_discovery_vs_manual():
         assert Path("config.yaml") in analyzer_manual.config_files_list
         assert Path("config.json") not in analyzer_manual.config_files_list
         assert analyzer_manual.auto_discover_config is False
+
+
+def test_analyzer_with_llm_config():
+    """Test that Analyzer accepts LLM configuration."""
+    with tempfile.TemporaryDirectory() as temp_dir:
+        repo_path = Path(temp_dir) / "test_repo"
+        repo_path.mkdir()
+
+        llm_config = {
+            "analyze": {"provider": "gemini", "model": "gemini-2.5-flash"}
+        }
+
+        analyzer = Analyzer(
+            repo_path=str(repo_path),
+            output_dir=str(repo_path / ".oscalgen"),
+            llm_config=llm_config,
+        )
+
+        assert analyzer.llm_config == llm_config
+
+
+def test_analyzer_metadata_injection():
+    """Test that Analyzer injects metadata into output files."""
+    with tempfile.TemporaryDirectory() as temp_dir:
+        repo_path = Path(temp_dir) / "test_repo"
+        repo_path.mkdir()
+        output_dir = repo_path / ".oscalgen"
+        output_dir.mkdir()
+
+        # Create test files
+        (repo_path / "main.py").write_text("print('hello')")
+        (repo_path / "config.yaml").write_text("key: value")
+
+        analyzer = Analyzer(
+            repo_path=str(repo_path),
+            output_dir=str(output_dir),
+            llm_config={"analyze": {"provider": "openai", "model": "gpt-4"}},
+        )
+
+        # Mock the LLM handler to avoid API calls
+        with patch("maposcal.analyzer.analyzer.LLMHandler") as mock_llm:
+            mock_llm_instance = MagicMock()
+            mock_llm_instance.query.return_value = "Test summary"
+            mock_llm.return_value = mock_llm_instance
+
+            # Run analysis
+            analyzer.run()
+
+            # Check that metadata was injected into meta.json
+            meta_file = output_dir / "meta.json"
+            assert meta_file.exists()
+            
+            with open(meta_file) as f:
+                meta_data = json.load(f)
+            
+            assert "_metadata" in meta_data
+            metadata = meta_data["_metadata"]
+            assert "generation_info" in metadata
+            info = metadata["generation_info"]
+            assert info["model"] == "gpt-4"
+            assert info["provider"] == "openai"
+            assert info["command"] == "analyze"
+
+            # Check that metadata was injected into summary_meta.json
+            summary_file = output_dir / "summary_meta.json"
+            assert summary_file.exists()
+            
+            with open(summary_file) as f:
+                summary_data = json.load(f)
+            
+            assert "_metadata" in summary_data
+            summary_metadata = summary_data["_metadata"]
+            assert "generation_info" in summary_metadata
+            summary_info = summary_metadata["generation_info"]
+            assert summary_info["model"] == "gpt-4"
+            assert summary_info["provider"] == "openai"
+            assert summary_info["command"] == "analyze"
+
+
+def test_analyzer_metadata_backward_compatibility():
+    """Test that Analyzer maintains backward compatibility with old metadata format."""
+    with tempfile.TemporaryDirectory() as temp_dir:
+        repo_path = Path(temp_dir) / "test_repo"
+        repo_path.mkdir()
+        output_dir = repo_path / ".oscalgen"
+        output_dir.mkdir()
+
+        # Create test files
+        (repo_path / "main.py").write_text("print('hello')")
+
+        analyzer = Analyzer(
+            repo_path=str(repo_path),
+            output_dir=str(output_dir),
+        )
+
+        # Mock the LLM handler
+        with patch("maposcal.analyzer.analyzer.LLMHandler") as mock_llm:
+            mock_llm_instance = MagicMock()
+            mock_llm_instance.query.return_value = "Test summary"
+            mock_llm.return_value = mock_llm_instance
+
+            # Run analysis
+            analyzer.run()
+
+            # Check that chunks are still accessible in the expected format
+            meta_file = output_dir / "meta.json"
+            with open(meta_file) as f:
+                meta_data = json.load(f)
+            
+            # Should have both metadata and chunks
+            assert "_metadata" in meta_data
+            assert "chunks" in meta_data
+            assert isinstance(meta_data["chunks"], list)
