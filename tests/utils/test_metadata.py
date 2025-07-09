@@ -33,7 +33,7 @@ class TestGenerateMetadata:
         assert info["command"] == "generate"
         assert "start_time" in info
         assert info["config_file"] is None
-        assert info["version"] == "1.0.0"
+        assert info["version"] == "0.1.0"  # Should match package version
 
     def test_generate_metadata_with_config_file(self):
         """Test metadata generation with config file."""
@@ -61,6 +61,18 @@ class TestGenerateMetadata:
         )
         
         assert metadata["generation_info"]["version"] == "2.0.0"
+
+    def test_generate_metadata_default_version(self):
+        """Test metadata generation uses package version by default."""
+        metadata = generate_metadata(
+            model="gpt-4",
+            provider="openai",
+            base_url="https://api.openai.com/v1",
+            command="evaluate"
+        )
+        
+        # Should use the package version from __init__.py
+        assert metadata["generation_info"]["version"] == "0.1.0"
 
 
 class TestInjectMetadataIntoJson:
@@ -228,7 +240,7 @@ metadata:
   start_time: 2024-01-15T10:30:00Z
   command: summarize
   config_file: config.yaml
-  version: 1.0.0
+  version: 0.1.0
 -->
 
 # Security Overview
@@ -244,7 +256,7 @@ This is the content."""
         assert info["base_url"] == "https://api.openai.com/v1"
         assert info["command"] == "summarize"
         assert info["config_file"] == "config.yaml"
-        assert info["version"] == "1.0.0"
+        assert info["version"] == "0.1.0"  # Should match package version
 
     def test_extract_metadata_from_markdown_without_metadata(self):
         """Test extracting metadata from markdown without metadata."""

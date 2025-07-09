@@ -9,6 +9,7 @@ import json
 import datetime
 from typing import Dict, Any
 import logging
+from maposcal import __version__
 
 logger = logging.getLogger(__name__)
 
@@ -19,7 +20,7 @@ def generate_metadata(
     base_url: str,
     command: str,
     config_file: str = None,
-    version: str = "1.0.0"
+    version: str = None
 ) -> Dict[str, Any]:
     """
     Generate metadata for file outputs.
@@ -35,6 +36,10 @@ def generate_metadata(
     Returns:
         dict: Metadata dictionary
     """
+    # Use package version if not specified
+    if version is None:
+        version = __version__
+    
     return {
         "generation_info": {
             "model": model,
