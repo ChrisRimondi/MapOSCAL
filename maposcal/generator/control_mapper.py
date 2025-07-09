@@ -165,7 +165,7 @@ def get_relevant_chunks(
     return unique_relevant_chunks
 
 
-def map_control(control_dict: dict, output_dir: str, top_k: int = 5) -> str:
+def map_control(control_dict: dict, output_dir: str, top_k: int = 5, llm_config: dict = None) -> str:
     """
     Maps chunks to an OSCAL control using LLM summarization with security context.
 
@@ -193,7 +193,11 @@ def map_control(control_dict: dict, output_dir: str, top_k: int = 5) -> str:
         - Comprehensive validation and retry logic for improved accuracy
     """
     logger.info(f"Mapping control: {control_dict['id']} - {control_dict['title']}")
-    llm_handler = LLMHandler()
+    # Use provided LLM config or fall back to defaults
+    if llm_config:
+        llm_handler = LLMHandler(provider=llm_config["provider"], model=llm_config["model"])
+    else:
+        llm_handler = LLMHandler(command="generate")
 
     # Load security overview if available
     security_overview = None

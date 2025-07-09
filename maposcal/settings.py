@@ -2,6 +2,39 @@
 This modules is only intended for the storage of various global settings.
 """
 
+# LLM Provider configurations
+LLM_PROVIDERS = {
+    "openai": {
+        "base_url": "https://api.openai.com/v1",
+        "api_key_env": "OPENAI_API_KEY"
+    },
+    "gemini": {
+        "base_url": "https://generativelanguage.googleapis.com/v1beta/openai/",
+        "api_key_env": "GEMINI_API_KEY"
+    }
+}
+
+# Default LLM configurations for each command
+DEFAULT_LLM_CONFIGS = {
+    "analyze": {
+        "provider": "openai",
+        "model": "gpt-4.1-mini"  # Fast, cost-effective for analysis
+    },
+    "summarize": {
+        "provider": "openai",
+        "model": "gpt-4.1"  # High quality for summaries
+    },
+    "generate": {
+        "provider": "openai",
+        "model": "gpt-4.1"  # High quality for OSCAL generation
+    },
+    "evaluate": {
+        "provider": "openai",
+        "model": "gpt-4.1"  # High quality for evaluation
+    }
+}
+
+# Legacy settings for backward compatibility
 global openai_model
 global openai_base_url
 global tiktoken_encoding
@@ -10,12 +43,12 @@ global ignored_file_extensions
 global ignored_filename_patterns
 global config_file_extensions
 
-#openai_model = "gpt-4.1-mini"
-openai_model = "gemini-2.5-flash"
-#openai_base_url = "https://api.openai.com/v1"
-openai_base_url = "https://generativelanguage.googleapis.com/v1beta/openai/"
+# Legacy OpenAI settings (deprecated - use LLM_PROVIDERS and DEFAULT_LLM_CONFIGS)
+openai_model = "gpt-4o-mini"
+openai_base_url = "https://api.openai.com/v1"
 tiktoken_encoding = "cl100k_base"
 local_embeddings_model = "all-MiniLM-L6-v2"
+
 ignored_file_extensions = [
     ".png",
     ".jpg",

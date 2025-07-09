@@ -19,17 +19,43 @@ class LLMHandler:
     A class to handle interactions with the LLM.
     """
 
-    def __init__(self, model: str = settings.openai_model):
+    def __init__(self, provider: str = None, model: str = None, command: str = None):
         """
         Initialize the LLM handler.
 
         Args:
-            model (str): The model to use for LLM interactions
+            provider (str): The LLM provider to use (openai, gemini, anthropic, azure)
+            model (str): The specific model to use
+            command (str): The command being executed (analyze, summarize, generate, evaluate)
         """
-        self.model = model
+        # Determine provider and model based on parameters
+        if provider and model:
+            # Use provided provider and model
+            self.provider = provider
+            self.model = model
+        elif command and command in settings.DEFAULT_LLM_CONFIGS:
+            # Use command-specific defaults
+            config = settings.DEFAULT_LLM_CONFIGS[command]
+            self.provider = config["provider"]
+            self.model = config["model"]
+        else:
+            # Fall back to legacy defaults
+            self.provider = "openai"
+            self.model = settings.openai_model
+
+        # Validate provider
+        if self.provider not in settings.LLM_PROVIDERS:
+            raise ValueError(f"Unsupported provider: {self.provider}")
+
+        # Get provider configuration
+        provider_config = settings.LLM_PROVIDERS[self.provider]
+        self.base_url = provider_config["base_url"]
+        self.api_key_env = provider_config["api_key_env"]
+        
+        # Initialize OpenAI client (works for OpenAI, Azure, and Gemini via OpenAI-compatible API)
         self.client = OpenAI(
-            api_key=os.getenv("OPENAI_API_KEY"),
-            base_url=os.getenv("OPENAI_API_BASE", settings.openai_base_url),
+            api_key=os.getenv(self.api_key_env),
+            base_url=os.getenv(f"{self.provider.upper()}_BASE_URL", self.base_url),
         )
         self.encoding = tiktoken.get_encoding(settings.tiktoken_encoding)
 

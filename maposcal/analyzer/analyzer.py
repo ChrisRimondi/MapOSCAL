@@ -9,6 +9,7 @@ from maposcal.embeddings import local_embedder, faiss_index, meta_store
 from maposcal.analyzer import chunker, rules
 from maposcal.llm.llm_handler import LLMHandler
 from maposcal.llm import prompt_templates as pt
+from maposcal.utils.metadata import generate_metadata, inject_metadata_into_json
 from typing import List, Dict, Any
 import os
 import numpy as np
@@ -73,6 +74,7 @@ class Analyzer:
         config_extensions: List[str] = None,
         auto_discover_config: bool = True,
         config_files: List[str] = None,
+        llm_config: dict = None,
     ):
         """
         Initialize the analyzer.
@@ -113,6 +115,9 @@ class Analyzer:
         self.chunks = []
         self.file_summaries = {}
         self.config_files = []
+        
+        # Store LLM configuration
+        self.llm_config = llm_config
 
     def run(self) -> None:
         """
@@ -142,7 +147,21 @@ class Analyzer:
         logger.debug(f"Saving metadata to: {meta_path}")
 
         faiss_index.save_index(index, index_path)
-        meta_store.save_metadata(self.chunks, meta_path)
+        
+        # Generate metadata for this operation
+        if self.llm_config:
+            provider_config = settings.LLM_PROVIDERS[self.llm_config["provider"]]
+            metadata = generate_metadata(
+                model=self.llm_config["model"],
+                provider=self.llm_config["provider"],
+                base_url=provider_config["base_url"],
+                command="analyze"
+            )
+            # Inject metadata into chunks data
+            chunks_with_metadata = inject_metadata_into_json({"chunks": self.chunks}, metadata)
+            meta_store.save_metadata(chunks_with_metadata, meta_path)
+        else:
+            meta_store.save_metadata(self.chunks, meta_path)
 
         self.summarize_files()
         self.save_config_files()
@@ -163,7 +182,11 @@ class Analyzer:
         vectors: List[np.ndarray] = []
         idx = 0
 
-        llm_handler = LLMHandler()
+        # Use provided LLM config or fall back to defaults
+        if self.llm_config:
+            llm_handler = LLMHandler(provider=self.llm_config["provider"], model=self.llm_config["model"])
+        else:
+            llm_handler = LLMHandler(command="analyze")
 
         for file_path in self.repo_path.rglob("*"):
             # Skip if not a file
@@ -280,7 +303,21 @@ class Analyzer:
             logger.debug(f"Saving summary metadata to: {summary_meta_path}")
 
             faiss_index.save_index(summary_index, summary_index_path)
-            meta_store.save_metadata(summary_meta, summary_meta_path)
+            
+            # Generate metadata for summary operation
+            if self.llm_config:
+                provider_config = settings.LLM_PROVIDERS[self.llm_config["provider"]]
+                metadata = generate_metadata(
+                    model=self.llm_config["model"],
+                    provider=self.llm_config["provider"],
+                    base_url=provider_config["base_url"],
+                    command="analyze"
+                )
+                # Inject metadata into summary data
+                summary_with_metadata = inject_metadata_into_json(summary_meta, metadata)
+                meta_store.save_metadata(summary_with_metadata, summary_meta_path)
+            else:
+                meta_store.save_metadata(summary_meta, summary_meta_path)
         else:
             logger.warning("No vectors were generated for summaries.")
 

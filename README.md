@@ -35,6 +35,15 @@ MapOSCAL now includes a comprehensive security overview generation feature that 
 - **Enhanced Validation**: Incorporates security context into critique and revision processes
 - **Improved Accuracy**: Better control status determination through comprehensive service understanding
 
+### File Metadata Tracking
+
+MapOSCAL automatically injects metadata into all output files to provide complete audit trails:
+
+- **Generation Information**: Model, provider, base URL, and timing for each operation
+- **Configuration Tracking**: Which config file was used for each command
+- **Audit Trail**: Complete provenance information for compliance and debugging
+- **Metadata Extraction**: Built-in command to extract and display metadata from any output file
+
 ### Future Growth
 
 The industry is currently struggling to have a clean, clear, and actionable way to describe systems for security and compliance purposes.  Our view is that the ideal path forward to improve this problem space is two-fold:
@@ -116,40 +125,72 @@ pip install -e ".[dev]"
 ### Configuration
 
 Create a configuration file (e.g., `config.yaml`) with the following structure:
+
+#### Basic Configuration
 ```yaml
-title: "your_service_name"
-description: "Description of your service"
+# Repository and output settings
 repo_path: "/path/to/your/repository"
 output_dir: ".oscalgen"
-top_k: 5
+
+# Catalog and profile paths for OSCAL generation
 catalog_path: "path/to/NIST_catalog.json"
 profile_path: "path/to/NIST_profile.json"
-max_critique_retries: 3  # Number of validation/fix attempts
 
-# Configuration file handling (optional)
-# Option 1: Auto-discover config files by extension (default behavior)
-# If auto_discover_config is true and config_extensions is provided, 
-# files with these extensions will be treated as configuration files
-config_extensions:
-  - ".yaml"
-  - ".yml"
-  - ".json"
-  - ".toml"
-  - ".ini"
-  - ".conf"
-  - ".properties"
-  - ".env"
-  - ".cfg"
+# Analysis settings
+top_k: 5
+max_critique_retries: 3
 
-# Option 2: Manual list of configuration files
-# If auto_discover_config is false, specify exact files to process as config files
-# auto_discover_config: false
-# config_files:
-#   - "config/database.yaml"
-#   - "config/app.json"
-#   - ".env"
-#   - "docker-compose.yml"
+# Configuration file discovery settings
+config_extensions: [".yaml", ".yml", ".json", ".toml", ".ini", ".conf", ".properties"]
+auto_discover_config: true
+config_files: []  # Used when auto_discover_config is false
 ```
+
+#### LLM Configuration (Optional)
+
+You can specify different LLM providers and models for each command:
+
+```yaml
+# LLM Configuration
+llm:
+  # Global LLM settings (used as defaults)
+  provider: "openai"
+  model: "gpt-4"
+  
+  # Command-specific LLM settings (override global settings)
+  analyze:
+    provider: "openai"
+    model: "gpt-4o-mini"  # Fast, cost-effective for analysis
+    
+  summarize:
+    provider: "openai"
+    model: "gpt-4"  # High quality for summaries
+    
+  generate:
+    provider: "openai"
+    model: "gpt-4"  # High quality for OSCAL generation
+    
+  evaluate:
+    provider: "openai"
+    model: "gpt-4"  # High quality for evaluation
+```
+
+**Supported LLM Providers:**
+
+- **OpenAI**: Any OpenAI model (e.g., `gpt-4`, `gpt-4-turbo`, `gpt-3.5-turbo`, `gpt-4o`, `gpt-4o-mini`)
+- **Gemini** (via OpenAI-compatible API): Any Gemini model (e.g., `gemini-2.0-flash`, `gemini-2.5-flash`, `gemini-1.5-pro`)
+
+**Environment Variables Required:**
+- For OpenAI: `OPENAI_API_KEY`
+- For Gemini: `GEMINI_API_KEY`
+
+**Optional Base URL Overrides:**
+- `OPENAI_BASE_URL`, `GEMINI_BASE_URL`
+
+**Setup Environment Variables:**
+1. Copy `env.example` to `.env`: `cp env.example .env`
+2. Edit `.env` and add your API keys for the providers you plan to use
+3. Only set the API keys you need - you don't need all of them
 
 **Configuration Options:**
 - `title`: Name of your service
@@ -198,6 +239,16 @@ This command generates the final OSCAL component definitions based on the analys
 - Generation of validation failure logs
 
 4. **Evaluate OSCAL Component Quality**
+```bash
+maposcal evaluate config.yaml
+```
+This command evaluates the quality of generated OSCAL components using AI assessment.
+
+5. **Extract File Metadata**
+```bash
+maposcal metadata path/to/file.json
+```
+This command extracts and displays metadata from MapOSCAL output files, showing generation information including model, provider, timing, and configuration used.
 ```bash
 maposcal evaluate config.yaml
 ```

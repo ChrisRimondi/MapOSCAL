@@ -1,32 +1,60 @@
-title: "sample_service"
-description: "This service does important things"
-repo_path: "/path/to/repository"
+# MapOSCAL Configuration File
+# This file configures the analysis and generation of OSCAL components
+
+# Repository and output settings
+repo_path: "/path/to/your/repository"
 output_dir: ".oscalgen"
-top_k: 5
+
+# Catalog and profile paths for OSCAL generation
 catalog_path: "examples/NIST_SP-800-53_rev5_catalog.json"
-profile_path: "examples/NIST_SP-800-53_rev5_HIGH-baseline_profile.json"
+profile_path: "examples/FedRAMP_rev5_HIGH-baseline_profile.json"
+
+# Analysis settings
+top_k: 5
 max_critique_retries: 3
 
-# Configuration file handling (optional)
-# Option 1: Auto-discover config files by extension (default behavior)
-# If auto_discover_config is true and config_extensions is provided, 
-# files with these extensions will be treated as configuration files
-config_extensions:
-  - ".yaml"
-  - ".yml"
-  - ".json"
-  - ".toml"
-  - ".ini"
-  - ".conf"
-  - ".properties"
-  - ".env"
-  - ".cfg"
+# Configuration file discovery settings
+config_extensions: [".yaml", ".yml", ".json", ".toml", ".ini", ".conf", ".properties"]
+auto_discover_config: true
+config_files: []  # Used when auto_discover_config is false
 
-# Option 2: Manual list of configuration files
-# If auto_discover_config is false, specify exact files to process as config files
-# auto_discover_config: false
-# config_files:
-#   - "config/database.yaml"
-#   - "config/app.json"
-#   - ".env"
-#   - "docker-compose.yml" 
+# LLM Configuration
+# You can specify different providers and models for each command
+llm:
+  # Global LLM settings (used as defaults)
+  provider: "openai"
+  model: "gpt-4"
+  
+  # Command-specific LLM settings (override global settings)
+  analyze:
+    provider: "openai"
+    model: "gpt-4o-mini"  # Fast, cost-effective for analysis
+    
+  summarize:
+    provider: "openai"
+    model: "gpt-4"  # High quality for summaries
+    
+  generate:
+    provider: "openai"
+    model: "gpt-4"  # High quality for OSCAL generation
+    
+  evaluate:
+    provider: "openai"
+    model: "gpt-4"  # High quality for evaluation
+
+# Example configurations for different providers:
+# 
+# OpenAI:
+#   provider: "openai"
+#   model: "gpt-4" | "gpt-4-turbo" | "gpt-3.5-turbo" | "gpt-4o" | "gpt-4o-mini"
+#
+# Gemini (via OpenAI-compatible API):
+#   provider: "gemini"
+#   model: "gemini-2.0-flash" | "gemini-2.5-flash" | "gemini-1.5-pro" | "gemini-1.5-flash"
+
+# Environment Variables Required:
+# For OpenAI: OPENAI_API_KEY
+# For Gemini: GEMINI_API_KEY
+#
+# Optional base URL overrides:
+# OPENAI_BASE_URL, GEMINI_BASE_URL 
