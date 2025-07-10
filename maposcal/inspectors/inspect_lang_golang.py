@@ -8,13 +8,14 @@ import logging
 logger = logging.getLogger()
 
 
-def start_inspection(file_path):
+def start_inspection(file_path, base_dir=None):
     """
     Takes a Golang file and begins a non-generative inspection with the goal of returning a standardized inspection report covering many
     areas related to security and compliance.
 
     Args:
         file_path (str): Path to the Golang file that will be inspected
+        base_dir (str, optional): Base directory to truncate file_path relative to. If provided, file_path will be stored as relative to this directory.
 
     Returns
         golang_inspection_results (dict): See README for full formatting details of the response.
@@ -31,6 +32,19 @@ def start_inspection(file_path):
     input_validation = {}
     logging = {}
     error_handling = {}
+
+    # Truncate file_path if base_dir is provided
+    display_file_path = file_path
+    if base_dir:
+        try:
+            from pathlib import Path
+            file_path_obj = Path(file_path)
+            base_path_obj = Path(base_dir)
+            if file_path_obj.is_relative_to(base_path_obj):
+                display_file_path = str(file_path_obj.relative_to(base_path_obj))
+        except (ValueError, AttributeError):
+            # If file_path is not relative to base_dir, keep original path
+            pass
 
     try:
         logger.debug(f"Opening Golang file ({file_path}) for inspection.")
@@ -113,7 +127,7 @@ def start_inspection(file_path):
         # Generate LLM context summary
         ###
 
-    golang_inspection_results["file_path"] = file_path
+    golang_inspection_results["file_path"] = display_file_path
     golang_inspection_results["language"] = "Golang"
     golang_inspection_results["control_hints"] = applicable_control_hints
     golang_inspection_results["loaded_modules"] = loaded_modules

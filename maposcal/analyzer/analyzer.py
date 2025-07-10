@@ -240,12 +240,7 @@ class Analyzer:
                 file_inspector_results = None
                 try:
                     logger.info(f"Beginning rules-based inspection of {file_path}")
-                    file_inspector_results = rules.begin_inspection(str(file_path))
-                    
-                    # Update inspector results to use relative path instead of absolute path
-                    if file_inspector_results and "file_path" in file_inspector_results:
-                        relative_path = str(file_path.relative_to(self.repo_path))
-                        file_inspector_results["file_path"] = relative_path
+                    file_inspector_results = rules.begin_inspection(str(file_path), str(self.repo_path))
                         
                 except Exception:
                     logger.error(

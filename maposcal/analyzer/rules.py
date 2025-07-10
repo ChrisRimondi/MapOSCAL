@@ -5,7 +5,7 @@ import logging
 logger = logging.getLogger()
 
 
-def begin_inspection(file_path):
+def begin_inspection(file_path, base_dir=None):
     """
     Takes a list of files (the same files that have been chunked for LLM inspection), but will now be used in a non-generative
     method using modular inspection techniques.  This function will:
@@ -18,6 +18,7 @@ def begin_inspection(file_path):
 
     Args:
       file_path (string): Path to a file that will be inspected for further clarifying details.
+      base_dir (string, optional): Base directory to truncate file_path relative to. If provided, file_path will be stored as relative to this directory.
 
     Returns:
       inspection_results (dict): See README in inspectors directory for full formatting details of the response.
@@ -53,7 +54,7 @@ def begin_inspection(file_path):
             f"Marking {file_path} as type (Python) and running local inspector."
         )
         try:
-            inspection_results = inspect_lang_python.start_inspection(file_path)
+            inspection_results = inspect_lang_python.start_inspection(file_path, base_dir)
         except Exception:
             logger.error(f"Failed to launch Python inspector - {format_exc()}")
 
@@ -62,7 +63,7 @@ def begin_inspection(file_path):
             f"Marking {file_path} as type (Golang) and running local inspector."
         )
         try:
-            inspection_results = inspect_lang_golang.start_inspection(file_path)
+            inspection_results = inspect_lang_golang.start_inspection(file_path, base_dir)
         except Exception:
             logger.error(f"Failed to launch Golang inspector - {format_exc()}")
     return inspection_results

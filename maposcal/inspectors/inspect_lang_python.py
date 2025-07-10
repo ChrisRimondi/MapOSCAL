@@ -15,13 +15,14 @@ import logging
 logger = logging.getLogger(__name__)
 
 
-def start_inspection(file_path: str) -> Dict:
+def start_inspection(file_path: str, base_dir: str = None) -> Dict:
     """
     Takes a Python file and begins a non-generative inspection with the goal of returning
     a standardized inspection report covering many areas related to security and compliance.
 
     Args:
         file_path (str): Path to the Python file that will be inspected
+        base_dir (str, optional): Base directory to truncate file_path relative to. If provided, file_path will be stored as relative to this directory.
 
     Returns:
         python_inspection_results (dict): Standardized inspection report
@@ -38,6 +39,19 @@ def start_inspection(file_path: str) -> Dict:
     input_validation = {}
     logging_config = {}
     error_handling = {}
+
+    # Truncate file_path if base_dir is provided
+    display_file_path = file_path
+    if base_dir:
+        try:
+            from pathlib import Path
+            file_path_obj = Path(file_path)
+            base_path_obj = Path(base_dir)
+            if file_path_obj.is_relative_to(base_path_obj):
+                display_file_path = str(file_path_obj.relative_to(base_path_obj))
+        except (ValueError, AttributeError):
+            # If file_path is not relative to base_dir, keep original path
+            pass
 
     try:
         logger.debug(f"Opening Python file ({file_path}) for inspection.")
@@ -121,7 +135,7 @@ def start_inspection(file_path: str) -> Dict:
         # Generate LLM context summary
         ###
 
-    python_inspection_results["file_path"] = file_path
+    python_inspection_results["file_path"] = display_file_path
     python_inspection_results["language"] = "Python"
     python_inspection_results["control_hints"] = applicable_control_hints
     python_inspection_results["loaded_modules"] = loaded_modules
