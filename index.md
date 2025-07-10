@@ -7,4 +7,4 @@ Welcome to the Compliance Engineering blog!
 
 ## MapOSCAL
 
-[View MapOSCAL page](/maposcal/)
+[View MapOSCAL page]({{ site.baseurl }}/maposcal/)
