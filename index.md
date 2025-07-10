@@ -1,6 +1,6 @@
 ---
 layout: home
-title: MapOSCAL Blog
+title: Compliance Engineering Blog
 ---
 
-Welcome to the MapOSCAL development blog!
+Welcome to the Compliance Engineering blog!
