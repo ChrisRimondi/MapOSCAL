@@ -15,7 +15,7 @@ MapOSCAL is an MIT-licensed tool that automatically analyzes your codebase and g
 ## Diagrams
 
 ### Analysis Flow
-![Analysis Flow Diagram]({{ site.baseurl }}/gh_assets/images/analysis-flow.png)
+![Analysis Flow Diagram]({{ site.baseurl }}/gh_assets/images/analysis_flow.png)
 
 ### Generation Flow  
-![Generation Flow Diagram]({{ site.baseurl }}/gh_assets/images/generation-flow.png) 
+![Generation Flow Diagram]({{ site.baseurl }}/gh_assets/images/generation_flow.png) 
