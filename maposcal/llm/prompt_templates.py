@@ -151,6 +151,8 @@ def build_file_summary_prompt(filename: str, file_content: str) -> str:
 CONTROL_IMPL_SYSTEM = (
     "You are a compliance automation assistant that writes OSCAL component definitions."
 )
+
+# Legacy prompt for backward compatibility
 CONTROL_IMPL_INSTRUCTIONS = dedent(
     """
 You are a security compliance expert analyzing a service's implementation of a specific security control.
@@ -229,6 +231,57 @@ Return only valid, minified JSON.
 """
 )
 
+# New simplified content generation prompt
+CONTENT_GENERATION_SYSTEM = (
+    "You are a security compliance expert analyzing control implementation based on code evidence."
+)
+
+CONTENT_GENERATION_INSTRUCTIONS = dedent(
+    """
+Based on the provided evidence, analyze the implementation of control {control_id}: {control_name}
+
+Control Description: {control_description}
+
+Your task is to determine the implementation status and provide detailed explanations. Focus only on generating the content - the structural elements will be handled automatically.
+
+Return a JSON object with exactly these 4 fields:
+
+1. **control-status**: Choose exactly one from:
+   - "applicable and inherently satisfied" - Control is implemented in the codebase
+   - "applicable but only satisfied through configuration" - Control requires specific configuration
+   - "applicable but partially satisfied" - Control is partially implemented
+   - "applicable and not satisfied" - Control is applicable but not implemented
+   - "not applicable" - Control doesn't apply to this system
+
+2. **control-explanation**: Detailed explanation (minimum 10 characters) of:
+   - How the control is implemented in the code
+   - What specific mechanisms or patterns satisfy the control
+   - Why the control is not applicable (if status is "not applicable")
+   - What gaps exist (if status is "applicable but partially satisfied" or "applicable and not satisfied")
+
+3. **control-configuration**: Array of configuration objects (only if status contains "configuration"):
+   - Each object must have: file_path, key_path, line_number
+   - Only include if you are confident about the configuration details
+   - Do not reference .md, .txt, or documentation files
+   - Leave as empty array [] if no configuration details are available
+
+4. **statement-description**: Detailed description (minimum 10 characters) of how the control statement is implemented:
+   - Specific code patterns or mechanisms
+   - How the implementation satisfies the control requirements
+   - Any relevant architectural decisions
+
+Example response:
+{{
+  "control-status": "applicable and inherently satisfied",
+  "control-explanation": "The system implements authentication through JWT tokens in auth.py. User sessions are managed with secure cookie handling and token validation occurs on every request.",
+  "control-configuration": [],
+  "statement-description": "Authentication is implemented using JWT tokens with secure session management. The auth.py module handles token generation, validation, and user session tracking."
+}}
+
+Return only valid, minified JSON with these exact field names.
+"""
+)
+
 CONTROL_IMPL_PROMPT_HEADER = (
     "{system}\n\n{instructions}\n\n"
     "Control ID requested: **{control_id}**\n\n"
@@ -239,6 +292,15 @@ CONTROL_IMPL_PROMPT_HEADER = (
 CHUNK_BULLET = "- {chunk_type} • {source} • lines {start}-{end}\n```\n{content}\n```\n"
 
 CONTROL_IMPL_PROMPT_FOOTER = "\n---\nGenerate the JSON now:"
+
+# Content generation prompt components
+CONTENT_GENERATION_PROMPT_HEADER = (
+    "{system}\n\n{instructions}\n\n"
+    "{security_overview_section}"
+    "Evidence from code analysis:\n"
+)
+
+CONTENT_GENERATION_PROMPT_FOOTER = "\n---\nGenerate the content JSON now:"
 
 # ---------------------------------------------------------------------------
 # 3. OSCAL CONTROL VALIDATION AND REVISION
@@ -418,6 +480,68 @@ def build_control_prompt(
             ],  # protect context length
         )
     return header + body + CONTROL_IMPL_PROMPT_FOOTER
+
+
+def build_content_generation_prompt(
+    control_id: str,
+    control_name: str,
+    control_description: str,
+    evidence_chunks: List[dict],
+    security_overview: str = None,
+) -> str:
+    """
+    Build a simplified prompt for generating control content only.
+
+    This function creates a focused prompt that asks the LLM to generate only the content
+    fields (control-status, control-explanation, control-configuration, statement-description)
+    while leaving structural elements to be handled by the template system.
+
+    Args:
+        control_id: The control identifier (e.g., "AC-1")
+        control_name: Human-readable name of the control
+        control_description: Detailed description of the control
+        evidence_chunks: List of evidence chunks from code analysis
+        security_overview: Optional security overview content to include as reference
+
+    Returns:
+        str: Formatted prompt for LLM content generation
+    """
+    instructions = CONTENT_GENERATION_INSTRUCTIONS.format(
+        control_id=control_id,
+        control_name=control_name,
+        control_description=control_description,
+    )
+
+    # Format security overview section if provided
+    security_overview_section = ""
+    if security_overview:
+        security_overview_section = (
+            "## SERVICE SECURITY OVERVIEW (Reference)\n"
+            "The following provides a high-level security overview of the service. "
+            "Use this as context when analyzing the specific control implementation:\n\n"
+            f"{security_overview}\n\n"
+            "---\n\n"
+        )
+
+    header = CONTENT_GENERATION_PROMPT_HEADER.format(
+        system=CONTENT_GENERATION_SYSTEM,
+        instructions=instructions,
+        security_overview_section=security_overview_section,
+    )
+    
+    body = ""
+    for c in evidence_chunks:
+        body += CHUNK_BULLET.format(
+            chunk_type=c.get("chunk_type", "unknown"),
+            source=c.get("source_file", "N/A"),
+            start=c.get("start_line", "?"),
+            end=c.get("end_line", "?"),
+            content=(c.get("content") or c.get("summary", "")).strip()[
+                :800
+            ],  # protect context length
+        )
+    
+    return header + body + CONTENT_GENERATION_PROMPT_FOOTER
 
 
 def build_critique_prompt(

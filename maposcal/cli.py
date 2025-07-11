@@ -458,18 +458,16 @@ def generate(
         # Call map_control with the control dictionary
         result = map_control(control_data, output_dir, top_k, llm_config)
 
-        # Parse the LLM response as JSON
-        parsed = parse_llm_response(result)
-
-        if not isinstance(parsed, dict):
+        # The result is now a complete OSCAL control mapping dict
+        if not isinstance(result, dict):
             typer.echo(
                 f"Warning: Invalid response format for control {control_id}. Skipping."
             )
             failed_controls.append((control_id, "Invalid response format"))
             continue
 
-        # Add the control ID to the requirement
-        parsed["control_id"] = control_id
+        # Add the control ID to the requirement for tracking
+        result["control_id"] = control_id
 
         # Validate this individual requirement with comprehensive validation and fixing
         llm_handler = LLMHandler(provider=llm_config["provider"], model=llm_config["model"])
@@ -477,31 +475,8 @@ def generate(
         final_validation_errors = []
 
         for attempt in range(max_critique_retries):
-            # First, validate control-status using JSON parser
-            control_status_valid, control_status_error = validate_control_status(parsed)
-            if not control_status_valid:
-                logger.warning(
-                    f"Control-status validation failed for {control_id}: {control_status_error}"
-                )
-                # Try to fix control-status by setting a default value
-                for prop in parsed.get("props", []):
-                    if prop.get("name") == "control-status":
-                        prop["value"] = (
-                            "applicable and not satisfied"  # Default fallback
-                        )
-                        break
-                else:
-                    # Add control-status prop if it doesn't exist
-                    parsed.setdefault("props", []).append(
-                        {
-                            "name": "control-status",
-                            "value": "applicable and not satisfied",
-                            "ns": "https://fedramp.gov/ns/oscal",
-                        }
-                    )
-
-            # Use comprehensive validation instead of LLM critique
-            requirement_valid, violations = validate_implemented_requirement(parsed)
+            # Use comprehensive validation - the template ensures structural integrity
+            requirement_valid, violations = validate_implemented_requirement(result)
 
             if requirement_valid:
                 is_valid = True
@@ -517,90 +492,45 @@ def generate(
                     if v.get("suggestion"):
                         logger.warning(f"    Suggestion: {v.get('suggestion')}")
 
-            # If not valid, try to fix common issues automatically first
+            # If not valid and we have retries left, try to fix issues
             if violations and attempt < max_critique_retries - 1:
-                # Try to fix some common issues automatically
-                for violation in violations:
-                    field = violation.get("field", "")
-                    issue = violation.get("issue", "")
-
-                    # Fix empty control-configuration when status contains configuration
-                    if "control-configuration" in field and "non-empty" in issue:
-                        for prop in parsed.get("props", []):
-                            if prop.get("name") == "control-configuration":
-                                if not prop.get("value") or (
-                                    isinstance(prop.get("value"), list)
-                                    and not prop.get("value")
-                                ):
-                                    # Set a default configuration or change status
-                                    for status_prop in parsed.get("props", []):
-                                        if status_prop.get("name") == "control-status":
-                                            status_prop["value"] = (
-                                                "applicable and not satisfied"
-                                            )
-                                            break
-                                break
-
-                    # Fix invalid file extensions
-                    elif "file_path" in field and "Invalid file extension" in issue:
-                        for prop in parsed.get("props", []):
-                            if prop.get("name") == "control-configuration":
-                                if isinstance(prop.get("value"), list):
-                                    for config_obj in prop.get("value", []):
-                                        if (
-                                            isinstance(config_obj, dict)
-                                            and "file_path" in config_obj
-                                        ):
-                                            # Change to a valid extension
-                                            file_path = config_obj["file_path"]
-                                            if file_path.endswith((".md", ".txt")):
-                                                config_obj["file_path"] = "config.yaml"
-                                break
-
-                # If there are still violations after auto-fixes, use LLM to fix them
-                requirement_valid_after_auto, violations_after_auto = (
-                    validate_implemented_requirement(parsed)
-                )
-                if not requirement_valid_after_auto and violations_after_auto:
-                    # Convert validation violations to LLM format
-                    llm_violations = []
-                    for v in violations_after_auto:
-                        llm_violations.append(
-                            {
-                                "path": v.get("field", "unknown"),
-                                "issue": v.get("issue", "Unknown validation error"),
-                                "suggestion": v.get("suggestion", ""),
-                            }
-                        )
-
-                    # Use LLM to fix remaining issues
-                    revise_prompt = build_revise_prompt(
-                        [parsed], llm_violations, security_overview
+                # Convert validation violations to LLM format
+                llm_violations = []
+                for v in violations:
+                    llm_violations.append(
+                        {
+                            "path": v.get("field", "unknown"),
+                            "issue": v.get("issue", "Unknown validation error"),
+                            "suggestion": v.get("suggestion", ""),
+                        }
                     )
-                    revise_response = llm_handler.query(prompt=revise_prompt)
-                    revised_requirement = parse_llm_response(revise_response)
 
-                    if (
-                        isinstance(revised_requirement, list)
-                        and len(revised_requirement) == 1
-                    ):
-                        parsed = revised_requirement[0]
-                        parsed["control_id"] = (
-                            control_id  # Ensure control_id is preserved
-                        )
-                    else:
-                        logger.error(
-                            f"Invalid revise response format for control {control_id} on attempt {attempt + 1}"
-                        )
+                # Use LLM to fix remaining issues
+                revise_prompt = build_revise_prompt(
+                    [result], llm_violations, security_overview
+                )
+                revise_response = llm_handler.query(prompt=revise_prompt)
+                revised_requirement = parse_llm_response(revise_response)
+
+                if (
+                    isinstance(revised_requirement, list)
+                    and len(revised_requirement) == 1
+                ):
+                    result = revised_requirement[0]
+                    result["control_id"] = control_id  # Ensure control_id is preserved
+                else:
+                    logger.error(
+                        f"Invalid revise response format for control {control_id} on attempt {attempt + 1}"
+                    )
 
         if is_valid:
-            implemented_requirements.append(parsed)
+            implemented_requirements.append(result)
             typer.echo(
                 f"Successfully validated and added requirement for control {control_id}"
             )
         else:
             # Capture the final validation errors that couldn't be fixed
-            _, final_violations = validate_implemented_requirement(parsed)
+            _, final_violations = validate_implemented_requirement(result)
             final_validation_errors = final_violations
 
             failed_controls.append(
@@ -610,7 +540,7 @@ def generate(
                     final_validation_errors,
                 )
             )
-            unvalidated_requirements.append(parsed)
+            unvalidated_requirements.append(result)
             typer.echo(
                 f"Warning: Failed to validate requirement for control {control_id} after {max_critique_retries} attempts"
             )

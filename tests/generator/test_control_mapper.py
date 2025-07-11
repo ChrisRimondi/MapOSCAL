@@ -1,477 +1,214 @@
 """
-Tests for the control_mapper module.
+Tests for the template-based control mapping functionality.
 
-This module tests the control mapping functionality including semantic search,
-LLM-based analysis, and response parsing.
+This module tests the new template-based approach that ensures structural integrity
+while allowing the LLM to focus on content generation.
 """
 
 import pytest
-import json
-from unittest.mock import Mock, patch
-from pathlib import Path
-import tempfile
+import uuid
 from maposcal.generator.control_mapper import (
-    get_relevant_chunks,
-    map_control,
-    parse_llm_response,
+    create_control_template,
+    merge_llm_content,
+    validate_content_quality,
 )
 
 
-class TestGetRelevantChunks:
-    """Test get_relevant_chunks function."""
+class TestControlTemplate:
+    """Test the control template creation functionality."""
 
-    @patch("maposcal.generator.control_mapper.faiss_index")
-    @patch("maposcal.generator.control_mapper.meta_store")
-    @patch("maposcal.generator.control_mapper.local_embedder")
-    def test_get_relevant_chunks_basic(
-        self, mock_embedder, mock_meta_store, mock_faiss_index
-    ):
-        """Test basic functionality of get_relevant_chunks."""
-        # Setup mocks
-        mock_embedder.embed_one.return_value = [0.1, 0.2, 0.3]
-        mock_index = Mock()
-        mock_faiss_index.load_index.return_value = mock_index
-        mock_faiss_index.search_index.return_value = ([0], [0.1])
-
-        mock_meta = [
-            {"source_file": "auth.py", "content": "def authenticate_user(): pass"}
-        ]
-        mock_meta_store.load_metadata.return_value = mock_meta
-        mock_meta_store.get_chunk_by_index.side_effect = lambda meta, idx: meta[idx]
-
-        with tempfile.TemporaryDirectory() as temp_dir:
-            # Create required files
-            index_path = Path(temp_dir) / "index.faiss"
-            meta_path = Path(temp_dir) / "meta.json"
-            index_path.touch()
-            meta_path.touch()
-
-            result = get_relevant_chunks("test query", temp_dir)
-            assert len(result) == 1
-            assert result[0]["source_file"] == "auth.py"
-
-    @patch("maposcal.generator.control_mapper.faiss_index")
-    @patch("maposcal.generator.control_mapper.meta_store")
-    @patch("maposcal.generator.control_mapper.local_embedder")
-    def test_get_relevant_chunks_with_summary_index(
-        self, mock_embedder, mock_meta_store, mock_faiss_index
-    ):
-        """Test get_relevant_chunks with summary index."""
-        # Setup mocks
-        mock_embedder.embed_one.return_value = [0.1, 0.2, 0.3]
-        mock_index = Mock()
-        mock_faiss_index.load_index.return_value = mock_index
-        mock_faiss_index.search_index.return_value = ([0], [0.1])
-
-        mock_meta = [
-            {"source_file": "auth.py", "content": "def authenticate_user(): pass"}
-        ]
-        mock_meta_store.load_metadata.return_value = mock_meta
-        mock_meta_store.get_chunk_by_index.side_effect = lambda meta, idx: meta[idx]
-
-        with tempfile.TemporaryDirectory() as temp_dir:
-            # Create required files including summary index
-            index_path = Path(temp_dir) / "index.faiss"
-            meta_path = Path(temp_dir) / "meta.json"
-            summary_index_path = Path(temp_dir) / "summary_index.faiss"
-            summary_meta_path = Path(temp_dir) / "summary_meta.json"
-
-            index_path.touch()
-            meta_path.touch()
-            summary_index_path.touch()
-            summary_meta_path.touch()
-
-            # Mock summary metadata
-            mock_summary_meta = {
-                "0": {"source_file": "config.py", "summary": "Configuration file"}
-            }
-            mock_meta_store.load_metadata.side_effect = [mock_meta, mock_summary_meta]
-
-            result = get_relevant_chunks("test query", temp_dir)
-            assert len(result) >= 1
-
-    @patch("maposcal.generator.control_mapper.faiss_index")
-    @patch("maposcal.generator.control_mapper.meta_store")
-    @patch("maposcal.generator.control_mapper.local_embedder")
-    def test_get_relevant_chunks_missing_files(
-        self, mock_embedder, mock_meta_store, mock_faiss_index
-    ):
-        """Test get_relevant_chunks with missing index files."""
-        mock_embedder.embed_one.return_value = [0.1, 0.2, 0.3]
-
-        with tempfile.TemporaryDirectory() as temp_dir:
-            with pytest.raises(FileNotFoundError):
-                get_relevant_chunks("test query", temp_dir)
-
-    @patch("maposcal.generator.control_mapper.faiss_index")
-    @patch("maposcal.generator.control_mapper.meta_store")
-    @patch("maposcal.generator.control_mapper.local_embedder")
-    def test_get_relevant_chunks_with_control_hints(
-        self, mock_embedder, mock_meta_store, mock_faiss_index
-    ):
-        """Test get_relevant_chunks with control hints filtering."""
-        # Setup mocks
-        mock_embedder.embed_one.return_value = [0.1, 0.2, 0.3]
-        mock_index = Mock()
-        mock_faiss_index.load_index.return_value = mock_index
-        mock_faiss_index.search_index.return_value = ([0], [0.1])
-
-        # Mock regular metadata (using relative paths)
-        mock_meta = [
-            {
-                "source_file": "path/to/auth.py",
-                "content": "def authenticate_user(): pass",
-            },
-            {
-                "source_file": "path/to/other.py",
-                "content": "def other_function(): pass",
-            },
-        ]
-
-        # Mock summary metadata with control hints (using relative paths)
-        mock_summary_meta = {
-            "path/to/auth.py": {
-                "source_file": "path/to/auth.py",
-                "summary": "Authentication module",
-                "inspector_results": {"control_hints": ["ac4", "sc5"]},
-            },
-            "path/to/other.py": {
-                "source_file": "path/to/other.py",
-                "summary": "Other module",
-                "inspector_results": {"control_hints": ["ac6"]},
-            },
-        }
-
-        # The function calls load_metadata multiple times:
-        # 1. For regular metadata (meta.json)
-        # 2. For summary metadata (summary_meta.json) - first time for semantic search
-        # 3. For summary metadata (summary_meta.json) - second time for control hints
-        mock_meta_store.load_metadata.side_effect = [
-            mock_meta,
-            mock_summary_meta,
-            mock_summary_meta,
-        ]
-        mock_meta_store.get_chunk_by_index.side_effect = lambda meta, idx: meta[idx]
-
-        with tempfile.TemporaryDirectory() as temp_dir:
-            # Create required files
-            index_path = Path(temp_dir) / "index.faiss"
-            meta_path = Path(temp_dir) / "meta.json"
-            summary_index_path = Path(temp_dir) / "summary_index.faiss"
-            summary_meta_path = Path(temp_dir) / "summary_meta.json"
-
-            index_path.touch()
-            meta_path.touch()
-            summary_index_path.touch()
-            summary_meta_path.touch()
-
-            # Test with control_id that matches control hints
-            result = get_relevant_chunks("test query", temp_dir, control_id="AC-4")
-
-            # Should include both semantic search results and control hint matches
-            assert len(result) >= 1
-
-            # Check that auth.py is included (has ac4 control hint)
-            auth_chunks = [
-                chunk
-                for chunk in result
-                if chunk.get("source_file") == "path/to/auth.py"
-            ]
-            assert len(auth_chunks) > 0
-
-            # Check that other.py is not included (doesn't have ac4 control hint)
-            # other_chunks = [
-            #     chunk
-            #     for chunk in result
-            #     if "other.py" in chunk["source_file"]
-            # ]
-            # assert len(other_chunks) == 0
-
-
-class TestMapControl:
-    """Test map_control function."""
-
-    @patch("maposcal.generator.control_mapper.LLMHandler")
-    @patch("maposcal.generator.control_mapper.get_relevant_chunks")
-    def test_map_control_basic(self, mock_get_chunks, mock_llm_handler_class):
-        """Test basic map_control functionality."""
-        # Setup mocks
-        mock_llm_handler = Mock()
-        mock_llm_handler_class.return_value = mock_llm_handler
-
-    @patch("maposcal.generator.control_mapper.LLMHandler")
-    @patch("maposcal.generator.control_mapper.get_relevant_chunks")
-    def test_map_control_with_llm_config(self, mock_get_chunks, mock_llm_handler_class):
-        """Test map_control with LLM configuration."""
-        # Setup mocks
-        mock_llm_handler = Mock()
-        mock_llm_handler_class.return_value = mock_llm_handler
-        mock_llm_handler.query.return_value = '{"control_id": "AC-1", "props": []}'
+    def test_create_control_template(self):
+        """Test creating a control template with all required structural elements."""
+        control_id = "AC-1"
+        control_name = "Access Control Policy and Procedures"
+        control_description = "The organization develops, documents, and disseminates access control policy."
+        main_uuid = str(uuid.uuid4())
+        statement_uuid = str(uuid.uuid4())
         
-        mock_get_chunks.return_value = [
-            {"source_file": "auth.py", "content": "def authenticate(): pass"}
-        ]
-
-        # Test with LLM config
-        llm_config = {"provider": "gemini", "model": "gemini-2.5-flash"}
-        result = map_control(
-            control_id="AC-1",
-            control_name="Access Control",
-            control_description="Test control",
-            evidence_chunks=[],
-            main_uuid="uuid1",
-            statement_uuid="uuid2",
-            llm_config=llm_config,
+        template = create_control_template(
+            control_id, control_name, control_description, main_uuid, statement_uuid
         )
+        
+        # Check required top-level fields
+        assert template["uuid"] == main_uuid
+        assert template["control-id"] == control_id
+        
+        # Check required props
+        props = template["props"]
+        prop_names = {prop["name"] for prop in props}
+        required_props = {
+            "control-status", "control-name", "control-description", 
+            "control-explanation", "control-configuration"
+        }
+        assert required_props.issubset(prop_names)
+        
+        # Check control-name and control-description are populated
+        for prop in props:
+            if prop["name"] == "control-name":
+                assert prop["value"] == control_name
+            elif prop["name"] == "control-description":
+                assert prop["value"] == control_description
+            elif prop["name"] == "control-status":
+                assert prop["value"] == "applicable and not satisfied"  # Default
+        
+        # Check statements
+        assert len(template["statements"]) == 1
+        statement = template["statements"][0]
+        assert statement["statement-id"] == f"{control_id}_smt.a"
+        assert statement["uuid"] == statement_uuid
+        assert statement["description"] == ""  # LLM fills this
+        
+        # Check annotations
+        assert len(template["annotations"]) == 1
+        annotation = template["annotations"][0]
+        assert annotation["name"] == "source-code-reference"
+        assert annotation["value"] == []  # Will be populated based on evidence
 
-        # Verify LLMHandler was called with correct config
-        mock_llm_handler_class.assert_called_with(
-            provider="gemini",
-            model="gemini-2.5-flash",
-            command="generate"
+
+class TestContentMerging:
+    """Test the LLM content merging functionality."""
+
+    def test_merge_llm_content(self):
+        """Test merging LLM-generated content into template."""
+        # Create template
+        control_id = "AC-1"
+        control_name = "Access Control Policy and Procedures"
+        control_description = "The organization develops, documents, and disseminates access control policy."
+        main_uuid = str(uuid.uuid4())
+        statement_uuid = str(uuid.uuid4())
+        
+        template = create_control_template(
+            control_id, control_name, control_description, main_uuid, statement_uuid
         )
-        assert result is not None
-        mock_llm_handler.query.return_value = "Mock LLM response"
-
-        mock_get_chunks.return_value = [
-            {"source_file": "auth.py", "content": "def authenticate_user(): pass"}
-        ]
-
-        control_dict = {
-            "id": "AC-1",
-            "title": "Access Control Policy",
-            "statement": "The organization develops access control policies.",
-        }
-
-        with tempfile.TemporaryDirectory() as temp_dir:
-            # Create required files
-            index_path = Path(temp_dir) / "index.faiss"
-            meta_path = Path(temp_dir) / "meta.json"
-            index_path.touch()
-            meta_path.touch()
-
-            result = map_control(control_dict, temp_dir)
-            assert result == "Mock LLM response"
-
-    @patch("maposcal.generator.control_mapper.LLMHandler")
-    @patch("maposcal.generator.control_mapper.get_relevant_chunks")
-    def test_map_control_with_security_overview(
-        self, mock_get_chunks, mock_llm_handler_class
-    ):
-        """Test map_control with security overview file."""
-        # Setup mocks
-        mock_llm_handler = Mock()
-        mock_llm_handler_class.return_value = mock_llm_handler
-        mock_llm_handler.query.return_value = "Mock LLM response"
-
-        mock_get_chunks.return_value = [
-            {"source_file": "auth.py", "content": "def authenticate_user(): pass"}
-        ]
-
-        control_dict = {
-            "id": "AC-1",
-            "title": "Access Control Policy",
-            "statement": "The organization develops access control policies.",
-        }
-
-        with tempfile.TemporaryDirectory() as temp_dir:
-            # Create required files
-            index_path = Path(temp_dir) / "index.faiss"
-            meta_path = Path(temp_dir) / "meta.json"
-            security_overview_path = Path(temp_dir) / "security_overview.md"
-
-            index_path.touch()
-            meta_path.touch()
-            security_overview_path.write_text("Security overview content")
-
-            result = map_control(control_dict, temp_dir)
-            assert result == "Mock LLM response"
-
-    @patch("maposcal.generator.control_mapper.LLMHandler")
-    @patch("maposcal.generator.control_mapper.get_relevant_chunks")
-    def test_map_control_with_parameters(self, mock_get_chunks, mock_llm_handler_class):
-        """Test map_control with control parameters."""
-        # Setup mocks
-        mock_llm_handler = Mock()
-        mock_llm_handler_class.return_value = mock_llm_handler
-        mock_llm_handler.query.return_value = "Mock LLM response"
-
-        mock_get_chunks.return_value = [
-            {"source_file": "auth.py", "content": "def authenticate_user(): pass"}
-        ]
-
-        control_dict = {
-            "id": "AC-1",
-            "title": "Access Control Policy",
-            "statement": "The organization develops access control policies with {{ insert: param, ac-1_prm_1 }}.",
-            "params": [
+        
+        # Create LLM content
+        llm_content = {
+            "control-status": "applicable and inherently satisfied",
+            "control-explanation": "The system implements comprehensive access control through JWT authentication.",
+            "control-configuration": [
                 {
-                    "id": "ac-1_prm_1",
-                    "prose": ["specific requirements"],
-                    "resolved-values": ["detailed requirements"],
+                    "file_path": "auth.py",
+                    "key_path": "authentication.enabled",
+                    "line_number": 42
                 }
             ],
+            "statement-description": "Access control is implemented using JWT tokens with role-based permissions."
         }
-
-        with tempfile.TemporaryDirectory() as temp_dir:
-            # Create required files
-            index_path = Path(temp_dir) / "index.faiss"
-            meta_path = Path(temp_dir) / "meta.json"
-            index_path.touch()
-            meta_path.touch()
-
-            result = map_control(control_dict, temp_dir)
-            assert result == "Mock LLM response"
-
-    @patch("maposcal.generator.control_mapper.LLMHandler")
-    @patch("maposcal.generator.control_mapper.get_relevant_chunks")
-    def test_map_control_with_list_statement(
-        self, mock_get_chunks, mock_llm_handler_class
-    ):
-        """Test map_control with list statement format."""
-        # Setup mocks
-        mock_llm_handler = Mock()
-        mock_llm_handler_class.return_value = mock_llm_handler
-        mock_llm_handler.query.return_value = "Mock LLM response"
-
-        mock_get_chunks.return_value = [
-            {"source_file": "auth.py", "content": "def authenticate_user(): pass"}
+        
+        # Create mock evidence chunks
+        relevant_chunks = [
+            {"source_file": "auth.py", "content": "JWT authentication code"},
+            {"source_file": "config.yaml", "content": "Authentication configuration"}
         ]
+        
+        # Merge content
+        result = merge_llm_content(template, llm_content, relevant_chunks)
+        
+        # Verify content was merged correctly
+        for prop in result["props"]:
+            if prop["name"] == "control-status":
+                assert prop["value"] == "applicable and inherently satisfied"
+            elif prop["name"] == "control-explanation":
+                assert prop["value"] == "The system implements comprehensive access control through JWT authentication."
+            elif prop["name"] == "control-configuration":
+                assert len(prop["value"]) == 1
+                assert prop["value"][0]["file_path"] == "auth.py"
+        
+        # Verify statement description was updated
+        assert result["statements"][0]["description"] == "Access control is implemented using JWT tokens with role-based permissions."
+        
+        # Verify source code references were populated
+        source_files = result["annotations"][0]["value"]
+        assert "auth.py" in source_files
+        assert "config.yaml" in source_files
+        
+        # Verify structural integrity is maintained
+        assert result["uuid"] == main_uuid
+        assert result["control-id"] == control_id
 
-        control_dict = {
-            "id": "AC-1",
-            "title": "Access Control Policy",
-            "statement": ["The organization develops access control policies."],
+
+class TestContentValidation:
+    """Test the content quality validation functionality."""
+
+    def test_validate_content_quality_valid(self):
+        """Test content validation with valid content."""
+        llm_content = {
+            "control-status": "applicable and inherently satisfied",
+            "control-explanation": "The system implements comprehensive access control through JWT authentication and role-based permissions.",
+            "control-configuration": [],
+            "statement-description": "Access control is implemented using JWT tokens with role-based permissions and secure session management."
         }
+        
+        is_valid, issues = validate_content_quality(llm_content)
+        assert is_valid
+        assert len(issues) == 0
 
-        with tempfile.TemporaryDirectory() as temp_dir:
-            # Create required files
-            index_path = Path(temp_dir) / "index.faiss"
-            meta_path = Path(temp_dir) / "meta.json"
-            index_path.touch()
-            meta_path.touch()
-
-            result = map_control(control_dict, temp_dir)
-            assert result == "Mock LLM response"
-
-
-class TestParseLLMResponse:
-    """Test parse_llm_response function."""
-
-    def test_parse_llm_response_valid_json(self):
-        """Test parsing valid JSON response."""
-        json_content = {"control-status": "implemented", "control-name": "Test Control"}
-
-        response = json.dumps(json_content)
-        result = parse_llm_response(response)
-
-        assert result == json_content
-
-    def test_parse_llm_response_with_code_block(self):
-        """Test parsing response with markdown code block."""
-        json_content = {"control-status": "implemented", "control-name": "Test Control"}
-
-        response = f"Here is the JSON:\n```json\n{json.dumps(json_content)}\n```"
-        result = parse_llm_response(response)
-
-        assert result == json_content
-
-    def test_parse_llm_response_invalid_json(self):
-        """Test parsing invalid JSON response."""
-        invalid_json = "{ invalid json }"
-
-        result = parse_llm_response(invalid_json)
-        assert "llm_raw_response" in result
-        assert result["llm_raw_response"] == invalid_json
-
-    def test_parse_llm_response_empty(self):
-        """Test parsing empty response."""
-        result = parse_llm_response("")
-        assert "llm_raw_response" in result
-        assert result["llm_raw_response"] == ""
-
-    def test_parse_llm_response_none(self):
-        """Test parsing None response."""
-        result = parse_llm_response(None)
-        assert "llm_raw_response" in result
-        assert result["llm_raw_response"] is None
-
-    def test_parse_llm_response_with_extra_text(self):
-        """Test parsing response with extra text before/after JSON."""
-        json_content = {"control-status": "implemented", "control-name": "Test Control"}
-
-        response = f"Some text before\n{json.dumps(json_content)}\nSome text after"
-        result = parse_llm_response(response)
-
-        assert result == json_content
-
-    def test_parse_llm_response_multiple_json_blocks(self):
-        """Test parsing response with multiple JSON blocks (should use first)."""
-        json_content1 = {
-            "control-status": "implemented",
-            "control-name": "Test Control 1",
+    def test_validate_content_quality_missing_status(self):
+        """Test content validation with missing control status."""
+        llm_content = {
+            "control-explanation": "The system implements access control.",
+            "control-configuration": [],
+            "statement-description": "Access control is implemented."
         }
-        json_content2 = {
-            "control-status": "not-implemented",
-            "control-name": "Test Control 2",
+        
+        is_valid, issues = validate_content_quality(llm_content)
+        assert not is_valid
+        assert "Missing control-status" in issues
+
+    def test_validate_content_quality_invalid_status(self):
+        """Test content validation with invalid control status."""
+        llm_content = {
+            "control-status": "invalid status",
+            "control-explanation": "The system implements access control.",
+            "control-configuration": [],
+            "statement-description": "Access control is implemented."
         }
+        
+        is_valid, issues = validate_content_quality(llm_content)
+        assert not is_valid
+        assert "Invalid control-status" in issues[0]
 
-        response = f"```json\n{json.dumps(json_content1)}\n```\n```json\n{json.dumps(json_content2)}\n```"
-        result = parse_llm_response(response)
-
-        assert result == json_content1
-
-
-class TestControlMapperIntegration:
-    """Integration tests for control mapper."""
-
-    @patch("maposcal.generator.control_mapper.local_embedder")
-    @patch("maposcal.generator.control_mapper.faiss_index")
-    @patch("maposcal.generator.control_mapper.meta_store")
-    @patch("maposcal.generator.control_mapper.LLMHandler")
-    def test_full_control_mapping_workflow(
-        self, mock_llm_handler_class, mock_meta_store, mock_faiss_index, mock_embedder
-    ):
-        """Test the full control mapping workflow."""
-        # Setup all mocks
-        mock_embedder.embed_one.return_value = [0.1, 0.2, 0.3]
-        mock_index = Mock()
-        mock_faiss_index.load_index.return_value = mock_index
-        mock_faiss_index.search_index.return_value = ([0], [0.1])
-
-        mock_meta = [
-            {"source_file": "auth.py", "content": "def authenticate_user(): pass"}
-        ]
-        mock_meta_store.load_metadata.return_value = mock_meta
-        mock_meta_store.get_chunk_by_index.side_effect = lambda meta, idx: meta[idx]
-
-        mock_llm_handler = Mock()
-        mock_llm_handler_class.return_value = mock_llm_handler
-        mock_llm_response = {
-            "control-status": "implemented",
-            "control-name": "Access Control Policy",
-            "control-description": "The organization develops access control policies",
-            "control-explanation": "Authentication function found in auth.py",
+    def test_validate_content_quality_short_explanation(self):
+        """Test content validation with short explanation."""
+        llm_content = {
+            "control-status": "applicable and inherently satisfied",
+            "control-explanation": "Short",
+            "control-configuration": [],
+            "statement-description": "Access control is implemented."
         }
-        mock_llm_handler.query.return_value = json.dumps(mock_llm_response)
+        
+        is_valid, issues = validate_content_quality(llm_content)
+        assert not is_valid
+        assert "Control explanation is too short or missing" in issues
 
-        control_dict = {
-            "id": "AC-1",
-            "title": "Access Control Policy",
-            "statement": "The organization develops, disseminates, and reviews/updates access control policies.",
+    def test_validate_content_quality_configuration_consistency(self):
+        """Test content validation with configuration consistency."""
+        llm_content = {
+            "control-status": "applicable but only satisfied through configuration",
+            "control-explanation": "The system implements access control through configuration.",
+            "control-configuration": [],  # Empty when status contains "configuration"
+            "statement-description": "Access control is implemented through configuration."
         }
+        
+        is_valid, issues = validate_content_quality(llm_content)
+        assert not is_valid
+        assert "Control status indicates configuration but no configuration provided" in issues
 
-        with tempfile.TemporaryDirectory() as temp_dir:
-            # Create required files
-            index_path = Path(temp_dir) / "index.faiss"
-            meta_path = Path(temp_dir) / "meta.json"
-            index_path.touch()
-            meta_path.touch()
-
-            # Test full workflow
-            result = map_control(control_dict, temp_dir)
-            parsed_result = parse_llm_response(result)
-
-            assert parsed_result["control-status"] == "implemented"
-            assert parsed_result["control-name"] == "Access Control Policy"
-            assert "auth.py" in parsed_result["control-explanation"]
+    def test_validate_content_quality_valid_with_configuration(self):
+        """Test content validation with valid configuration."""
+        llm_content = {
+            "control-status": "applicable but only satisfied through configuration",
+            "control-explanation": "The system implements access control through configuration.",
+            "control-configuration": [
+                {
+                    "file_path": "config.yaml",
+                    "key_path": "auth.enabled",
+                    "line_number": 10
+                }
+            ],
+            "statement-description": "Access control is implemented through configuration."
+        }
+        
+        is_valid, issues = validate_content_quality(llm_content)
+        assert is_valid
+        assert len(issues) == 0
