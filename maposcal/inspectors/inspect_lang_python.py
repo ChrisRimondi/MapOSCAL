@@ -45,6 +45,7 @@ def start_inspection(file_path: str, base_dir: str = None) -> Dict:
     if base_dir:
         try:
             from pathlib import Path
+
             file_path_obj = Path(file_path)
             base_path_obj = Path(base_dir)
             if file_path_obj.is_relative_to(base_path_obj):

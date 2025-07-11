@@ -108,26 +108,34 @@ def test_golang_summarize_discovery_content():
 def test_python_path_truncation():
     """Test that file paths are truncated when base_dir is provided."""
     with patch("builtins.open", mock_open(read_data=PYTHON_SAMPLE)):
-        result = inspect_lang_python.start_inspection("/Users/test/code/project/file.py", "/Users/test/code/project")
+        result = inspect_lang_python.start_inspection(
+            "/Users/test/code/project/file.py", "/Users/test/code/project"
+        )
     assert result["file_path"] == "file.py"
 
 
 def test_golang_path_truncation():
     """Test that file paths are truncated when base_dir is provided."""
     with patch("builtins.open", mock_open(read_data=GOLANG_SAMPLE)):
-        result = inspect_lang_golang.start_inspection("/Users/test/code/project/file.go", "/Users/test/code/project")
+        result = inspect_lang_golang.start_inspection(
+            "/Users/test/code/project/file.go", "/Users/test/code/project"
+        )
     assert result["file_path"] == "file.go"
 
 
 def test_python_path_no_truncation():
     """Test that file paths are not truncated when base_dir is not provided."""
     with patch("builtins.open", mock_open(read_data=PYTHON_SAMPLE)):
-        result = inspect_lang_python.start_inspection("/Users/test/code/project/file.py", None)
+        result = inspect_lang_python.start_inspection(
+            "/Users/test/code/project/file.py", None
+        )
     assert result["file_path"] == "/Users/test/code/project/file.py"
 
 
 def test_golang_path_no_truncation():
     """Test that file paths are not truncated when base_dir is not provided."""
     with patch("builtins.open", mock_open(read_data=GOLANG_SAMPLE)):
-        result = inspect_lang_golang.start_inspection("/Users/test/code/project/file.go", None)
+        result = inspect_lang_golang.start_inspection(
+            "/Users/test/code/project/file.go", None
+        )
     assert result["file_path"] == "/Users/test/code/project/file.go"

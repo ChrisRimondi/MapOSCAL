@@ -54,7 +54,9 @@ def begin_inspection(file_path, base_dir=None):
             f"Marking {file_path} as type (Python) and running local inspector."
         )
         try:
-            inspection_results = inspect_lang_python.start_inspection(file_path, base_dir)
+            inspection_results = inspect_lang_python.start_inspection(
+                file_path, base_dir
+            )
         except Exception:
             logger.error(f"Failed to launch Python inspector - {format_exc()}")
 
@@ -63,7 +65,9 @@ def begin_inspection(file_path, base_dir=None):
             f"Marking {file_path} as type (Golang) and running local inspector."
         )
         try:
-            inspection_results = inspect_lang_golang.start_inspection(file_path, base_dir)
+            inspection_results = inspect_lang_golang.start_inspection(
+                file_path, base_dir
+            )
         except Exception:
             logger.error(f"Failed to launch Golang inspector - {format_exc()}")
     return inspection_results

@@ -256,14 +256,14 @@ class ControlMapping(BaseModel):
                 if isinstance(prop.value, str):
                     if prop.value not in ALLOWED_STATUSES:
                         raise ValueError(
-                            f'Invalid control-status value: {prop.value}. Must be one of: {", ".join(sorted(ALLOWED_STATUSES))}'
+                            f"Invalid control-status value: {prop.value}. Must be one of: {', '.join(sorted(ALLOWED_STATUSES))}"
                         )
                 elif isinstance(prop.value, list):
                     if not prop.value or not all(
                         status in ALLOWED_STATUSES for status in prop.value
                     ):
                         raise ValueError(
-                            f'Invalid control-status values: {prop.value}. All values must be one of: {", ".join(sorted(ALLOWED_STATUSES))}'
+                            f"Invalid control-status values: {prop.value}. All values must be one of: {', '.join(sorted(ALLOWED_STATUSES))}"
                         )
                 else:
                     raise ValueError(
@@ -348,7 +348,7 @@ class ControlMapping(BaseModel):
                     missing_keys = required_keys - set(config_obj.keys())
                     if missing_keys:
                         raise ValueError(
-                            f'control-configuration[{i}] missing required keys: {", ".join(missing_keys)}'
+                            f"control-configuration[{i}] missing required keys: {', '.join(missing_keys)}"
                         )
 
                     # Validate file_path extension
@@ -361,7 +361,7 @@ class ControlMapping(BaseModel):
                         )
                         if file_ext not in ALLOWED_EXTENSIONS:
                             raise ValueError(
-                                f'Invalid file extension in configuration[{i}]: {file_path}. Must end with: {", ".join(sorted(ALLOWED_EXTENSIONS))}'
+                                f"Invalid file extension in configuration[{i}]: {file_path}. Must end with: {', '.join(sorted(ALLOWED_EXTENSIONS))}"
                             )
 
                         # Check for disallowed file types
@@ -464,13 +464,13 @@ def validate_unique_uuids(mappings: List[dict]) -> tuple[bool, Optional[str]]:
     for mapping in mappings:
         # Check main UUID
         if mapping["uuid"] in uuids:
-            return False, f'Duplicate UUID found: {mapping["uuid"]}'
+            return False, f"Duplicate UUID found: {mapping['uuid']}"
         uuids.add(mapping["uuid"])
 
         # Check statement UUIDs
         for statement in mapping.get("statements", []):
             if statement["uuid"] in uuids:
-                return False, f'Duplicate UUID found in statement: {statement["uuid"]}'
+                return False, f"Duplicate UUID found in statement: {statement['uuid']}"
             uuids.add(statement["uuid"])
 
     return True, None

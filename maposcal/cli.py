@@ -42,7 +42,6 @@ from maposcal.generator.profile_control_extractor import ProfileControlExtractor
 from maposcal.embeddings import meta_store
 from maposcal.generator.validation import (
     validate_unique_uuids,
-    validate_control_status,
     validate_implemented_requirement,
 )
 from maposcal.llm.prompt_templates import (
@@ -55,7 +54,13 @@ from maposcal.llm.llm_handler import LLMHandler
 import logging
 from typing import List
 from maposcal.utils.logging_config import configure_logging
-from maposcal.utils.metadata import generate_metadata, inject_metadata_into_json, inject_metadata_into_markdown, extract_metadata_from_json, extract_metadata_from_markdown
+from maposcal.utils.metadata import (
+    generate_metadata,
+    inject_metadata_into_json,
+    inject_metadata_into_markdown,
+    extract_metadata_from_json,
+    extract_metadata_from_markdown,
+)
 import datetime
 
 # Configure logging at module level
@@ -96,36 +101,40 @@ def load_config(config_path: str = None) -> dict:
 def get_llm_config(config_data: dict, command: str) -> dict:
     """
     Get LLM configuration for a specific command.
-    
+
     Args:
         config_data: The loaded configuration data
         command: The command being executed (analyze, summarize, generate, evaluate)
-        
+
     Returns:
         dict: LLM configuration with provider and model
     """
     # Check if there's a global LLM config
     global_llm_config = config_data.get("llm", {})
-    
+
     # Check if there's a command-specific LLM config
     command_llm_config = config_data.get("llm", {}).get(command, {})
-    
+
     # Merge global and command-specific configs (command-specific takes precedence)
     llm_config = {**global_llm_config, **command_llm_config}
-    
+
     # If no config provided, use defaults from settings
     if not llm_config:
-        return settings.DEFAULT_LLM_CONFIGS.get(command, {"provider": "openai", "model": "gpt-4"})
-    
+        return settings.DEFAULT_LLM_CONFIGS.get(
+            command, {"provider": "openai", "model": "gpt-4"}
+        )
+
     # Validate provider
     provider = llm_config.get("provider", "openai")
     if provider not in settings.LLM_PROVIDERS:
-        typer.echo(f"Warning: Unsupported provider '{provider}'. Using 'openai' instead.")
+        typer.echo(
+            f"Warning: Unsupported provider '{provider}'. Using 'openai' instead."
+        )
         provider = "openai"
-    
+
     # Get model (use default if not specified)
     model = llm_config.get("model", "gpt-4")
-    
+
     return {"provider": provider, "model": model}
 
 
@@ -155,7 +164,7 @@ def analyze(config: str = typer.Argument(None, help="Path to the configuration f
     config_extensions = config_data.get("config_extensions")
     auto_discover_config = config_data.get("auto_discover_config", True)
     config_files = config_data.get("config_files")
-    
+
     # Get LLM configuration from config
     llm_config = get_llm_config(config_data, "analyze")
 
@@ -172,7 +181,7 @@ def analyze(config: str = typer.Argument(None, help="Path to the configuration f
 
 @app.command()
 def summarize(
-    config: str = typer.Argument(None, help="Path to the configuration file.")
+    config: str = typer.Argument(None, help="Path to the configuration file."),
 ):
     """
     Generate a comprehensive security overview of the service.
@@ -253,7 +262,7 @@ def summarize(
 
     # Get LLM configuration from config
     llm_config = get_llm_config(config_data, "summarize")
-    
+
     # Generate metadata for this operation
     provider_config = settings.LLM_PROVIDERS[llm_config["provider"]]
     metadata = generate_metadata(
@@ -261,12 +270,14 @@ def summarize(
         provider=llm_config["provider"],
         base_url=provider_config["base_url"],
         command="summarize",
-        config_file=config
+        config_file=config,
     )
-    
+
     # Query the LLM
     llm_handler = LLMHandler(provider=llm_config["provider"], model=llm_config["model"])
-    typer.echo(f"Generating service security overview using {llm_config['provider']}/{llm_config['model']}...")
+    typer.echo(
+        f"Generating service security overview using {llm_config['provider']}/{llm_config['model']}..."
+    )
     response = llm_handler.query(prompt=prompt)
 
     # Inject metadata and save the markdown response to disk
@@ -297,7 +308,9 @@ def critique_and_revise(
     """
     # Use provided LLM config or fall back to defaults
     if llm_config:
-        llm_handler = LLMHandler(provider=llm_config["provider"], model=llm_config["model"])
+        llm_handler = LLMHandler(
+            provider=llm_config["provider"], model=llm_config["model"]
+        )
     else:
         llm_handler = LLMHandler(command="generate")
 
@@ -363,7 +376,7 @@ def critique_and_revise(
 
 @app.command()
 def generate(
-    config: str = typer.Argument(None, help="Path to the configuration file.")
+    config: str = typer.Argument(None, help="Path to the configuration file."),
 ):
     """
     Generate validated OSCAL components for controls using the provided configuration.
@@ -437,7 +450,7 @@ def generate(
 
     # Get LLM configuration from config
     llm_config = get_llm_config(config_data, "generate")
-    
+
     # Generate metadata for this operation
     provider_config = settings.LLM_PROVIDERS[llm_config["provider"]]
     metadata = generate_metadata(
@@ -445,9 +458,9 @@ def generate(
         provider=llm_config["provider"],
         base_url=provider_config["base_url"],
         command="generate",
-        config_file=config
+        config_file=config,
     )
-    
+
     # Process each control and collect implemented requirements
     implemented_requirements = []
     failed_controls = []
@@ -474,7 +487,9 @@ def generate(
         result["control_id"] = control_id
 
         # Validate this individual requirement with comprehensive validation and fixing
-        llm_handler = LLMHandler(provider=llm_config["provider"], model=llm_config["model"])
+        llm_handler = LLMHandler(
+            provider=llm_config["provider"], model=llm_config["model"]
+        )
         is_valid = False
         final_validation_errors = []
 
@@ -582,7 +597,9 @@ def generate(
 
     if all_failures:
         validation_failures = {"failed_controls": all_failures}
-        validation_failures_with_metadata = inject_metadata_into_json(validation_failures, metadata)
+        validation_failures_with_metadata = inject_metadata_into_json(
+            validation_failures, metadata
+        )
         failures_path = os.path.join(output_dir, "validation_failures.json")
         with open(failures_path, "w") as f:
             json.dump(validation_failures_with_metadata, f, indent=2)
@@ -591,7 +608,9 @@ def generate(
     # Write unvalidated requirements to JSON file
     if unvalidated_requirements:
         unvalidated_data = {"unvalidated_requirements": unvalidated_requirements}
-        unvalidated_data_with_metadata = inject_metadata_into_json(unvalidated_data, metadata)
+        unvalidated_data_with_metadata = inject_metadata_into_json(
+            unvalidated_data, metadata
+        )
         unvalidated_path = os.path.join(output_dir, "unvalidated_requirements.json")
         with open(unvalidated_path, "w") as f:
             json.dump(unvalidated_data_with_metadata, f, indent=2)
@@ -673,7 +692,7 @@ def evaluate(config: str = typer.Argument(..., help="Path to the configuration f
 
     # Get LLM configuration from config
     llm_config = get_llm_config(config_data, "evaluate")
-    
+
     # Generate metadata for this operation
     provider_config = settings.LLM_PROVIDERS[llm_config["provider"]]
     metadata = generate_metadata(
@@ -681,12 +700,14 @@ def evaluate(config: str = typer.Argument(..., help="Path to the configuration f
         provider=llm_config["provider"],
         base_url=provider_config["base_url"],
         command="evaluate",
-        config_file=config
+        config_file=config,
     )
-    
+
     # Initialize LLM handler
     llm_handler = LLMHandler(provider=llm_config["provider"], model=llm_config["model"])
-    typer.echo(f"Using {llm_config['provider']}/{llm_config['model']} for evaluation...")
+    typer.echo(
+        f"Using {llm_config['provider']}/{llm_config['model']} for evaluation..."
+    )
     evaluation_results = []
 
     # Evaluate each requirement
@@ -725,8 +746,10 @@ def evaluate(config: str = typer.Argument(..., help="Path to the configuration f
         "evaluation_results": evaluation_results,
         "evaluation_timestamp": str(datetime.datetime.now()),
     }
-    
-    evaluation_output_with_metadata = inject_metadata_into_json(evaluation_output, metadata)
+
+    evaluation_output_with_metadata = inject_metadata_into_json(
+        evaluation_output, metadata
+    )
 
     output_path = os.path.join(output_dir, f"{base_name}_evaluation_results.json")
     with open(output_path, "w") as f:
@@ -746,23 +769,27 @@ def evaluate(config: str = typer.Argument(..., help="Path to the configuration f
 
 
 @app.command()
-def metadata(file_path: str = typer.Argument(..., help="Path to the file to extract metadata from.")):
+def metadata(
+    file_path: str = typer.Argument(
+        ..., help="Path to the file to extract metadata from."
+    ),
+):
     """
     Extract and display metadata from a MapOSCAL output file.
-    
+
     This command shows the generation information including model, provider,
     timing, and configuration used to create the file.
     """
     if not os.path.exists(file_path):
         typer.echo(f"File not found: {file_path}")
         raise typer.Exit(code=1)
-    
+
     try:
         with open(file_path, "r") as f:
             content = f.read()
-        
+
         metadata = {}
-        
+
         # Try to extract metadata based on file type
         if file_path.endswith(".json"):
             try:
@@ -777,17 +804,17 @@ def metadata(file_path: str = typer.Argument(..., help="Path to the file to extr
             typer.echo(f"Unsupported file type: {file_path}")
             typer.echo("Supported types: .json, .md")
             raise typer.Exit(code=1)
-        
+
         if not metadata:
             typer.echo("No metadata found in file.")
             return
-        
+
         typer.echo("📋 File Metadata:")
         generation_info = metadata.get("generation_info", {})
-        
+
         for key, value in generation_info.items():
             typer.echo(f"   {key}: {value}")
-            
+
     except Exception as e:
         typer.echo(f"Error reading file: {e}")
         raise typer.Exit(code=1)
@@ -809,11 +836,11 @@ def run_all(config: str = typer.Argument(None, help="Path to the configuration f
     """
     config_data = load_config(config)
     output_dir = config_data.get("output_dir", ".oscalgen")
-    
+
     typer.echo("🚀 Starting complete MapOSCAL workflow...")
     typer.echo(f"📁 Output directory: {output_dir}")
     typer.echo("=" * 60)
-    
+
     # Step 1: Analyze
     typer.echo("\n📊 Step 1/4: Analyzing repository...")
     try:
@@ -822,7 +849,7 @@ def run_all(config: str = typer.Argument(None, help="Path to the configuration f
         auto_discover_config = config_data.get("auto_discover_config", True)
         config_files = config_data.get("config_files")
         llm_config = get_llm_config(config_data, "analyze")
-        
+
         analyzer = Analyzer(
             repo_path=repo_path,
             output_dir=output_dir,
@@ -837,45 +864,53 @@ def run_all(config: str = typer.Argument(None, help="Path to the configuration f
         typer.echo(f"❌ Analysis failed: {e}")
         typer.echo("Cannot continue without analysis. Exiting.")
         raise typer.Exit(code=1)
-    
+
     # Step 2: Summarize
     typer.echo("\n📝 Step 2/4: Generating security overview...")
     try:
         # Check if analysis files exist
         meta_path = os.path.join(output_dir, "meta.json")
         summary_meta_path = os.path.join(output_dir, "summary_meta.json")
-        
+
         if not os.path.exists(meta_path) or not os.path.exists(summary_meta_path):
             typer.echo("⚠️  Analysis files not found. Skipping summarize step.")
         else:
             # Load the analysis data to create context
             context_parts = []
             security_query = "security authentication authorization encryption logging monitoring audit data protection"
-            
+
             try:
-                relevant_chunks = get_relevant_chunks(security_query, output_dir, top_k=50)
-                
+                relevant_chunks = get_relevant_chunks(
+                    security_query, output_dir, top_k=50
+                )
+
                 for chunk in relevant_chunks:
                     if chunk.get("content"):
-                        context_parts.append(f"File: {chunk.get('source_file', 'unknown')}")
+                        context_parts.append(
+                            f"File: {chunk.get('source_file', 'unknown')}"
+                        )
                         context_parts.append(f"Content: {chunk.get('content')}")
                         context_parts.append("---")
                     elif chunk.get("summary"):
-                        context_parts.append(f"File Summary: {chunk.get('source_file', 'unknown')}")
+                        context_parts.append(
+                            f"File Summary: {chunk.get('source_file', 'unknown')}"
+                        )
                         context_parts.append(f"Summary: {chunk.get('summary')}")
                         context_parts.append("---")
             except Exception as e:
                 typer.echo(f"⚠️  Could not retrieve relevant chunks: {e}")
                 typer.echo("Falling back to loading all chunks...")
-                
+
                 # Fallback: load all chunks if FAISS search fails
                 chunks = meta_store.load_metadata(meta_path)
                 for chunk in chunks:
                     if chunk.get("content"):
-                        context_parts.append(f"File: {chunk.get('source_file', 'unknown')}")
+                        context_parts.append(
+                            f"File: {chunk.get('source_file', 'unknown')}"
+                        )
                         context_parts.append(f"Content: {chunk.get('content')}")
                         context_parts.append("---")
-                
+
                 # Add file summaries
                 summary_meta = meta_store.load_metadata(summary_meta_path)
                 for file_path, summary_data in summary_meta.items():
@@ -883,10 +918,10 @@ def run_all(config: str = typer.Argument(None, help="Path to the configuration f
                         context_parts.append(f"File Summary: {file_path}")
                         context_parts.append(f"Summary: {summary_data.get('summary')}")
                         context_parts.append("---")
-            
+
             context = "\n".join(context_parts)
             prompt = build_service_overview_prompt(context)
-            
+
             llm_config = get_llm_config(config_data, "summarize")
             provider_config = settings.LLM_PROVIDERS[llm_config["provider"]]
             metadata = generate_metadata(
@@ -894,39 +929,45 @@ def run_all(config: str = typer.Argument(None, help="Path to the configuration f
                 provider=llm_config["provider"],
                 base_url=provider_config["base_url"],
                 command="summarize",
-                config_file=config
+                config_file=config,
             )
-            
-            llm_handler = LLMHandler(provider=llm_config["provider"], model=llm_config["model"])
-            typer.echo(f"Generating service security overview using {llm_config['provider']}/{llm_config['model']}...")
+
+            llm_handler = LLMHandler(
+                provider=llm_config["provider"], model=llm_config["model"]
+            )
+            typer.echo(
+                f"Generating service security overview using {llm_config['provider']}/{llm_config['model']}..."
+            )
             response = llm_handler.query(prompt=prompt)
-            
+
             response_with_metadata = inject_metadata_into_markdown(response, metadata)
             summary_path = os.path.join(output_dir, "security_overview.md")
             with open(summary_path, "w") as f:
                 f.write(response_with_metadata)
-            
+
             typer.echo(f"✅ Security overview written to: {summary_path}")
     except Exception as e:
         typer.echo(f"❌ Summarize failed: {e}")
         typer.echo("⚠️  Continuing without security overview...")
-    
+
     # Step 3: Generate
     typer.echo("\n🔧 Step 3/4: Generating OSCAL components...")
     try:
         top_k = config_data.get("top_k", 5)
         max_critique_retries = config_data.get("max_critique_retries", 3)
-        
+
         catalog_path = config_data.get("catalog_path")
         profile_path = config_data.get("profile_path")
-        
+
         if not catalog_path or not profile_path:
-            typer.echo("❌ Both catalog_path and profile_path must be specified in the config.")
+            typer.echo(
+                "❌ Both catalog_path and profile_path must be specified in the config."
+            )
             raise typer.Exit(code=1)
-        
+
         # Extract controls from profile using catalog
         extractor = ProfileControlExtractor(catalog_path, profile_path)
-        
+
         # Get all controls from the profile
         controls_dict = {}
         for import_item in extractor.profile["profile"].get("imports", []):
@@ -940,9 +981,9 @@ def run_all(config: str = typer.Argument(None, help="Path to the configuration f
                 control_data = extractor.extract_control_parameters(import_item)
                 if control_data:
                     controls_dict[import_item] = control_data
-        
+
         typer.echo(f"Found {len(controls_dict)} controls to process")
-        
+
         # Load security overview if available
         security_overview = None
         security_overview_path = os.path.join(output_dir, "security_overview.md")
@@ -953,7 +994,7 @@ def run_all(config: str = typer.Argument(None, help="Path to the configuration f
                 typer.echo(f"Loaded security overview from {security_overview_path}")
             except Exception as e:
                 typer.echo(f"Warning: Failed to load security overview: {e}")
-        
+
         llm_config = get_llm_config(config_data, "generate")
         provider_config = settings.LLM_PROVIDERS[llm_config["provider"]]
         metadata = generate_metadata(
@@ -961,150 +1002,181 @@ def run_all(config: str = typer.Argument(None, help="Path to the configuration f
             provider=llm_config["provider"],
             base_url=provider_config["base_url"],
             command="generate",
-            config_file=config
+            config_file=config,
         )
-        
+
         # Process each control and collect implemented requirements
         implemented_requirements = []
         failed_controls = []
         unvalidated_requirements = []
         final_validation_failures = []
-        
+
         for control_id, control_data in controls_dict.items():
             if not control_data:
                 typer.echo(f"Missing control data for {control_id}. Skipping.")
                 continue
-            
+
             result = map_control(control_data, output_dir, top_k, llm_config)
-            
+
             if not isinstance(result, dict):
-                typer.echo(f"Warning: Invalid response format for control {control_id}. Skipping.")
+                typer.echo(
+                    f"Warning: Invalid response format for control {control_id}. Skipping."
+                )
                 failed_controls.append((control_id, "Invalid response format"))
                 continue
-            
+
             result["control_id"] = control_id
-            
+
             # Validate this individual requirement
-            llm_handler = LLMHandler(provider=llm_config["provider"], model=llm_config["model"])
+            llm_handler = LLMHandler(
+                provider=llm_config["provider"], model=llm_config["model"]
+            )
             is_valid = False
             final_validation_errors = []
-            
+
             for attempt in range(max_critique_retries):
                 requirement_valid, violations = validate_implemented_requirement(result)
-                
+
                 if requirement_valid:
                     is_valid = True
                     break
-                
+
                 if violations and attempt < max_critique_retries - 1:
                     llm_violations = []
                     for v in violations:
-                        llm_violations.append({
-                            "path": v.get("field", "unknown"),
-                            "issue": v.get("issue", "Unknown validation error"),
-                            "suggestion": v.get("suggestion", ""),
-                        })
-                    
-                    revise_prompt = build_revise_prompt([result], llm_violations, security_overview)
+                        llm_violations.append(
+                            {
+                                "path": v.get("field", "unknown"),
+                                "issue": v.get("issue", "Unknown validation error"),
+                                "suggestion": v.get("suggestion", ""),
+                            }
+                        )
+
+                    revise_prompt = build_revise_prompt(
+                        [result], llm_violations, security_overview
+                    )
                     revise_response = llm_handler.query(prompt=revise_prompt)
                     revised_requirement = parse_llm_response(revise_response)
-                    
-                    if isinstance(revised_requirement, list) and len(revised_requirement) == 1:
+
+                    if (
+                        isinstance(revised_requirement, list)
+                        and len(revised_requirement) == 1
+                    ):
                         result = revised_requirement[0]
                         result["control_id"] = control_id
                     else:
-                        logger.error(f"Invalid revise response format for control {control_id} on attempt {attempt + 1}")
-            
+                        logger.error(
+                            f"Invalid revise response format for control {control_id} on attempt {attempt + 1}"
+                        )
+
             if is_valid:
                 implemented_requirements.append(result)
-                typer.echo(f"✅ Successfully validated requirement for control {control_id}")
+                typer.echo(
+                    f"✅ Successfully validated requirement for control {control_id}"
+                )
             else:
                 _, final_violations = validate_implemented_requirement(result)
                 final_validation_errors = final_violations
-                
-                failed_controls.append((
-                    control_id,
-                    f"Failed validation after {max_critique_retries} attempts",
-                    final_validation_errors,
-                ))
+
+                failed_controls.append(
+                    (
+                        control_id,
+                        f"Failed validation after {max_critique_retries} attempts",
+                        final_validation_errors,
+                    )
+                )
                 unvalidated_requirements.append(result)
-                typer.echo(f"⚠️  Failed to validate requirement for control {control_id}")
-        
+                typer.echo(
+                    f"⚠️  Failed to validate requirement for control {control_id}"
+                )
+
         # Validate unique UUIDs across all requirements
         is_valid, error_msg = validate_unique_uuids(implemented_requirements)
         if not is_valid:
             logger.error(f"Duplicate UUIDs found in final output: {error_msg}")
             typer.echo(f"Warning: {error_msg}")
-            final_validation_failures.append({
-                "type": "duplicate_uuids",
-                "error": error_msg,
-                "timestamp": str(datetime.datetime.now()),
-            })
-        
+            final_validation_failures.append(
+                {
+                    "type": "duplicate_uuids",
+                    "error": error_msg,
+                    "timestamp": str(datetime.datetime.now()),
+                }
+            )
+
         # Write validation failures
         all_failures = []
         for control_id, reason, details in failed_controls:
-            all_failures.append({
-                "control_id": control_id,
-                "reason": reason,
-                "type": "individual_validation",
-                "timestamp": str(datetime.datetime.now()),
-                "details": details,
-            })
+            all_failures.append(
+                {
+                    "control_id": control_id,
+                    "reason": reason,
+                    "type": "individual_validation",
+                    "timestamp": str(datetime.datetime.now()),
+                    "details": details,
+                }
+            )
         all_failures.extend(final_validation_failures)
-        
+
         if all_failures:
             validation_failures = {"failed_controls": all_failures}
-            validation_failures_with_metadata = inject_metadata_into_json(validation_failures, metadata)
+            validation_failures_with_metadata = inject_metadata_into_json(
+                validation_failures, metadata
+            )
             failures_path = os.path.join(output_dir, "validation_failures.json")
             with open(failures_path, "w") as f:
                 json.dump(validation_failures_with_metadata, f, indent=2)
             typer.echo(f"Validation failures written to {failures_path}")
-        
+
         # Write unvalidated requirements
         if unvalidated_requirements:
             unvalidated_data = {"unvalidated_requirements": unvalidated_requirements}
-            unvalidated_data_with_metadata = inject_metadata_into_json(unvalidated_data, metadata)
+            unvalidated_data_with_metadata = inject_metadata_into_json(
+                unvalidated_data, metadata
+            )
             unvalidated_path = os.path.join(output_dir, "unvalidated_requirements.json")
             with open(unvalidated_path, "w") as f:
                 json.dump(unvalidated_data_with_metadata, f, indent=2)
             typer.echo(f"Unvalidated requirements written to {unvalidated_path}")
-        
+
         # Write implemented requirements
         output_data = {"implemented_requirements": implemented_requirements}
         output_data_with_metadata = inject_metadata_into_json(output_data, metadata)
         output_path = os.path.join(output_dir, "implemented_requirements.json")
         with open(output_path, "w") as f:
             json.dump(output_data_with_metadata, f, indent=2)
-        
+
         typer.echo(f"✅ Generated OSCAL components written to {output_path}")
-        typer.echo(f"✅ Successfully processed {len(implemented_requirements)} out of {len(controls_dict)} controls")
-        
+        typer.echo(
+            f"✅ Successfully processed {len(implemented_requirements)} out of {len(controls_dict)} controls"
+        )
+
     except Exception as e:
         typer.echo(f"❌ Generate failed: {e}")
         typer.echo("Cannot continue without generated components. Exiting.")
         raise typer.Exit(code=1)
-    
+
     # Step 4: Evaluate
     typer.echo("\n📊 Step 4/4: Evaluating generated components...")
     try:
         requirements_file = os.path.join(output_dir, "implemented_requirements.json")
-        
+
         if not os.path.exists(requirements_file):
             typer.echo(f"❌ Requirements file not found: {requirements_file}")
             typer.echo("Cannot evaluate without generated components. Exiting.")
             raise typer.Exit(code=1)
-        
+
         with open(requirements_file, "r") as f:
             data = json.load(f)
-        
+
         implemented_requirements = data.get("implemented_requirements", [])
         if not implemented_requirements:
             typer.echo("❌ No implemented_requirements found in the file.")
             raise typer.Exit(code=1)
-        
-        typer.echo(f"Evaluating {len(implemented_requirements)} implemented requirements...")
-        
+
+        typer.echo(
+            f"Evaluating {len(implemented_requirements)} implemented requirements..."
+        )
+
         llm_config = get_llm_config(config_data, "evaluate")
         provider_config = settings.LLM_PROVIDERS[llm_config["provider"]]
         metadata = generate_metadata(
@@ -1112,88 +1184,102 @@ def run_all(config: str = typer.Argument(None, help="Path to the configuration f
             provider=llm_config["provider"],
             base_url=provider_config["base_url"],
             command="evaluate",
-            config_file=config
+            config_file=config,
         )
-        
-        llm_handler = LLMHandler(provider=llm_config["provider"], model=llm_config["model"])
-        typer.echo(f"Using {llm_config['provider']}/{llm_config['model']} for evaluation...")
+
+        llm_handler = LLMHandler(
+            provider=llm_config["provider"], model=llm_config["model"]
+        )
+        typer.echo(
+            f"Using {llm_config['provider']}/{llm_config['model']} for evaluation..."
+        )
         evaluation_results = []
-        
+
         # Evaluate each requirement
         for requirement in implemented_requirements:
             control_id = requirement.get("control-id", "unknown")
             typer.echo(f"Evaluating control {control_id}...")
-            
+
             evaluate_prompt = build_evaluate_prompt(requirement)
-            
+
             try:
                 evaluation_response = llm_handler.query(prompt=evaluate_prompt)
                 evaluation_result = parse_llm_response(evaluation_response)
-                
+
                 if isinstance(evaluation_result, dict):
                     evaluation_results.append(evaluation_result)
                     typer.echo(f"✅ Evaluation completed for {control_id}")
                 else:
-                    typer.echo(f"❌ Invalid evaluation response format for {control_id}")
-                    evaluation_results.append({
-                        "control-id": control_id,
-                        "error": "Invalid evaluation response format",
-                    })
-                    
+                    typer.echo(
+                        f"❌ Invalid evaluation response format for {control_id}"
+                    )
+                    evaluation_results.append(
+                        {
+                            "control-id": control_id,
+                            "error": "Invalid evaluation response format",
+                        }
+                    )
+
             except Exception as e:
                 typer.echo(f"❌ Error evaluating {control_id}: {e}")
                 evaluation_results.append({"control-id": control_id, "error": str(e)})
-        
+
         # Write evaluation results
         base_name = "implemented_requirements"
         evaluation_output = {
             "evaluation_results": evaluation_results,
             "evaluation_timestamp": str(datetime.datetime.now()),
         }
-        
-        evaluation_output_with_metadata = inject_metadata_into_json(evaluation_output, metadata)
+
+        evaluation_output_with_metadata = inject_metadata_into_json(
+            evaluation_output, metadata
+        )
         output_path = os.path.join(output_dir, f"{base_name}_evaluation_results.json")
         with open(output_path, "w") as f:
             json.dump(evaluation_output_with_metadata, f, indent=2)
-        
+
         typer.echo(f"✅ Evaluation results written to: {output_path}")
-        
+
         # Summary
         valid_evaluations = [r for r in evaluation_results if "error" not in r]
         total_score = sum(r.get("total_score", 0) for r in valid_evaluations)
         avg_score = total_score / len(valid_evaluations) if valid_evaluations else 0
-        
-        typer.echo(f"✅ Evaluation completed: {len(valid_evaluations)}/{len(evaluation_results)} successful")
+
+        typer.echo(
+            f"✅ Evaluation completed: {len(valid_evaluations)}/{len(evaluation_results)} successful"
+        )
         typer.echo(f"📊 Average total score: {avg_score:.1f}/8.0")
-        
+
     except Exception as e:
         typer.echo(f"❌ Evaluate failed: {e}")
         typer.echo("⚠️  Continuing without evaluation...")
-    
+
     # Final summary
     typer.echo("\n" + "=" * 60)
     typer.echo("🎉 MapOSCAL workflow completed!")
     typer.echo(f"📁 All outputs saved to: {output_dir}")
     typer.echo("\nGenerated files:")
-    
+
     files_to_check = [
         "meta.json",
-        "summary_meta.json", 
+        "summary_meta.json",
         "security_overview.md",
         "implemented_requirements.json",
         "validation_failures.json",
         "unvalidated_requirements.json",
-        "implemented_requirements_evaluation_results.json"
+        "implemented_requirements_evaluation_results.json",
     ]
-    
+
     for filename in files_to_check:
         file_path = os.path.join(output_dir, filename)
         if os.path.exists(file_path):
             typer.echo(f"  ✅ {filename}")
         else:
             typer.echo(f"  ❌ {filename} (not generated)")
-    
-    typer.echo("\n🚀 Workflow complete! Review the generated files for your OSCAL components.")
+
+    typer.echo(
+        "\n🚀 Workflow complete! Review the generated files for your OSCAL components."
+    )
 
 
 if __name__ == "__main__":

@@ -115,7 +115,7 @@ class Analyzer:
         self.chunks = []
         self.file_summaries = {}
         self.config_files = []
-        
+
         # Store LLM configuration
         self.llm_config = llm_config
 
@@ -147,7 +147,7 @@ class Analyzer:
         logger.debug(f"Saving metadata to: {meta_path}")
 
         faiss_index.save_index(index, index_path)
-        
+
         # Generate metadata for this operation
         if self.llm_config:
             provider_config = settings.LLM_PROVIDERS[self.llm_config["provider"]]
@@ -155,10 +155,12 @@ class Analyzer:
                 model=self.llm_config["model"],
                 provider=self.llm_config["provider"],
                 base_url=provider_config["base_url"],
-                command="analyze"
+                command="analyze",
             )
             # Inject metadata into chunks data
-            chunks_with_metadata = inject_metadata_into_json({"chunks": self.chunks}, metadata)
+            chunks_with_metadata = inject_metadata_into_json(
+                {"chunks": self.chunks}, metadata
+            )
             meta_store.save_metadata(chunks_with_metadata, meta_path)
         else:
             meta_store.save_metadata(self.chunks, meta_path)
@@ -184,7 +186,9 @@ class Analyzer:
 
         # Use provided LLM config or fall back to defaults
         if self.llm_config:
-            llm_handler = LLMHandler(provider=self.llm_config["provider"], model=self.llm_config["model"])
+            llm_handler = LLMHandler(
+                provider=self.llm_config["provider"], model=self.llm_config["model"]
+            )
         else:
             llm_handler = LLMHandler(command="analyze")
 
@@ -240,8 +244,10 @@ class Analyzer:
                 file_inspector_results = None
                 try:
                     logger.info(f"Beginning rules-based inspection of {file_path}")
-                    file_inspector_results = rules.begin_inspection(str(file_path), str(self.repo_path))
-                        
+                    file_inspector_results = rules.begin_inspection(
+                        str(file_path), str(self.repo_path)
+                    )
+
                 except Exception:
                     logger.error(
                         f"Failed to perform inspection on {str(file_path)} - {format_exc()}"
@@ -273,7 +279,7 @@ class Analyzer:
                 summary = llm_handler.query(prompt=prompt)
                 vec = local_embedder.embed_one(summary)
                 vectors.append(vec)
-                
+
                 # Use relative path as key instead of absolute path
                 relative_path = str(file_path.relative_to(self.repo_path))
                 summary_meta[relative_path] = {
@@ -298,7 +304,7 @@ class Analyzer:
             logger.debug(f"Saving summary metadata to: {summary_meta_path}")
 
             faiss_index.save_index(summary_index, summary_index_path)
-            
+
             # Generate metadata for summary operation
             if self.llm_config:
                 provider_config = settings.LLM_PROVIDERS[self.llm_config["provider"]]
@@ -306,10 +312,12 @@ class Analyzer:
                     model=self.llm_config["model"],
                     provider=self.llm_config["provider"],
                     base_url=provider_config["base_url"],
-                    command="analyze"
+                    command="analyze",
                 )
                 # Inject metadata into summary data
-                summary_with_metadata = inject_metadata_into_json(summary_meta, metadata)
+                summary_with_metadata = inject_metadata_into_json(
+                    summary_meta, metadata
+                )
                 meta_store.save_metadata(summary_with_metadata, summary_meta_path)
             else:
                 meta_store.save_metadata(summary_meta, summary_meta_path)

@@ -38,6 +38,7 @@ def start_inspection(file_path, base_dir=None):
     if base_dir:
         try:
             from pathlib import Path
+
             file_path_obj = Path(file_path)
             base_path_obj = Path(base_dir)
             if file_path_obj.is_relative_to(base_path_obj):
@@ -199,7 +200,7 @@ def summarize_discovery_content(golang_inspection_results):
 
     file_summary = dedent(
         f"""\
-        The file {golang_inspection_results['file_path']} is written in {golang_inspection_results['language']}. \
+        The file {golang_inspection_results["file_path"]} is written in {golang_inspection_results["language"]}. \
 {networking_results} \
 {file_system_results} \
 {logging_results} \
@@ -209,8 +210,6 @@ def summarize_discovery_content(golang_inspection_results):
     )
 
     return file_summary
-
-
 
 
 def identify_imported_configuration_variables(

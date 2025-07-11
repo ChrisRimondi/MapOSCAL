@@ -6,32 +6,32 @@ This modules is only intended for the storage of various global settings.
 LLM_PROVIDERS = {
     "openai": {
         "base_url": "https://api.openai.com/v1",
-        "api_key_env": "OPENAI_API_KEY"
+        "api_key_env": "OPENAI_API_KEY",
     },
     "gemini": {
         "base_url": "https://generativelanguage.googleapis.com/v1beta/openai/",
-        "api_key_env": "GEMINI_API_KEY"
-    }
+        "api_key_env": "GEMINI_API_KEY",
+    },
 }
 
 # Default LLM configurations for each command
 DEFAULT_LLM_CONFIGS = {
     "analyze": {
         "provider": "openai",
-        "model": "gpt-4.1-mini"  # Fast, cost-effective for analysis
+        "model": "gpt-4.1-mini",  # Fast, cost-effective for analysis
     },
     "summarize": {
         "provider": "openai",
-        "model": "gpt-4.1"  # High quality for summaries
+        "model": "gpt-4.1",  # High quality for summaries
     },
     "generate": {
         "provider": "openai",
-        "model": "gpt-4.1"  # High quality for OSCAL generation
+        "model": "gpt-4.1",  # High quality for OSCAL generation
     },
     "evaluate": {
         "provider": "openai",
-        "model": "gpt-4.1"  # High quality for evaluation
-    }
+        "model": "gpt-4.1",  # High quality for evaluation
+    },
 }
 
 # Legacy settings for backward compatibility

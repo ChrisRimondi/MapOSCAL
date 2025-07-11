@@ -2,10 +2,6 @@
 Tests for metadata utilities.
 """
 
-import pytest
-import json
-from datetime import datetime
-from unittest.mock import patch
 from maposcal.utils.metadata import (
     generate_metadata,
     inject_metadata_into_json,
@@ -22,9 +18,9 @@ class TestGenerateMetadata:
             model="gpt-4",
             provider="openai",
             base_url="https://api.openai.com/v1",
-            command="generate"
+            command="generate",
         )
-        
+
         assert "generation_info" in metadata
         info = metadata["generation_info"]
         assert info["model"] == "gpt-4"
@@ -42,9 +38,9 @@ class TestGenerateMetadata:
             provider="gemini",
             base_url="https://generativelanguage.googleapis.com/v1beta/openai/",
             command="analyze",
-            config_file="config.yaml"
+            config_file="config.yaml",
         )
-        
+
         info = metadata["generation_info"]
         assert info["model"] == "gemini-2.5-flash"
         assert info["provider"] == "gemini"
@@ -57,9 +53,9 @@ class TestGenerateMetadata:
             provider="openai",
             base_url="https://api.openai.com/v1",
             command="evaluate",
-            version="2.0.0"
+            version="2.0.0",
         )
-        
+
         assert metadata["generation_info"]["version"] == "2.0.0"
 
     def test_generate_metadata_default_version(self):
@@ -68,9 +64,9 @@ class TestGenerateMetadata:
             model="gpt-4",
             provider="openai",
             base_url="https://api.openai.com/v1",
-            command="evaluate"
+            command="evaluate",
         )
-        
+
         # Should use the package version from __init__.py
         assert metadata["generation_info"]["version"] == "0.1.0"
 
@@ -83,11 +79,11 @@ class TestInjectMetadataIntoJson:
             model="gpt-4",
             provider="openai",
             base_url="https://api.openai.com/v1",
-            command="generate"
+            command="generate",
         )
-        
+
         result = inject_metadata_into_json(data, metadata)
-        
+
         assert "_metadata" in result
         assert result["_metadata"] == metadata
         assert "implemented_requirements" in result
@@ -100,11 +96,11 @@ class TestInjectMetadataIntoJson:
             model="gpt-4",
             provider="openai",
             base_url="https://api.openai.com/v1",
-            command="generate"
+            command="generate",
         )
-        
+
         result = inject_metadata_into_json(data, metadata)
-        
+
         # Original data should not be modified
         assert data == {"key": "value"}
         # Result should have both original data and metadata
@@ -116,19 +112,19 @@ class TestInjectMetadataIntoJson:
         data = {
             "validation_failures": [
                 {"control_id": "AC-1", "reason": "Missing field"},
-                {"control_id": "AC-2", "reason": "Invalid format"}
+                {"control_id": "AC-2", "reason": "Invalid format"},
             ],
-            "summary": {"total": 2, "passed": 0}
+            "summary": {"total": 2, "passed": 0},
         }
         metadata = generate_metadata(
             model="gpt-4",
             provider="openai",
             base_url="https://api.openai.com/v1",
-            command="generate"
+            command="generate",
         )
-        
+
         result = inject_metadata_into_json(data, metadata)
-        
+
         assert result["_metadata"] == metadata
         assert result["validation_failures"] == data["validation_failures"]
         assert result["summary"] == data["summary"]
@@ -142,11 +138,11 @@ class TestInjectMetadataIntoMarkdown:
             model="gpt-4",
             provider="openai",
             base_url="https://api.openai.com/v1",
-            command="summarize"
+            command="summarize",
         )
-        
+
         result = inject_metadata_into_markdown(content, metadata)
-        
+
         assert result.startswith("<!--\nmetadata:")
         assert result.endswith("\n\n# Security Overview\n\nThis is the content.")
         assert "model: gpt-4" in result
@@ -160,11 +156,11 @@ class TestInjectMetadataIntoMarkdown:
             model="gpt-4",
             provider="openai",
             base_url="https://api.openai.com/v1",
-            command="summarize"
+            command="summarize",
         )
-        
+
         result = inject_metadata_into_markdown(content, metadata)
-        
+
         assert content in result
         assert result.endswith(content)
 
@@ -176,20 +172,20 @@ class TestInjectMetadataIntoMarkdown:
             base_url="https://generativelanguage.googleapis.com/v1beta/openai/",
             command="analyze",
             config_file="config.yaml",
-            version="1.5.0"
+            version="1.5.0",
         )
-        
+
         result = inject_metadata_into_markdown("content", metadata)
-        
+
         expected_fields = [
             "model: gemini-2.5-flash",
             "provider: gemini",
             "base_url: https://generativelanguage.googleapis.com/v1beta/openai/",
             "command: analyze",
             "config_file: config.yaml",
-            "version: 1.5.0"
+            "version: 1.5.0",
         ]
-        
+
         for field in expected_fields:
             assert field in result
 
@@ -201,31 +197,31 @@ class TestExtractMetadataFromJson:
             model="gpt-4",
             provider="openai",
             base_url="https://api.openai.com/v1",
-            command="generate"
+            command="generate",
         )
         data = {
             "_metadata": metadata,
-            "implemented_requirements": [{"control-id": "AC-1"}]
+            "implemented_requirements": [{"control-id": "AC-1"}],
         }
-        
+
         extracted = extract_metadata_from_json(data)
-        
+
         assert extracted == metadata
 
     def test_extract_metadata_from_json_without_metadata(self):
         """Test extracting metadata from JSON without metadata."""
         data = {"implemented_requirements": [{"control-id": "AC-1"}]}
-        
+
         extracted = extract_metadata_from_json(data)
-        
+
         assert extracted == {}
 
     def test_extract_metadata_from_json_empty(self):
         """Test extracting metadata from empty JSON."""
         data = {}
-        
+
         extracted = extract_metadata_from_json(data)
-        
+
         assert extracted == {}
 
 
@@ -246,9 +242,9 @@ metadata:
 # Security Overview
 
 This is the content."""
-        
+
         extracted = extract_metadata_from_markdown(content)
-        
+
         assert "generation_info" in extracted
         info = extracted["generation_info"]
         assert info["model"] == "gpt-4"
@@ -261,17 +257,17 @@ This is the content."""
     def test_extract_metadata_from_markdown_without_metadata(self):
         """Test extracting metadata from markdown without metadata."""
         content = "# Security Overview\n\nThis is the content."
-        
+
         extracted = extract_metadata_from_markdown(content)
-        
+
         assert extracted == {}
 
     def test_extract_metadata_from_markdown_empty(self):
         """Test extracting metadata from empty markdown."""
         content = ""
-        
+
         extracted = extract_metadata_from_markdown(content)
-        
+
         assert extracted == {}
 
     def test_extract_metadata_from_markdown_malformed(self):
@@ -283,9 +279,9 @@ metadata:
 -->
 
 # Content"""
-        
+
         extracted = extract_metadata_from_markdown(content)
-        
+
         # Should still extract what it can
         assert "generation_info" in extracted
         info = extracted["generation_info"]
@@ -300,9 +296,9 @@ metadata:
   provider: openai
 
 # Content"""
-        
+
         extracted = extract_metadata_from_markdown(content)
-        
+
         # Should handle gracefully
         assert extracted == {}
 
@@ -315,15 +311,15 @@ class TestMetadataIntegration:
             model="gpt-4",
             provider="openai",
             base_url="https://api.openai.com/v1",
-            command="generate"
+            command="generate",
         )
-        
+
         # Inject metadata
         data_with_metadata = inject_metadata_into_json(original_data, metadata)
-        
+
         # Extract metadata
         extracted_metadata = extract_metadata_from_json(data_with_metadata)
-        
+
         # Verify
         assert extracted_metadata == metadata
         assert data_with_metadata["requirements"] == original_data["requirements"]
@@ -335,16 +331,24 @@ class TestMetadataIntegration:
             model="gpt-4",
             provider="openai",
             base_url="https://api.openai.com/v1",
-            command="summarize"
+            command="summarize",
         )
-        
+
         # Inject metadata
-        content_with_metadata = inject_metadata_into_markdown(original_content, metadata)
-        
+        content_with_metadata = inject_metadata_into_markdown(
+            original_content, metadata
+        )
+
         # Extract metadata
         extracted_metadata = extract_metadata_from_markdown(content_with_metadata)
-        
+
         # Verify
-        assert extracted_metadata["generation_info"]["model"] == metadata["generation_info"]["model"]
-        assert extracted_metadata["generation_info"]["provider"] == metadata["generation_info"]["provider"]
-        assert original_content in content_with_metadata 
+        assert (
+            extracted_metadata["generation_info"]["model"]
+            == metadata["generation_info"]["model"]
+        )
+        assert (
+            extracted_metadata["generation_info"]["provider"]
+            == metadata["generation_info"]["provider"]
+        )
+        assert original_content in content_with_metadata

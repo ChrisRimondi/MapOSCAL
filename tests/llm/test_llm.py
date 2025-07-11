@@ -80,7 +80,9 @@ class TestLLMHandler:
 
     @patch("maposcal.llm.llm_handler.OpenAI")
     @patch("maposcal.llm.llm_handler.tiktoken")
-    @patch.dict(os.environ, {"OPENAI_API_KEY": "sk-test-key", "GEMINI_API_KEY": "AIza-test-key"})
+    @patch.dict(
+        os.environ, {"OPENAI_API_KEY": "sk-test-key", "GEMINI_API_KEY": "AIza-test-key"}
+    )
     def test_llm_handler_openai_provider(self, mock_tiktoken, mock_openai):
         """Test LLMHandler with OpenAI provider."""
         mock_encoding = MagicMock()
@@ -90,14 +92,13 @@ class TestLLMHandler:
         mock_openai.return_value = mock_client
 
         handler = LLMHandler(provider="openai", model="gpt-4")
-        
+
         assert handler.provider == "openai"
         assert handler.model == "gpt-4"
         assert handler.base_url == "https://api.openai.com/v1"
         assert handler.api_key_env == "OPENAI_API_KEY"
         mock_openai.assert_called_with(
-            api_key="sk-test-key",
-            base_url="https://api.openai.com/v1"
+            api_key="sk-test-key", base_url="https://api.openai.com/v1"
         )
 
     @patch("maposcal.llm.llm_handler.OpenAI")
@@ -112,14 +113,17 @@ class TestLLMHandler:
         mock_openai.return_value = mock_client
 
         handler = LLMHandler(provider="gemini", model="gemini-2.5-flash")
-        
+
         assert handler.provider == "gemini"
         assert handler.model == "gemini-2.5-flash"
-        assert handler.base_url == "https://generativelanguage.googleapis.com/v1beta/openai/"
+        assert (
+            handler.base_url
+            == "https://generativelanguage.googleapis.com/v1beta/openai/"
+        )
         assert handler.api_key_env == "GEMINI_API_KEY"
         mock_openai.assert_called_with(
             api_key="AIza-test-key",
-            base_url="https://generativelanguage.googleapis.com/v1beta/openai/"
+            base_url="https://generativelanguage.googleapis.com/v1beta/openai/",
         )
 
     @patch("maposcal.llm.llm_handler.OpenAI")
@@ -136,10 +140,9 @@ class TestLLMHandler:
         handler = LLMHandler(command="generate")
         
         assert handler.provider == "openai"
-        assert handler.model == "gpt-4"
+        assert handler.model == "gpt-4.1"
         mock_openai.assert_called_with(
-            api_key="sk-test-key",
-            base_url="https://api.openai.com/v1"
+            api_key="sk-test-key", base_url="https://api.openai.com/v1"
         )
 
     @patch("maposcal.llm.llm_handler.OpenAI")
@@ -153,25 +156,27 @@ class TestLLMHandler:
         mock_client = MagicMock()
         mock_openai.return_value = mock_client
 
-        with patch.dict(os.environ, {"OPENAI_BASE_URL": "https://custom.openai.com/v1"}):
-            handler = LLMHandler(provider="openai", model="gpt-4")
-            
+        with patch.dict(
+            os.environ, {"OPENAI_BASE_URL": "https://custom.openai.com/v1"}
+        ):
+            LLMHandler(provider="openai", model="gpt-4")
+
             mock_openai.assert_called_with(
-                api_key="sk-test-key",
-                base_url="https://custom.openai.com/v1"
+                api_key="sk-test-key", base_url="https://custom.openai.com/v1"
             )
 
     @patch("maposcal.llm.llm_handler.OpenAI")
     @patch("maposcal.llm.llm_handler.tiktoken")
-    @patch.dict(os.environ, {})
     def test_llm_handler_missing_api_key(self, mock_tiktoken, mock_openai):
         """Test LLMHandler with missing API key."""
         mock_encoding = MagicMock()
         mock_encoding.encode.return_value = [1, 2]
         mock_tiktoken.get_encoding.return_value = mock_encoding
 
-        with pytest.raises(ValueError, match="No API key found for openai"):
-            LLMHandler(provider="openai", model="gpt-4")
+        # Clear the environment completely for this test
+        with patch.dict(os.environ, {}, clear=True):
+            with pytest.raises(ValueError, match="No API key found for openai"):
+                LLMHandler(provider="openai", model="gpt-4")
 
     def test_llm_handler_invalid_provider(self):
         """Test LLMHandler with invalid provider."""

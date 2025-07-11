@@ -355,9 +355,9 @@ class TestProfileControlExtractor:
         """Test control parameter extraction for parameter with prose field."""
         # Modify catalog to add prose to parameter
         prose_catalog = sample_catalog.copy()
-        prose_catalog["catalog"]["controls"][0]["params"][0][
-            "prose"
-        ] = "Default prose value"
+        prose_catalog["catalog"]["controls"][0]["params"][0]["prose"] = (
+            "Default prose value"
+        )
 
         with tempfile.TemporaryDirectory() as temp_dir:
             catalog_path = Path(temp_dir) / "catalog.json"

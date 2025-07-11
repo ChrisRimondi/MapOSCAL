@@ -232,9 +232,7 @@ Return only valid, minified JSON.
 )
 
 # New simplified content generation prompt
-CONTENT_GENERATION_SYSTEM = (
-    "You are a security compliance expert analyzing control implementation based on code evidence."
-)
+CONTENT_GENERATION_SYSTEM = "You are a security compliance expert analyzing control implementation based on code evidence."
 
 CONTENT_GENERATION_INSTRUCTIONS = dedent(
     """
@@ -528,7 +526,7 @@ def build_content_generation_prompt(
         instructions=instructions,
         security_overview_section=security_overview_section,
     )
-    
+
     body = ""
     for c in evidence_chunks:
         body += CHUNK_BULLET.format(
@@ -540,7 +538,7 @@ def build_content_generation_prompt(
                 :800
             ],  # protect context length
         )
-    
+
     return header + body + CONTENT_GENERATION_PROMPT_FOOTER
 
 

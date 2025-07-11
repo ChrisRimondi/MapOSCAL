@@ -38,21 +38,27 @@ import uuid
 logger = logging.getLogger()
 
 
-def create_control_template(control_id: str, control_name: str, control_description: str, main_uuid: str, statement_uuid: str) -> dict:
+def create_control_template(
+    control_id: str,
+    control_name: str,
+    control_description: str,
+    main_uuid: str,
+    statement_uuid: str,
+) -> dict:
     """
     Create a complete OSCAL template with all required structural elements.
-    
+
     This function creates a template that ensures all required OSCAL fields are present
     with correct UUIDs and control-ids, reducing the burden on the LLM to generate
     complex JSON structures.
-    
+
     Args:
         control_id: The OSCAL control ID (e.g., "AC-1")
         control_name: Human-readable name of the control
         control_description: The control description/statement
         main_uuid: UUID for the main control
         statement_uuid: UUID for the control statement
-        
+
     Returns:
         dict: Complete OSCAL template with all required structural elements
     """
@@ -63,133 +69,141 @@ def create_control_template(control_id: str, control_name: str, control_descript
             {
                 "name": "control-status",
                 "value": "applicable and not satisfied",  # Default fallback
-                "ns": "urn:maposcal:control-status-reference"
+                "ns": "urn:maposcal:control-status-reference",
             },
             {
-                "name": "control-name", 
+                "name": "control-name",
                 "value": control_name,
-                "ns": "urn:maposcal:control-name-reference"
+                "ns": "urn:maposcal:control-name-reference",
             },
             {
                 "name": "control-description",
                 "value": control_description,
-                "ns": "urn:maposcal:control-description-reference"
+                "ns": "urn:maposcal:control-description-reference",
             },
             {
                 "name": "control-explanation",
                 "value": "",  # LLM fills this
-                "ns": "urn:maposcal:explanation-reference"
+                "ns": "urn:maposcal:explanation-reference",
             },
             {
                 "name": "control-configuration",
                 "value": [],  # LLM fills this
-                "ns": "urn:maposcal:configuration-reference"
-            }
+                "ns": "urn:maposcal:configuration-reference",
+            },
         ],
         "annotations": [
             {
                 "name": "source-code-reference",
                 "value": [],  # Will be populated based on evidence
-                "ns": "urn:maposcal:source-code-reference"
+                "ns": "urn:maposcal:source-code-reference",
             }
         ],
         "statements": [
             {
                 "statement-id": f"{control_id}_smt.a",
                 "uuid": statement_uuid,
-                "description": ""  # LLM fills this
+                "description": "",  # LLM fills this
             }
-        ]
+        ],
     }
 
 
-def merge_llm_content(template: dict, llm_content: dict, relevant_chunks: List[dict]) -> dict:
+def merge_llm_content(
+    template: dict, llm_content: dict, relevant_chunks: List[dict]
+) -> dict:
     """
     Merge LLM-generated content into the OSCAL template.
-    
+
     This function takes the LLM-generated content and merges it into the structural
     template, ensuring all required fields are present and properly formatted.
-    
+
     Args:
         template: The OSCAL template with structural elements
         llm_content: LLM-generated content dictionary
         relevant_chunks: List of evidence chunks for source code references
-        
+
     Returns:
         dict: Complete OSCAL control mapping with merged content
     """
     result = template.copy()
-    
+
     # Update control-status
     for prop in result["props"]:
         if prop["name"] == "control-status":
-            prop["value"] = llm_content.get("control-status", "applicable and not satisfied")
+            prop["value"] = llm_content.get(
+                "control-status", "applicable and not satisfied"
+            )
         elif prop["name"] == "control-explanation":
             prop["value"] = llm_content.get("control-explanation", "")
         elif prop["name"] == "control-configuration":
             prop["value"] = llm_content.get("control-configuration", [])
-    
+
     # Update statement description
     if result.get("statements"):
-        result["statements"][0]["description"] = llm_content.get("statement-description", "")
-    
+        result["statements"][0]["description"] = llm_content.get(
+            "statement-description", ""
+        )
+
     # Update source code references based on evidence chunks
     source_files = set()
     for chunk in relevant_chunks:
         if "source_file" in chunk:
             source_files.add(chunk["source_file"])
-    
+
     for annotation in result["annotations"]:
         if annotation["name"] == "source-code-reference":
             annotation["value"] = list(source_files)
-    
+
     return result
 
 
 def validate_content_quality(llm_content: dict) -> tuple[bool, List[str]]:
     """
     Validate the quality of LLM-generated content.
-    
+
     This function performs content-specific validation to ensure the LLM
     has provided meaningful content for required fields.
-    
+
     Args:
         llm_content: LLM-generated content dictionary
-        
+
     Returns:
         tuple: (is_valid, list_of_issues) where is_valid is boolean
                and list_of_issues contains specific content problems
     """
     issues = []
-    
+
     # Check control-status
     control_status = llm_content.get("control-status", "")
     if not control_status:
         issues.append("Missing control-status")
     elif control_status not in [
         "applicable and inherently satisfied",
-        "applicable but only satisfied through configuration", 
+        "applicable but only satisfied through configuration",
         "applicable but partially satisfied",
         "applicable and not satisfied",
-        "not applicable"
+        "not applicable",
     ]:
         issues.append(f"Invalid control-status: {control_status}")
-    
+
     # Check control-explanation
     control_explanation = llm_content.get("control-explanation", "")
     if not control_explanation or len(control_explanation.strip()) < 10:
         issues.append("Control explanation is too short or missing")
-    
+
     # Check statement description
     statement_description = llm_content.get("statement-description", "")
     if not statement_description or len(statement_description.strip()) < 10:
         issues.append("Statement description is too short or missing")
-    
+
     # Check configuration consistency
     control_configuration = llm_content.get("control-configuration", [])
     if "configuration" in control_status.lower() and not control_configuration:
-        issues.append("Control status indicates configuration but no configuration provided")
-    
+        issues.append(
+            "Control status indicates configuration but no configuration provided"
+        )
+
     return len(issues) == 0, issues
 
 
@@ -241,13 +255,13 @@ def get_relevant_chunks(
         )
     index = faiss_index.load_index(index_path)
     meta_data = meta_store.load_metadata(meta_path)
-    
+
     # Handle new metadata structure (with _metadata) or old structure (direct list)
     if isinstance(meta_data, dict) and "chunks" in meta_data:
         meta = meta_data["chunks"]
     else:
         meta = meta_data
-    
+
     chunk_indices, _ = faiss_index.search_index(index, query_embedding, k=top_k)
     chunk_results = [
         meta_store.get_chunk_by_index(meta, idx)
@@ -262,13 +276,15 @@ def get_relevant_chunks(
     if summary_index_path.exists() and summary_meta_path.exists():
         summary_index = faiss_index.load_index(summary_index_path)
         summary_meta_data = meta_store.load_metadata(summary_meta_path)
-        
+
         # Handle new metadata structure (with _metadata) or old structure (direct dict)
         if isinstance(summary_meta_data, dict) and "_metadata" in summary_meta_data:
-            summary_meta = {k: v for k, v in summary_meta_data.items() if k != "_metadata"}
+            summary_meta = {
+                k: v for k, v in summary_meta_data.items() if k != "_metadata"
+            }
         else:
             summary_meta = summary_meta_data
-            
+
         summary_indices, _ = faiss_index.search_index(
             summary_index, query_embedding, k=top_k
         )
@@ -297,13 +313,15 @@ def get_relevant_chunks(
         # Check summary metadata for control hints
         if summary_meta_path.exists():
             summary_meta_data = meta_store.load_metadata(summary_meta_path)
-            
+
             # Handle new metadata structure (with _metadata) or old structure (direct dict)
             if isinstance(summary_meta_data, dict) and "_metadata" in summary_meta_data:
-                summary_meta = {k: v for k, v in summary_meta_data.items() if k != "_metadata"}
+                summary_meta = {
+                    k: v for k, v in summary_meta_data.items() if k != "_metadata"
+                }
             else:
                 summary_meta = summary_meta_data
-                
+
             for file_path, summary_data in summary_meta.items():
                 # Check if this is a file path entry (not a vector_id)
                 # Since we now use relative paths, we check if it's not a numeric string
@@ -344,7 +362,9 @@ def get_relevant_chunks(
     return unique_relevant_chunks
 
 
-def map_control(control_dict: dict, output_dir: str, top_k: int = 5, llm_config: dict = None) -> dict:
+def map_control(
+    control_dict: dict, output_dir: str, top_k: int = 5, llm_config: dict = None
+) -> dict:
     """
     Maps chunks to an OSCAL control using template-based generation with LLM content injection.
 
@@ -374,10 +394,12 @@ def map_control(control_dict: dict, output_dir: str, top_k: int = 5, llm_config:
         - Comprehensive retry logic for content-specific issues
     """
     logger.info(f"Mapping control: {control_dict['id']} - {control_dict['title']}")
-    
+
     # Use provided LLM config or fall back to defaults
     if llm_config:
-        llm_handler = LLMHandler(provider=llm_config["provider"], model=llm_config["model"])
+        llm_handler = LLMHandler(
+            provider=llm_config["provider"], model=llm_config["model"]
+        )
     else:
         llm_handler = LLMHandler(command="generate")
 
@@ -409,12 +431,18 @@ def map_control(control_dict: dict, output_dir: str, top_k: int = 5, llm_config:
             if placeholder in control_description:
                 # Replace with resolved values if available
                 if param.get("resolved-values"):
-                    resolved_value = param["resolved-values"][0]  # Take the first resolved value
-                    control_description = control_description.replace(placeholder, resolved_value)
+                    resolved_value = param["resolved-values"][
+                        0
+                    ]  # Take the first resolved value
+                    control_description = control_description.replace(
+                        placeholder, resolved_value
+                    )
                 # If no resolved values, use the prose
                 elif param.get("prose"):
                     prose_value = param["prose"][0]  # Take the first prose value
-                    control_description = control_description.replace(placeholder, prose_value)
+                    control_description = control_description.replace(
+                        placeholder, prose_value
+                    )
 
             # Collect prose for additional context
             if param.get("prose"):
@@ -435,67 +463,77 @@ def map_control(control_dict: dict, output_dir: str, top_k: int = 5, llm_config:
     statement_uuid = str(uuid.uuid4())
     template = create_control_template(
         control_dict["id"],
-        control_dict["title"], 
+        control_dict["title"],
         control_description,
         main_uuid,
-        statement_uuid
+        statement_uuid,
     )
 
     # Try up to 3 times to get valid content
     max_retries = 3
     for attempt in range(max_retries):
         logger.info(f"Attempt {attempt + 1} for control {control_dict['id']}")
-        
+
         # Generate content with simplified prompt
         content_prompt = prompt_templates.build_content_generation_prompt(
             control_dict["id"],
             control_dict["title"],
             control_description,
             relevant_chunks,
-            security_overview
+            security_overview,
         )
-        
+
         response = llm_handler.query(prompt=content_prompt)
         llm_content = parse_llm_response(response)
-        
+
         # Validate content quality
         if isinstance(llm_content, dict):
             content_valid, content_issues = validate_content_quality(llm_content)
-            
+
             if content_valid:
                 # Merge content into template
                 result = merge_llm_content(template, llm_content, relevant_chunks)
-                
+
                 # Final validation of the complete structure
                 is_valid, error_msg = validate_control_mapping(result)
                 if is_valid:
-                    logger.info(f"Successfully generated control mapping for {control_dict['id']}")
+                    logger.info(
+                        f"Successfully generated control mapping for {control_dict['id']}"
+                    )
                     return result
                 else:
-                    logger.warning(f"Structural validation failed for {control_dict['id']}: {error_msg}")
+                    logger.warning(
+                        f"Structural validation failed for {control_dict['id']}: {error_msg}"
+                    )
                     # This shouldn't happen with template-based approach, but log it
                     content_issues.append(f"Structural validation error: {error_msg}")
-            
+
             # If content validation failed and we have retries left, try again with error feedback
             if attempt < max_retries - 1 and not content_valid:
-                error_prompt = f"Content validation failed. Please fix the following issues:\n"
+                error_prompt = (
+                    "Content validation failed. Please fix the following issues:\n"
+                )
                 error_prompt += "\n".join(f"- {issue}" for issue in content_issues)
                 error_prompt += "\n\nPlease regenerate the content with the following requirements:\n"
-                error_prompt += "- Provide a valid control-status from the allowed values\n"
-                error_prompt += "- Write detailed explanations (at least 10 characters)\n"
+                error_prompt += (
+                    "- Provide a valid control-status from the allowed values\n"
+                )
+                error_prompt += (
+                    "- Write detailed explanations (at least 10 characters)\n"
+                )
                 error_prompt += "- Include configuration details if status contains 'configuration'\n"
                 error_prompt += "- Provide meaningful statement descriptions\n\n"
                 error_prompt += "Original prompt:\n" + content_prompt
-                
+
                 response = llm_handler.query(prompt=error_prompt)
                 continue
-        
+
         # If we're out of retries, log the error and return the template with default content
         logger.error(
             f"Failed to generate valid content for control {control_dict['id']} after {max_retries} attempts. "
             f"Last content issues: {content_issues if 'content_issues' in locals() else 'Unknown'}"
         )
-        
+
         # Return template with default content as fallback
         return template
 
