@@ -1,7 +1,5 @@
 import pytest
-import json
 from pathlib import Path
-from unittest.mock import patch, MagicMock
 from maposcal.analyzer import chunker
 from maposcal.analyzer.analyzer import Analyzer
 import tempfile
