@@ -8,16 +8,20 @@ This module provides the main CLI commands for analyzing repositories,
 generating security overviews, creating OSCAL components, and evaluating existing components.
 
 Commands:
+- run-all: Execute the complete MapOSCAL workflow (analyze → summarize → generate → evaluate)
 - analyze: Analyze a repository and generate initial OSCAL definitions
 - summarize: Generate comprehensive security overview of the service
 - generate: Generate validated OSCAL components with comprehensive validation and security context
 - evaluate: Evaluate the quality of existing OSCAL components using AI assessment
+- metadata: Extract and display metadata from MapOSCAL output files
 
 Key Features:
+- Complete workflow automation with the run-all command
 - Security overview integration for improved control mapping accuracy
 - Comprehensive validation with automatic fixes and LLM-assisted resolution
 - Quality evaluation with detailed scoring and recommendations
 - Simplified file naming without service prefixes
+- Progress reporting and error handling throughout the pipeline
 
 The CLI uses Typer for command-line argument parsing and provides
 comprehensive error handling, progress reporting, and output generation.

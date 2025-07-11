@@ -207,15 +207,27 @@ llm:
 
 ### Commands
 
-The tool provides four main commands:
+The tool provides five main commands:
 
-1. **Analyze Repository**
+1. **Run Complete Workflow**
+```bash
+maposcal run-all config.yaml
+```
+This command executes the complete MapOSCAL workflow in the proper sequence:
+- **Step 1**: Analyze repository and generate initial OSCAL definitions
+- **Step 2**: Generate security overview for improved control mapping
+- **Step 3**: Create validated OSCAL components with comprehensive validation
+- **Step 4**: Evaluate the quality of generated components
+
+The command provides progress updates and continues through the pipeline even if individual steps encounter non-critical issues. This is the recommended way to run MapOSCAL for most use cases.
+
+2. **Analyze Repository**
 ```bash
 maposcal analyze config.yaml
 ```
 This command analyzes your repository and generates initial OSCAL component definitions.
 
-2. **Generate Security Overview**
+3. **Generate Security Overview**
 ```bash
 maposcal summarize config.yaml
 ```
@@ -227,7 +239,7 @@ This command generates a comprehensive security overview of the service, includi
 
 The security overview is used as reference context for improved control mapping accuracy.
 
-3. **Generate OSCAL Component**
+4. **Generate OSCAL Component**
 ```bash
 maposcal generate config.yaml
 ```
@@ -238,25 +250,21 @@ This command generates the final OSCAL component definitions based on the analys
 - Comprehensive validation reporting
 - Generation of validation failure logs
 
-4. **Evaluate OSCAL Component Quality**
+5. **Evaluate OSCAL Component Quality**
 ```bash
 maposcal evaluate config.yaml
 ```
-This command evaluates the quality of generated OSCAL components using AI assessment.
-
-5. **Extract File Metadata**
-```bash
-maposcal metadata path/to/file.json
-```
-This command extracts and displays metadata from MapOSCAL output files, showing generation information including model, provider, timing, and configuration used.
-```bash
-maposcal evaluate config.yaml
-```
-This command evaluates the quality of existing OSCAL component definitions using AI-powered assessment:
+This command evaluates the quality of generated OSCAL components using AI-powered assessment:
 - Scores each control on 4 quality dimensions (0-2 scale)
 - Provides detailed justifications for scores
 - Offers improvement recommendations
 - Generates comprehensive evaluation reports
+
+6. **Extract File Metadata**
+```bash
+maposcal metadata path/to/file.json
+```
+This command extracts and displays metadata from MapOSCAL output files, showing generation information including model, provider, timing, and configuration used.
 
 ### Output Files
 
@@ -299,6 +307,9 @@ The tool generates several output files in the specified `output_dir`:
 
 ### Example Workflow
 
+#### Quick Start (Recommended)
+For most use cases, you can run the complete workflow with a single command:
+
 1. Create a configuration file:
 ```yaml
 title: "my_service"
@@ -318,6 +329,23 @@ config_extensions:
   - ".env"
   - ".cfg"
 ```
+
+2. Run the complete workflow:
+```bash
+maposcal run-all config.yaml
+```
+
+This single command will:
+- Analyze your repository and generate initial OSCAL definitions
+- Generate a comprehensive security overview
+- Create validated OSCAL components with comprehensive validation
+- Evaluate the quality of generated components
+- Provide progress updates throughout the process
+
+#### Step-by-Step Workflow (Advanced)
+If you prefer to run each step individually for more control:
+
+1. Create a configuration file (same as above)
 
 2. Run the analysis:
 ```bash
