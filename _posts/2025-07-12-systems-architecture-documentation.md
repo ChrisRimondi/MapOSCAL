@@ -1,7 +1,7 @@
 ---
 layout: post
 title: "Describing Systems - Architecture Documentation"
-date: 2025-07-12 10:00:00 -0700
+date: 2025-07-12 10:00:00 -0600
 categories: updates
 ---
 
