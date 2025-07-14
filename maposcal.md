@@ -12,10 +12,6 @@ MapOSCAL is an MIT-licensed tool that automatically analyzes your codebase and g
 - [MapOSCAL Repository](https://github.com/ChrisRimondi/MapOSCAL)
 - [Analyzed Services](https://github.com/ChrisRimondi/maposcal_analyzed_services)
 
-## Diagrams
+## How it works
+![Overview Diagram]({{ site.baseurl }}/gh_assets/images/overview.png)
 
-### Analysis Flow
-![Analysis Flow Diagram]({{ site.baseurl }}/gh_assets/images/analysis_flow.png)
-
-### Generation Flow  
-![Generation Flow Diagram]({{ site.baseurl }}/gh_assets/images/generation_flow.png) 
