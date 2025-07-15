@@ -39,6 +39,7 @@ def start_inspection(file_path: str, base_dir: str = None) -> Dict:
     input_validation = {}
     logging_config = {}
     error_handling = {}
+    configuration_settings = []
 
     # Truncate file_path if base_dir is provided
     display_file_path = file_path
