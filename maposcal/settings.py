@@ -50,6 +50,8 @@ tiktoken_encoding = "cl100k_base"
 local_embeddings_model = "all-MiniLM-L6-v2"
 
 ignored_file_extensions = [
+    ".mo",
+    ".po",
     ".png",
     ".jpg",
     ".jpeg",
