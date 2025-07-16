@@ -139,3 +139,43 @@ def test_golang_path_no_truncation():
             "/Users/test/code/project/file.go", None
         )
     assert result["file_path"] == "/Users/test/code/project/file.go"
+
+
+def test_python_summarize_discovery_content_missing_keys():
+    """Test that summarize_discovery_content handles missing keys gracefully."""
+    # Create a result dict with missing loaded_modules keys
+    incomplete_result = {
+        "file_path": "test.py",
+        "language": "Python",
+        "loaded_modules": {},  # Empty dict without required keys
+        "configuration_settings": []
+    }
+
+    # This should not raise a KeyError
+    summary = inspect_lang_python.summarize_discovery_content(incomplete_result)
+    assert "Python" in summary
+    assert "No networking capabilities have been detected" in summary
+    assert "No file system access has been detected" in summary
+    assert "No logging capabilities have been detected" in summary
+    assert "No configuration settings" in summary
+
+
+def test_python_summarize_discovery_content_partial_keys():
+    """Test that summarize_discovery_content handles partial keys gracefully."""
+    # Create a result dict with some missing keys
+    partial_result = {
+        "file_path": "test.py",
+        "language": "Python",
+        "loaded_modules": {
+            "network_modules": ["requests"],
+            # Missing other keys
+        },
+        "configuration_settings": []
+    }
+
+    # This should not raise a KeyError
+    summary = inspect_lang_python.summarize_discovery_content(partial_result)
+    assert "Python" in summary
+    assert "networking modules shows the following being used for connectivity: ['requests']" in summary
+    assert "No file system access has been detected" in summary
+    assert "No logging capabilities have been detected" in summary

@@ -81,18 +81,29 @@ def start_inspection(file_path: str, base_dir: str = None) -> Dict:
         ###
         # Parse for loaded modules - shows what applicable functionality is likely used.
         ###
-        (
-            modules,
-            network_modules,
-            file_system_modules,
-            logging_modules,
-            cryptographic_modules,
-        ) = identify_imported_modules(file_contents)
-        loaded_modules["modules"] = modules
-        loaded_modules["network_modules"] = network_modules
-        loaded_modules["file_system_modules"] = file_system_modules
-        loaded_modules["logging_modules"] = logging_modules
-        loaded_modules["cryptographic_modules"] = cryptographic_modules
+        try:
+            (
+                modules,
+                network_modules,
+                file_system_modules,
+                logging_modules,
+                cryptographic_modules,
+            ) = identify_imported_modules(file_contents)
+            loaded_modules["modules"] = modules
+            loaded_modules["network_modules"] = network_modules
+            loaded_modules["file_system_modules"] = file_system_modules
+            loaded_modules["logging_modules"] = logging_modules
+            loaded_modules["cryptographic_modules"] = cryptographic_modules
+        except Exception:
+            logger.error(
+                f"Failed to parse loaded modules from {file_path} - {format_exc()}"
+            )
+            # Ensure loaded_modules has all required keys even if parsing fails
+            loaded_modules.setdefault("modules", [])
+            loaded_modules.setdefault("network_modules", [])
+            loaded_modules.setdefault("file_system_modules", [])
+            loaded_modules.setdefault("logging_modules", [])
+            loaded_modules.setdefault("cryptographic_modules", [])
 
         ###
         # Parse for configuration ingestion (e.g., environmental variables, etc.)
@@ -175,25 +186,33 @@ def summarize_discovery_content(python_inspection_results: Dict) -> str:
     config_variables = ""
     cryptographic_results = ""
 
-    if len(python_inspection_results["loaded_modules"]["network_modules"]) > 0:
-        networking_results = f"Discovery of networking modules shows the following being used for connectivity: {python_inspection_results['loaded_modules']['network_modules']}."
+    # Safely access loaded_modules with default empty lists if keys don't exist
+    loaded_modules = python_inspection_results.get("loaded_modules", {})
+    network_modules = loaded_modules.get("network_modules", [])
+    file_system_modules = loaded_modules.get("file_system_modules", [])
+    logging_modules = loaded_modules.get("logging_modules", [])
+    cryptographic_modules = loaded_modules.get("cryptographic_modules", [])
+
+    if len(network_modules) > 0:
+        networking_results = f"Discovery of networking modules shows the following being used for connectivity: {network_modules}."
     else:
         networking_results = (
             "No networking capabilities have been detected in this file."
         )
 
-    if len(python_inspection_results["loaded_modules"]["file_system_modules"]) > 0:
-        file_system_results = f"File system access is expected using the discovered modules: {python_inspection_results['loaded_modules']['file_system_modules']}."
+    if len(file_system_modules) > 0:
+        file_system_results = f"File system access is expected using the discovered modules: {file_system_modules}."
     else:
         file_system_results = "No file system access has been detected in this file."
 
-    if len(python_inspection_results["loaded_modules"]["logging_modules"]) > 0:
-        logging_results = f"Logging capabilities are expected to be using these modules: {python_inspection_results['loaded_modules']['logging_modules']}."
+    if len(logging_modules) > 0:
+        logging_results = f"Logging capabilities are expected to be using these modules: {logging_modules}."
     else:
         logging_results = "No logging capabilities have been detected in this file."
 
-    if len(python_inspection_results["configuration_settings"]) > 0:
-        for config_var in python_inspection_results["configuration_settings"]:
+    configuration_settings = python_inspection_results.get("configuration_settings", [])
+    if len(configuration_settings) > 0:
+        for config_var in configuration_settings:
             config_variables = f"{config_variables}, {config_var['variable']}".lstrip(
                 ","
             )
@@ -202,8 +221,8 @@ def summarize_discovery_content(python_inspection_results: Dict) -> str:
     else:
         configuration_results = "No configuration settings (e.g., environmental variables, etc.) have been imported from this file."
 
-    if len(python_inspection_results["loaded_modules"]["cryptographic_modules"]) > 0:
-        cryptographic_results = f"Potential cryptographic operations are happening using the following modules. {python_inspection_results['loaded_modules']['cryptographic_modules']}."
+    if len(cryptographic_modules) > 0:
+        cryptographic_results = f"Potential cryptographic operations are happening using the following modules. {cryptographic_modules}."
 
     file_summary = dedent(
         f"""\
