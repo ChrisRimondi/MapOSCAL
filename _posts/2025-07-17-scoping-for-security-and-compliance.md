@@ -27,7 +27,7 @@ If you are sharing this information with an external resource such as a penetrat
 
 The question then stands, do we need to have such a complex diagram?  Yes, from a security and compliance perspective it’s critical that everyone reading your System Security Plan (SSP) has all the details necessary to make the associated security and compliance-related decisions.  At this point hopefully you realize that we must start to plan for varied audiences, but they must use the same underlying data.  Examine Figure 2 below as what I would consider an adequate high-level summary of the same system in Figure 1; but staying true to clarity and network boundary awareness, but minimizing overwhelming details until later.
 
-![Simplified diagram](/gh_assets/overview-diagram.png)
+![Simplified diagram](/gh_assets/images/overview-diagram.png)
 
 As you can see in Figure 2, the fundamentals are mostly there, and a user can, at a glance, identify the core device types, traffic flows, as well as observing the network-based breadcrumbs, intentionally-implied network boundaries where an individual in security or compliance would naturally expect the presence of firewalls or other boundary monitoring devices.  Once they have this basic picture in their mind, then they are enabled to dive in deeply and understand the system’s specifics as they relate to your listener’s involvement, but in this case with them easily following along.  The deep-dive that follows then adds in visibility for supporting services, CI/CD, monitoring, logging and telemetry, security tools, etc. as the situation warrants.
 
