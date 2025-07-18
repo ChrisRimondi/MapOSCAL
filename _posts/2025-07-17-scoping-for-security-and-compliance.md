@@ -1,6 +1,6 @@
 ---
 layout: post
-title: "Describing Systems - Architecture Documentation"
+title: "Scoping for Security and Compliance"
 date: 2025-07-17 10:00:00 -0600
 categories: updates
 ---
@@ -21,13 +21,13 @@ Secondly, while not glamorous, asset management is the foundational pillar on wh
 
 Now that we have an idea around the appropriate levels of granularity, let’s talk about the difficulties associated with this scoping exercise. The first difficulty is the need to collect an extensive data set around your organization’s system.  However, the second difficulty that closely follows is parsing that data into different views so that we don’t lose our users who need to consume the data.  Let’s use an example of a basic, segmented network architecture hosting a web server to the internet via a DMZ, with a database in the internal corporate network.  As you can see in Figure 1 below, this extremely simple design immediately shows complexity to a new user, and that’s even before we add in CI/CD, monitoring, telemetry, etc..  
 
-![Full, non-supporting diagram](gh_assets/images/full-non-supporting-diagram.png)
+![Full, non-supporting diagram](/gh_assets/images/full-non-supporting-diagram.png)
 
 If you are sharing this information with an external resource such as a penetration testing partner, an external auditor, or even a new member of your team, it might lose them.  Trust me, I’ve generated diagrams that spanned pages and pages of connections and device types (not individual devices), and until you need that level of granularity, you rapidly lose ground in your efforts to bring clarity by losing your audience during the initial introduction to the system.  Clawing your way back up out of that lost audience can almost be overwhelming and force you back to an overly-simplistic presentation of the system.
 
 The question then stands, do we need to have such a complex diagram?  Yes, from a security and compliance perspective it’s critical that everyone reading your System Security Plan (SSP) has all the details necessary to make the associated security and compliance-related decisions.  At this point hopefully you realize that we must start to plan for varied audiences, but they must use the same underlying data.  Examine Figure 2 below as what I would consider an adequate high-level summary of the same system in Figure 1; but staying true to clarity and network boundary awareness, but minimizing overwhelming details until later.
 
-![Simplified diagram](gh_assets/overview-diagram.png)
+![Simplified diagram](/gh_assets/overview-diagram.png)
 
 As you can see in Figure 2, the fundamentals are mostly there, and a user can, at a glance, identify the core device types, traffic flows, as well as observing the network-based breadcrumbs, intentionally-implied network boundaries where an individual in security or compliance would naturally expect the presence of firewalls or other boundary monitoring devices.  Once they have this basic picture in their mind, then they are enabled to dive in deeply and understand the system’s specifics as they relate to your listener’s involvement, but in this case with them easily following along.  The deep-dive that follows then adds in visibility for supporting services, CI/CD, monitoring, logging and telemetry, security tools, etc. as the situation warrants.
 
