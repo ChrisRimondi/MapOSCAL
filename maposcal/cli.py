@@ -68,9 +68,49 @@ configure_logging()
 
 logger = logging.getLogger(__name__)
 
-app = typer.Typer()
+app = typer.Typer(
+    name="maposcal",
+    help="MapOSCAL - Generate OSCAL components from code repositories",
+    add_completion=False,
+)
 
 SAMPLE_CONFIG_PATH = "sample_control_config.yaml"
+
+
+@app.callback(invoke_without_command=True)
+def main(
+    version: bool = typer.Option(
+        None, 
+        "--version", 
+        "-v", 
+        help="Show version information and exit"
+    ),
+    ctx: typer.Context = typer.Option(None, hidden=True),
+):
+    """
+    MapOSCAL - Generate OSCAL components from code repositories.
+    
+    MapOSCAL analyzes code repositories and generates Open Security Controls Assessment Language (OSCAL)
+    component definitions. It provides a complete workflow from code analysis to validated OSCAL outputs.
+    
+    Commands:
+    • analyze: Initial repository analysis and code embedding
+    • summarize: Generate security overview for improved control mapping  
+    • generate: Create validated OSCAL components with comprehensive validation
+    • evaluate: Assess the quality of generated components
+    • run-all: Execute the complete workflow (analyze → summarize → generate → evaluate)
+    • metadata: Extract and display metadata from MapOSCAL output files
+    
+    For detailed help on any command, use: maposcal <command> --help
+    """
+    if version:
+        typer.echo("MapOSCAL - Generate OSCAL components from code repositories")
+        # You can add actual version info here when available
+        typer.echo("Version: Development")
+        raise typer.Exit()
+    if ctx.invoked_subcommand is None:
+        typer.echo(ctx.get_help())
+        raise typer.Exit()
 
 
 def load_config(config_path: str = None) -> dict:
@@ -141,20 +181,13 @@ def get_llm_config(config_data: dict, command: str) -> dict:
 @app.command()
 def analyze(config: str = typer.Argument(None, help="Path to the configuration file.")):
     """
-    Analyze a repository using the provided configuration.
-
-    This command performs the initial analysis of a code repository to:
-    - Extract and embed code files
-    - Generate semantic summaries
-    - Create initial OSCAL component definitions
-
-    The analysis results are stored in the specified output directory
-    and serve as the foundation for the generate command.
-
-    Configuration options:
-    - config_extensions: List of file extensions to treat as configuration files (when auto_discover_config is True)
-    - auto_discover_config: Whether to auto-discover by extension or use manual file list (default: True)
-    - config_files: List of specific file paths to treat as configuration files (when auto_discover_config is False)
+    Analyze a repository and generate initial OSCAL definitions.
+    
+    Performs initial analysis of a code repository to extract and embed code files,
+    generate semantic summaries, and create initial OSCAL component definitions.
+    
+    The analysis results are stored in the specified output directory and serve
+    as the foundation for the generate command.
     """
     config_data = load_config(config)
     repo_path = config_data.get("repo_path")
@@ -185,13 +218,11 @@ def summarize(
 ):
     """
     Generate a comprehensive security overview of the service.
-
-    This command analyzes the repository and generates a detailed security summary that includes:
-    - Service overview and architecture
-    - Authentication and authorization mechanisms
-    - Encryption and data protection measures
-    - Audit logging and monitoring capabilities
-
+    
+    Analyzes the repository and generates a detailed security summary including service
+    overview, authentication/authorization mechanisms, encryption measures, and audit
+    logging capabilities.
+    
     The summary provides a high-level security assessment based on the codebase analysis
     and serves as a foundation for understanding the service's security posture.
     """
@@ -379,22 +410,16 @@ def generate(
     config: str = typer.Argument(None, help="Path to the configuration file."),
 ):
     """
-    Generate validated OSCAL components for controls using the provided configuration.
-
-    This command performs the main OSCAL generation process with comprehensive validation:
-
-    1. **Control Extraction**: Extracts controls from the specified profile and catalog
-    2. **LLM Generation**: Generates initial OSCAL implementations for each control
-    3. **Local Validation**: Validates each requirement using deterministic validation functions
-    4. **Automatic Fixes**: Applies automatic fixes for common validation issues
-    5. **LLM-Assisted Fixes**: Uses LLM for complex fixes that require understanding
-    6. **Cross-Validation**: Validates UUID uniqueness across all requirements
-    7. **Reporting**: Generates comprehensive validation reports and failure logs
-
-    The command produces three main output files:
-    - implemented_requirements.json: Validated OSCAL components
-    - validation_failures.json: Detailed validation failure information
-    - unvalidated_requirements.json: Requirements that failed validation
+    Generate validated OSCAL components for controls.
+    
+    Performs the main OSCAL generation process with comprehensive validation including
+    control extraction, LLM generation, local validation, automatic fixes, and
+    cross-validation for UUID uniqueness.
+    
+    Produces three main output files:
+    • implemented_requirements.json: Validated OSCAL components
+    • validation_failures.json: Detailed validation failure information  
+    • unvalidated_requirements.json: Requirements that failed validation
     """
     config_data = load_config(config)
     output_dir = config_data.get("output_dir", ".oscalgen")
@@ -641,24 +666,14 @@ def generate(
 @app.command()
 def evaluate(config: str = typer.Argument(..., help="Path to the configuration file.")):
     """
-    Evaluate the quality of existing OSCAL component definitions using AI-powered assessment.
-
-    This command provides comprehensive quality evaluation of OSCAL implemented requirements:
-
-    1. **Individual Control Evaluation**: Evaluates each control using AI assessment
-    2. **Quality Scoring**: Scores each control on 4 dimensions (0-2 scale):
-       - Status Alignment: Is the control-status correct given the explanation and configuration?
-       - Explanation Quality: Is the control-explanation clear, accurate, and grounded?
-       - Configuration Support: Is the control-configuration specific, correct, and valid?
-       - Overall Consistency: Do all parts reinforce each other without contradiction?
-    3. **Detailed Justifications**: Provides specific reasoning for each score
-    4. **Improvement Recommendations**: Offers actionable suggestions for improvement
-    5. **Comprehensive Reporting**: Generates detailed evaluation reports with statistics
-
-    The command produces:
-    - Console output with real-time evaluation progress
-    - {filename}_evaluation_results.json: Detailed evaluation results with scores and recommendations
-    - Summary statistics including average scores and success rates
+    Evaluate the quality of existing OSCAL component definitions.
+    
+    Provides comprehensive quality evaluation of OSCAL implemented requirements using
+    AI-powered assessment with scoring on 4 dimensions: status alignment, explanation
+    quality, configuration support, and overall consistency.
+    
+    Produces detailed evaluation reports with scores, recommendations, and summary
+    statistics for quality improvement.
     """
     # Load config to get output directory
     config_data = load_config(config)
@@ -776,9 +791,9 @@ def metadata(
 ):
     """
     Extract and display metadata from a MapOSCAL output file.
-
-    This command shows the generation information including model, provider,
-    timing, and configuration used to create the file.
+    
+    Shows the generation information including model, provider, timing, and
+    configuration used to create the file.
     """
     if not os.path.exists(file_path):
         typer.echo(f"File not found: {file_path}")
@@ -824,15 +839,9 @@ def metadata(
 def run_all(config: str = typer.Argument(None, help="Path to the configuration file.")):
     """
     Run the complete MapOSCAL workflow: analyze, summarize, generate, and evaluate.
-
-    This command executes all four major commands in their proper sequence:
-    1. analyze: Initial repository analysis and code embedding
-    2. summarize: Generate security overview for improved control mapping
-    3. generate: Create validated OSCAL components with comprehensive validation
-    4. evaluate: Assess the quality of generated components
-
-    The command provides progress updates and continues through the pipeline
-    even if individual steps encounter non-critical issues.
+    
+    Executes all four major commands in their proper sequence with progress updates
+    and continues through the pipeline even if individual steps encounter non-critical issues.
     """
     config_data = load_config(config)
     output_dir = config_data.get("output_dir", ".oscalgen")
