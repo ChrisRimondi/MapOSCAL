@@ -242,6 +242,8 @@ Control Description: {control_description}
 
 Your task is to determine the implementation status and provide detailed explanations. Focus only on generating the content - the structural elements will be handled automatically.
 
+**Note**: When cryptographic operations are detected in files, they will be explicitly listed with descriptions of their security purposes and compliance implications. Use this information to provide more accurate control status assessments and detailed implementation explanations.
+
 Return a JSON object with exactly these 4 fields:
 
 1. **control-status**: Choose exactly one from:
@@ -287,7 +289,7 @@ CONTROL_IMPL_PROMPT_HEADER = (
     "Semantic evidence chunks (top-{k}):\n"
 )
 
-CHUNK_BULLET = "- {chunk_type} • {source} • lines {start}-{end}\n```\n{content}\n```\n"
+CHUNK_BULLET = "- {chunk_type} • {source} • lines {start}-{end}\n```\n{content}\n```\n{crypto_section}"
 
 CONTROL_IMPL_PROMPT_FOOTER = "\n---\nGenerate the JSON now:"
 
@@ -468,6 +470,11 @@ def build_control_prompt(
     )
     body = ""
     for c in evidence_chunks:
+        # Handle cryptographic summary if available
+        crypto_section = ""
+        if c.get("cryptographic_summary"):
+            crypto_section = f"\n**Cryptographic Operations Detected:**\n{c['cryptographic_summary']}\n"
+        
         body += CHUNK_BULLET.format(
             chunk_type=c.get("chunk_type", "unknown"),
             source=c.get("source_file", "N/A"),
@@ -476,6 +483,7 @@ def build_control_prompt(
             content=(c.get("content") or c.get("summary", "")).strip()[
                 :800
             ],  # protect context length
+            crypto_section=crypto_section,
         )
     return header + body + CONTROL_IMPL_PROMPT_FOOTER
 
@@ -529,6 +537,11 @@ def build_content_generation_prompt(
 
     body = ""
     for c in evidence_chunks:
+        # Handle cryptographic summary if available
+        crypto_section = ""
+        if c.get("cryptographic_summary"):
+            crypto_section = f"\n**Cryptographic Operations Detected:**\n{c['cryptographic_summary']}\n"
+        
         body += CHUNK_BULLET.format(
             chunk_type=c.get("chunk_type", "unknown"),
             source=c.get("source_file", "N/A"),
@@ -537,6 +550,7 @@ def build_content_generation_prompt(
             content=(c.get("content") or c.get("summary", "")).strip()[
                 :800
             ],  # protect context length
+            crypto_section=crypto_section,
         )
 
     return header + body + CONTENT_GENERATION_PROMPT_FOOTER

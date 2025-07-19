@@ -359,7 +359,28 @@ def get_relevant_chunks(
     for chunk in unique_relevant_chunks:
         logger.debug(f"Relevant chunk: {chunk}")
 
-    return unique_relevant_chunks
+    # Enhance chunks with cryptographic information if available
+    enhanced_chunks = []
+    for chunk in unique_relevant_chunks:
+        enhanced_chunk = chunk.copy()
+        
+        # If this is a summary chunk (from summary_meta.json), add cryptographic info
+        if "inspector_results" in chunk:
+            inspector_results = chunk.get("inspector_results", {})
+            cryptography = inspector_results.get("cryptography", {})
+            
+            if cryptography:
+                # Add cryptographic summary to the chunk
+                crypto_summary = []
+                for module, description in cryptography.items():
+                    crypto_summary.append(f"**{module}**: {description}")
+                
+                enhanced_chunk["cryptographic_summary"] = "\n".join(crypto_summary)
+                logger.debug(f"Added cryptographic summary to chunk: {list(cryptography.keys())}")
+        
+        enhanced_chunks.append(enhanced_chunk)
+
+    return enhanced_chunks
 
 
 def map_control(
