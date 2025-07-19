@@ -99,6 +99,12 @@ def start_inspection(file_path, base_dir=None):
         ###
         # Parse for known cryptographic operations
         ###
+        try:
+            cryptography = identify_cryptographic_operations(file_contents, cryptographic_module)
+            logger.info(f"Identified {len(cryptography)} cryptographic operations in {file_path}")
+        except Exception:
+            logger.error(f"Failed to parse cryptographic operations from {file_path} - {format_exc()}")
+            cryptography = {}
 
         ###
         # Parse for identified vulnerabilities
@@ -405,6 +411,135 @@ def identify_imported_modules(file_contents):
         logging_modules,
         cryptographic_modules,
     )
+
+
+def identify_cryptographic_operations(file_contents: str, cryptographic_modules: List[str]) -> Dict[str, str]:
+    """
+    Parses a Go code file and identifies specific cryptographic operations based on loaded modules.
+    Generates concise descriptions of what each cryptographic module is doing in the code.
+
+    Args:
+        file_contents (str): Contents of the code file to analyze
+        cryptographic_modules (List[str]): List of detected cryptographic modules
+
+    Returns:
+        Dict[str, str]: Dictionary with module names as keys and operation descriptions as values
+    """
+    cryptography_operations = {}
+    
+    # Define operation patterns for each cryptographic module
+    operation_patterns = {
+        "crypto/tls": [
+            {
+                "pattern": r'tls\.Config\s*{',
+                "description": "TLS configuration setup for secure communication channels. Provides transport layer security with certificate-based authentication and encrypted data transmission. Supports compliance requirements for data in transit protection (SC-8)."
+            },
+            {
+                "pattern": r'tls\.Dial\(',
+                "description": "TLS client connection establishment for secure outbound communications. Ensures encrypted data transmission and server certificate validation. Critical for protecting sensitive data during network transmission."
+            },
+            {
+                "pattern": r'tls\.Listen\(',
+                "description": "TLS server setup for accepting secure incoming connections. Provides encrypted communication endpoints with certificate-based client authentication. Essential for secure service deployment and compliance."
+            },
+            {
+                "pattern": r'tls\.LoadX509KeyPair\(',
+                "description": "Certificate and private key loading for TLS authentication. Establishes identity verification and secure communication credentials. Required for PKI-based security implementations."
+            }
+        ],
+        "crypto/sha256": [
+            {
+                "pattern": r'sha256\.Sum256\(',
+                "description": "SHA256 hash generation for data integrity verification and digital signatures. Ensures message authenticity and prevents tampering during transmission. Critical for compliance controls requiring data integrity protection (SI-7)."
+            },
+            {
+                "pattern": r'sha256\.New\(',
+                "description": "SHA256 hash object creation for incremental hashing operations. Enables processing of large data streams while maintaining cryptographic integrity. Supports secure data validation and checksum generation."
+            }
+        ],
+        "crypto/x509": [
+            {
+                "pattern": r'x509\.ParseCertificate\(',
+                "description": "X.509 certificate parsing for identity verification and trust establishment. Validates certificate authenticity and extracts identity information. Essential for PKI-based authentication and authorization systems."
+            },
+            {
+                "pattern": r'x509\.ParseCertificates\(',
+                "description": "Multiple X.509 certificate parsing for certificate chain validation. Establishes trust relationships and certificate hierarchy verification. Critical for secure certificate-based authentication workflows."
+            },
+            {
+                "pattern": r'x509\.ParsePKCS1PrivateKey\(',
+                "description": "RSA private key parsing for asymmetric cryptographic operations. Enables digital signature generation and data decryption capabilities. Requires secure key management and storage practices."
+            },
+            {
+                "pattern": r'x509\.ParsePKCS8PrivateKey\(',
+                "description": "PKCS8 private key parsing supporting multiple key types and algorithms. Provides flexible key format support for various cryptographic implementations. Enables modern key management and algorithm agility."
+            }
+        ],
+        "encoding/hex": [
+            {
+                "pattern": r'hex\.EncodeToString\(',
+                "description": "Hexadecimal encoding of binary data for human-readable representation. Converts cryptographic outputs to text format for storage or transmission. Supports audit and compliance requirements for data handling transparency."
+            },
+            {
+                "pattern": r'hex\.DecodeString\(',
+                "description": "Hexadecimal decoding of encoded data back to binary format. Restores cryptographic data from text representation for processing. Enables secure data serialization and deserialization workflows."
+            }
+        ],
+        "crypto/rand": [
+            {
+                "pattern": r'rand\.Read\(',
+                "description": "Cryptographically secure random data generation for key and nonce creation. Provides entropy for cryptographic operations and prevents predictable patterns. Essential for secure key generation and initialization vector creation."
+            },
+            {
+                "pattern": r'rand\.Int\(',
+                "description": "Cryptographically secure random integer generation for cryptographic parameters. Ensures unpredictable values for cryptographic algorithms and protocols. Critical for preventing cryptographic attacks based on predictable values."
+            }
+        ],
+        "crypto/hmac": [
+            {
+                "pattern": r'hmac\.New\(',
+                "description": "HMAC (Hash-based Message Authentication Code) creation for message integrity verification. Combines cryptographic hashing with secret key authentication. Provides both integrity and authenticity protection for data transmission."
+            }
+        ],
+        "crypto/aes": [
+            {
+                "pattern": r'aes\.NewCipher\(',
+                "description": "AES cipher creation for symmetric encryption and decryption operations. Provides high-performance block cipher encryption for data confidentiality. Supports various key sizes and encryption modes for different security requirements."
+            }
+        ],
+        "crypto/rsa": [
+            {
+                "pattern": r'rsa\.GenerateKey\(',
+                "description": "RSA key pair generation for asymmetric cryptography operations. Creates public/private key pairs for digital signatures and encryption. Enables secure key exchange and digital signature capabilities."
+            },
+            {
+                "pattern": r'rsa\.Sign\(',
+                "description": "RSA digital signature generation for message authentication and non-repudiation. Creates cryptographically verifiable signatures using private key operations. Essential for secure communication and document integrity verification."
+            },
+            {
+                "pattern": r'rsa\.Verify\(',
+                "description": "RSA digital signature verification using public key cryptography. Validates message authenticity and ensures data integrity. Provides cryptographic proof of message origin and prevents tampering."
+            }
+        ]
+    }
+    
+    # Check each detected cryptographic module for specific operations
+    for module in cryptographic_modules:
+        if module in operation_patterns:
+            module_operations = []
+            
+            for operation in operation_patterns[module]:
+                matches = list(re.finditer(operation["pattern"], file_contents))
+                if matches:
+                    module_operations.append(operation["description"])
+            
+            # If operations were found for this module, add to results
+            if module_operations:
+                # Use the first operation description found (most representative)
+                cryptography_operations[module] = module_operations[0]
+                logger.info(f"Identified cryptographic operations for module {module}")
+    
+    return cryptography_operations
 
 
 if __name__ == "__main__":

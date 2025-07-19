@@ -119,6 +119,12 @@ def start_inspection(file_path: str, base_dir: str = None) -> Dict:
         ###
         # Parse for known cryptographic operations
         ###
+        try:
+            cryptography = identify_cryptographic_operations(file_contents, cryptographic_modules)
+            logger.info(f"Identified {len(cryptography)} cryptographic operations in {file_path}")
+        except Exception:
+            logger.error(f"Failed to parse cryptographic operations from {file_path} - {format_exc()}")
+            cryptography = {}
 
         ###
         # Parse for identified vulnerabilities
@@ -363,6 +369,137 @@ def identify_imported_modules(file_contents: str) -> tuple:
         logging_modules,
         cryptographic_modules,
     )
+
+
+def identify_cryptographic_operations(file_contents: str, cryptographic_modules: List[str]) -> Dict[str, str]:
+    """
+    Parses a Python code file and identifies specific cryptographic operations based on loaded modules.
+    Generates concise descriptions of what each cryptographic module is doing in the code.
+
+    Args:
+        file_contents (str): Contents of the code file to analyze
+        cryptographic_modules (List[str]): List of detected cryptographic modules
+
+    Returns:
+        Dict[str, str]: Dictionary with module names as keys and operation descriptions as values
+    """
+    cryptography_operations = {}
+    
+    # Define operation patterns for each cryptographic module
+    operation_patterns = {
+        "cryptography": [
+            {
+                "pattern": r'Cipher\(',
+                "description": "Symmetric encryption cipher creation using cryptography library primitives. Provides high-security encryption algorithms with proper key management and initialization vectors. Supports FIPS-compliant cryptographic implementations for compliance requirements."
+            },
+            {
+                "pattern": r'rsa\.generate_private_key\(',
+                "description": "RSA private key generation for asymmetric cryptography operations. Creates secure key pairs for digital signatures and encryption with configurable key sizes. Enables secure key exchange and digital signature capabilities."
+            },
+            {
+                "pattern": r'load_pem_private_key\(',
+                "description": "PEM format private key loading for cryptographic operations. Imports existing keys for digital signature generation and data decryption. Requires secure key storage and access control practices."
+            },
+            {
+                "pattern": r'load_pem_x509_certificate\(',
+                "description": "X.509 certificate loading for identity verification and trust establishment. Validates certificate authenticity and extracts identity information. Essential for PKI-based authentication and authorization systems."
+            }
+        ],
+        "hashlib": [
+            {
+                "pattern": r'hashlib\.sha256\(',
+                "description": "SHA256 hash generation for data integrity verification and digital signatures. Ensures message authenticity and prevents tampering during transmission. Critical for compliance controls requiring data integrity protection (SI-7)."
+            },
+            {
+                "pattern": r'hashlib\.md5\(',
+                "description": "MD5 hash generation for legacy compatibility and checksum operations. Provides fast hash computation but should not be used for security-critical applications. Suitable for non-security data validation and integrity checks."
+            },
+            {
+                "pattern": r'hashlib\.sha512\(',
+                "description": "SHA512 hash generation for high-security data integrity verification. Provides stronger cryptographic properties than SHA256 for enhanced security requirements. Suitable for applications requiring maximum cryptographic strength."
+            }
+        ],
+        "hmac": [
+            {
+                "pattern": r'hmac\.new\(',
+                "description": "HMAC (Hash-based Message Authentication Code) creation for message integrity verification. Combines cryptographic hashing with secret key authentication for secure message validation. Provides both integrity and authenticity protection for data transmission."
+            },
+            {
+                "pattern": r'hmac\.compare_digest\(',
+                "description": "Constant-time HMAC comparison for secure authentication verification. Prevents timing attacks during cryptographic validation operations. Essential for secure authentication and session management."
+            }
+        ],
+        "base64": [
+            {
+                "pattern": r'base64\.b64encode\(',
+                "description": "Base64 encoding of binary data for text-based transmission and storage. Converts cryptographic outputs to ASCII format for safe data handling. Supports audit and compliance requirements for data handling transparency."
+            },
+            {
+                "pattern": r'base64\.b64decode\(',
+                "description": "Base64 decoding of encoded data back to binary format for processing. Restores cryptographic data from text representation for further operations. Enables secure data serialization and deserialization workflows."
+            }
+        ],
+        "secrets": [
+            {
+                "pattern": r'secrets\.token_bytes\(',
+                "description": "Cryptographically secure random byte generation for key and nonce creation. Provides high-entropy random data for cryptographic operations and prevents predictable patterns. Essential for secure key generation and initialization vector creation."
+            },
+            {
+                "pattern": r'secrets\.token_hex\(',
+                "description": "Cryptographically secure random hex string generation for secure identifiers. Creates unpredictable tokens for session management and cryptographic parameters. Critical for preventing cryptographic attacks based on predictable values."
+            },
+            {
+                "pattern": r'secrets\.choice\(',
+                "description": "Cryptographically secure random selection from sequences for secure randomization. Ensures unpredictable choices for cryptographic algorithms and security protocols. Provides secure random selection for cryptographic applications."
+            }
+        ],
+        "ssl": [
+            {
+                "pattern": r'ssl\.create_default_context\(',
+                "description": "SSL/TLS context creation with secure default settings for encrypted communications. Establishes secure communication channels with certificate validation and encryption. Supports compliance requirements for data in transit protection (SC-8)."
+            },
+            {
+                "pattern": r'ssl\.wrap_socket\(',
+                "description": "SSL/TLS socket wrapping for secure network communication. Provides encrypted data transmission and server certificate validation. Critical for protecting sensitive data during network transmission."
+            },
+            {
+                "pattern": r'ssl\.create_connection\(',
+                "description": "SSL/TLS client connection establishment for secure outbound communications. Ensures encrypted data transmission with proper certificate validation. Essential for secure client-server communication protocols."
+            }
+        ],
+        "crypto": [
+            {
+                "pattern": r'Crypto\.Cipher\.AES\.new\(',
+                "description": "AES cipher creation using PyCrypto library for symmetric encryption operations. Provides high-performance block cipher encryption for data confidentiality. Supports various key sizes and encryption modes for different security requirements."
+            },
+            {
+                "pattern": r'Crypto\.PublicKey\.RSA\.generate\(',
+                "description": "RSA key pair generation using PyCrypto library for asymmetric cryptography. Creates public/private key pairs for digital signatures and encryption operations. Enables secure key exchange and digital signature capabilities."
+            },
+            {
+                "pattern": r'Crypto\.Signature\.pkcs1_15\.new\(',
+                "description": "RSA digital signature creation using PKCS1 v1.5 padding scheme. Generates cryptographically verifiable signatures for message authentication. Essential for secure communication and document integrity verification."
+            }
+        ]
+    }
+    
+    # Check each detected cryptographic module for specific operations
+    for module in cryptographic_modules:
+        if module in operation_patterns:
+            module_operations = []
+            
+            for operation in operation_patterns[module]:
+                matches = list(re.finditer(operation["pattern"], file_contents))
+                if matches:
+                    module_operations.append(operation["description"])
+            
+            # If operations were found for this module, add to results
+            if module_operations:
+                # Use the first operation description found (most representative)
+                cryptography_operations[module] = module_operations[0]
+                logger.info(f"Identified cryptographic operations for module {module}")
+    
+    return cryptography_operations
 
 
 if __name__ == "__main__":
