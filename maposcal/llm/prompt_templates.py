@@ -377,7 +377,7 @@ Here is a single control from an OSCAL component-definition's `implemented_requi
 Evaluate the following:
 1. Is the `control-status` correct given the explanation and configuration?
 2. Is the `control-explanation` clearly written, accurate, and grounded in the observed implementation?
-3. Is the `control-configuration` (if required) specific, correct, and valid?
+3. Is the `control-configuration` (if required) specific, correct, and valid? Note: Only evaluate this control if the 'control-status' is "applicable but only satisfied through configuration". Assign it a score of 2 if it is any other status. 
 4. Do all parts of the control (status, explanation, configuration, and statement) reinforce each other without contradiction?
 
 Score each of the 4 categories from 0–2 as follows:
