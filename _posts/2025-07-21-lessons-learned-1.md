@@ -4,6 +4,7 @@ title: "How We Used AI in MapOSCAL (Part 1 of 2\)"
 description: "Lessons learned integrating AI into a compliance automation tool for generating OSCAL component definitions."
 date: 2025-07-21
 tags: [AI, LLM, OSCAL, Open Source, Compliance, GitHub, Cybersecurity, JSON, DevTools, automation]
+categories: updates
 ---
 
 # **How We Used AI in MapOSCAL (Part 1 of 2\)**
@@ -12,7 +13,7 @@ This post is part one of a two-part series. In this first installment, we’ll e
 
 ## **Why We Built MapOSCAL**
 
-MapOSCAL is a tool designed to simplify the generation of OSCAL component definitions from real-world codebases. For those working in compliance automation, this typically involves mapping security controls (like those in NIST SP 800-53) to concrete evidence in software systems—often buried in code, configuration files, or documentation.
+[MapOSCAL](https://github.com/ChrisRimondi/MapOSCAL) is a tool designed to simplify the generation of OSCAL component definitions from real-world codebases. For those working in compliance automation, this typically involves mapping security controls (like those in NIST SP 800-53) to concrete evidence in software systems—often buried in code, configuration files, or documentation.
 
 Our goal was to make that mapping process faster and more accurate by applying AI to automate portions of the analysis. Along the way, we learned a lot—especially about what *not* to do with LLMs.
 
