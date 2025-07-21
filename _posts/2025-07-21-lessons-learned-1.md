@@ -17,10 +17,6 @@ This post is part one of a two-part series. In this first installment, we’ll e
 
 Our goal was to make that mapping process faster and more accurate by applying AI to automate portions of the analysis. Along the way, we learned a lot—especially about what *not* to do with LLMs.
 
----
-
-## **How We Use AI in the Tool**
-
 ### **Why We Didn’t Use Agentic AI**
 
 From the beginning, we chose not to use agentic AI frameworks (like LangChain or crewai). While appealing in theory, these systems introduce significant complexity—particularly in managing state, chaining actions, and recovering from failure that our use case simply didn’t warrant. 
@@ -29,12 +25,14 @@ Instead, we adopted what we jokingly refer to as “agentic-lite.” Our approac
 
 ---
 
-## **Phantom Configurations: When AI Hallucinates Settings**
+### **Phantom Configurations: When AI Hallucinates Settings**
 
 One early pitfall we hit was asking the LLM to identify configuration values relevant to specific controls. For instance, if a control required TLS, we’d prompt the model to extract or infer relevant config like:
 
+```
 "file": "/etc/service.conf",  
 "enable\_tls": "true"
+```
 
 The problem? Many times these values were entirely hallucinated—convincing, plausible, but totally made up.
 
@@ -42,9 +40,7 @@ To fix this, we shifted strategies. Rather than asking the model to invent confi
 
 Lesson learned: if a configuration doesn’t exist in the repo, don’t let the model make it up.
 
----
-
-## **The Structured Output Struggle: Why (too much) JSON is a Poor Fit for LLMs**
+### **The Structured Output Struggle: Why (too much) JSON is a Poor Fit for LLMs**
 
 In early versions of MapOSCAL, we gave the LLM a sample of the OSCAL JSON structure and asked it to produce structured output directly.
 
@@ -56,9 +52,7 @@ That also didn’t work well. The LLM would sometimes fix issues, but more often
 
 Eventually, we learned to stop fighting the model. Instead, we asked it only for the parts we truly needed—descriptions, summaries, implementation text. We handled all structure and validation in our code. LLMs are powerful language tools, not database serializers.
 
----
-
-## **Where AI Shined: The Feedback Flywheel**
+### **Where AI Shined: The Feedback Flywheel**
 
 While some tasks were a poor fit for LLMs, others turned out to be ideal.
 
@@ -68,9 +62,7 @@ With enough samples, we could feed those back into the LLM to identify patterns.
 
 Another key enhancement: we made the model configurable per task. We could run cheap models like `gpt-4o-mini` for quick summaries, and reserve premium models like `gpt-4o` for more nuanced mappings. We also allowed for multiple providers (OpenAI, Gemini, etc.) to simulate dual-control evaluations.
 
----
-
-## **Conclusion: Two Key Takeaways**
+### **Conclusion: Two Key Takeaways**
 
 We’re still early in this journey, but two key lessons stand out:
 
