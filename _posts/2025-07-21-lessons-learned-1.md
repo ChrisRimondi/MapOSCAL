@@ -2,7 +2,7 @@
 layout: post
 title: "How We Used AI in MapOSCAL (Part 1 of 2\)"
 description: "Lessons learned integrating AI into a compliance automation tool for generating OSCAL component definitions."
-date: 2025-07-21
+date: 2025-07-22 10:00:00 -0600
 tags: [AI, LLM, OSCAL, Open Source, Compliance, GitHub, Cybersecurity, JSON, DevTools, automation]
 categories: updates
 ---
