@@ -1,8 +1,8 @@
 ---
 layout: post
-title: "How We Used AI in MapOSCAL (Part 1 of 2\)"
+title: "How We Used AI in MapOSCAL (Part 1 of 2)"
+date: 2025-07-21 10:00:00 -0600
 description: "Lessons learned integrating AI into a compliance automation tool for generating OSCAL component definitions."
-date: 2025-07-22 10:00:00 -0600
 tags: [AI, LLM, OSCAL, Open Source, Compliance, GitHub, Cybersecurity, JSON, DevTools, automation]
 categories: updates
 ---
@@ -11,7 +11,7 @@ categories: updates
 
 This post is part one of a two-part series. In this first installment, we’ll explore how we incorporated AI—specifically large language models (LLMs)—into the design of MapOSCAL. In part two, we’ll walk through how we used AI to help us *build* the MapOSCAL tool itself.
 
-## **Why We Built MapOSCAL**
+### **Why We Built MapOSCAL**
 
 [MapOSCAL](https://github.com/ChrisRimondi/MapOSCAL) is a tool designed to simplify the generation of OSCAL component definitions from real-world codebases. For those working in compliance automation, this typically involves mapping security controls (like those in NIST SP 800-53) to concrete evidence in software systems—often buried in code, configuration files, or documentation.
 
@@ -23,7 +23,6 @@ From the beginning, we chose not to use agentic AI frameworks (like LangChain or
 
 Instead, we adopted what we jokingly refer to as “agentic-lite.” Our approach breaks the problem into discrete tasks and selectively uses LLMs when they add real value, while retaining full control of the overall workflow in traditional Python code. This struck a balance between automation and reliability.
 
----
 
 ### **Phantom Configurations: When AI Hallucinates Settings**
 
@@ -31,10 +30,10 @@ One early pitfall we hit was asking the LLM to identify configuration values rel
 
 ```
 "file": "/etc/service.conf",  
-"enable\_tls": "true"
+"enable_tls": "true"
 ```
 
-The problem? Many times these values were entirely hallucinated—convincing, plausible, but totally made up.
+The problem? Many times these values were entirely hallucinated; they were convincing, plausible, but totally made up.
 
 To fix this, we shifted strategies. Rather than asking the model to invent configuration values, we manually parsed the project directory to find files with known configuration extensions (like `.conf`, `.yaml`, etc.) and patterns (e.g., use of `os.getenv`, `configparser`, or `dotenv`). Then, we limited the model’s context and responses strictly to the actual values found.
 
