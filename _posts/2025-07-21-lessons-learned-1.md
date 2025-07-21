@@ -7,7 +7,7 @@ tags: [AI, LLM, OSCAL, Open Source, Compliance, GitHub, Cybersecurity, JSON, Dev
 categories: updates
 ---
 
-# **How We Used AI in MapOSCAL (Part 1 of 2\)**
+# **How We Used AI in MapOSCAL (Part 1 of 2)**
 
 This post is part one of a two-part series. In this first installment, we’ll explore how we incorporated AI—specifically large language models (LLMs)—into the design of MapOSCAL. In part two, we’ll walk through how we used AI to help us *build* the MapOSCAL tool itself.
 
