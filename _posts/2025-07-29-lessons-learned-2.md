@@ -29,7 +29,7 @@ For ideation, planning, and quick proof-of-concept code, we relied heavily on Op
 
 We used `o3` for open-ended exploration—often starting with questions that had no clear right answer. For example:
 
-> “Think of ways SRGs, NAIP Common Criteria, and the NIST 800 control families express different groupings of controls. What are the similarities and differences? What can I learn from these observations to help build features for MapOSCAL?”
+> “Think of ways PCI, CRA, and the NIST 800 control families express different groupings of controls. What are the similarities and differences? What can I learn from these observations to help build features for MapOSCAL?”
 
 Because the OpenAI chat UI maintains long-running context, our working thread already included context about MapOSCAL, which helped responses stay grounded.
 
