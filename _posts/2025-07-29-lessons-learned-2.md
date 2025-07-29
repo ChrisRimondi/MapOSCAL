@@ -11,22 +11,17 @@ categories: updates
 
 This post is part two of a two-part series. In [part one](https://compliance.engineering/updates/2025/07/21/lessons-learned-1.html), we explored how we incorporated AI—specifically large language models (LLMs)—into the **design** of MapOSCAL. In this post, we’ll walk through how we used AI to help actually **build** the MapOSCAL tool itself.
 
----
 
 ### **Why We Built MapOSCAL**
 
 [MapOSCAL](https://github.com/ChrisRimondi/MapOSCAL) is a tool designed to simplify the generation of OSCAL component definitions from real-world codebases. For those working in compliance automation, this typically involves mapping security controls (like those in NIST SP 800-53) to concrete evidence in software systems—often buried in code, configuration files, or documentation.
 
 
----
-
 ### **What Tools We Used to Build MapOSCAL**
 
 - **Primary Models**: ChatGPT 4o and o3 for brainstorming and code prototyping  
 - **Development Environment**: Cursor IDE  
 - **Also Tried**: Visual Studio Code with GitHub Copilot, which was ultimately less effective than Cursor  
-
----
 
 ### **Brainstorming, Proof-of-Concepts, and Prompt Engineering**
 
@@ -40,7 +35,6 @@ Because the OpenAI chat UI maintains long-running context, our working thread al
 
 After a few back-and-forths, we would typically switch to `4o`—which was cheaper and faster—for generating specific examples or Python PoC code. Once we narrowed in on a use case, we’d iterate on what a good prompt would look like and fine-tune that prompt for integration into MapOSCAL’s logic.
 
----
 
 ### **Development Workflow**
 
@@ -52,7 +46,6 @@ We’ll be the first to admit this was often a result of unclear or overly broad
 
 We also noticed that early versions of Cursor had trouble with “logic loops”—repeating the same implementation ideas even after we had clearly stated they didn’t work. Today, Cursor seems to maintain context in a much more useful way. When we ask it to build a capability, it often automatically adds unit tests and updates docstrings.
 
----
 
 ### **Lessons Learned**
 
@@ -64,7 +57,6 @@ Over time, we learned to be very targeted in our requests. Asking Cursor to perf
 
 For larger features or changes, we learned that asking Cursor to “think through the problem first” before writing code was incredibly helpful. We'd get a step-by-step implementation plan, which we could tweak before committing. We don’t know how Cursor routes those kinds of prompts internally, but it wouldn’t surprise us if it handled them differently—because the output quality was noticeably higher.
 
----
 
 ### **Conclusion**
 
