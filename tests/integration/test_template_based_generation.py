@@ -246,7 +246,21 @@ class TestTemplateBasedGeneration:
 
             index_path.touch()
             meta_path.touch()
-            security_overview_path.write_text("Security overview content")
+            # Create a proper security overview with expected structure
+            security_overview_content = """# Service Overview
+This is a test service for access control testing.
+
+## Authentication and Authorization
+The service implements robust authentication and authorization mechanisms.
+Users authenticate via JWT tokens and authorization is role-based.
+
+## Encryption and Data Protection
+Data is encrypted both at rest and in transit using industry standards.
+
+## Audit Logging and Monitoring
+Comprehensive audit logging tracks all access control decisions.
+"""
+            security_overview_path.write_text(security_overview_content)
 
             # Test the generation
             result = map_control(control_dict, temp_dir)
@@ -256,10 +270,14 @@ class TestTemplateBasedGeneration:
             assert result["control-id"] == "AC-4"
 
             # Verify LLM was called with security overview context
-            # (The prompt should include the security overview)
+            # (The prompt should include the new selective security overview format)
             mock_llm_handler.query.assert_called()
             call_args = mock_llm_handler.query.call_args
             assert call_args is not None
             # The prompt is the first positional argument
             prompt = call_args[0][0] if call_args[0] else call_args[1]["prompt"]
-            assert "Security overview" in prompt
+            # Check for the new selective security overview format
+            assert "SERVICE SECURITY OVERVIEW (Reference)" in prompt
+            # AC controls should get Service Overview + Authentication & Authorization sections
+            assert "Service Overview" in prompt
+            assert "Authentication and Authorization" in prompt

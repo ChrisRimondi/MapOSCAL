@@ -28,12 +28,26 @@ MapOSCAL includes comprehensive validation and evaluation capabilities to ensure
 
 ### Security Overview Integration
 
-MapOSCAL now includes a comprehensive security overview generation feature that provides high-level security context for all control mapping operations:
+MapOSCAL includes an advanced security overview generation system with intelligent context optimization:
 
 - **Service Security Summary**: Generates detailed security overviews including authentication, encryption, and audit capabilities
-- **Context-Aware Control Mapping**: Uses the security overview as reference context for more accurate control assessments
+- **Selective Context Injection**: NEW in v0.3.0-alpha - Intelligently includes only relevant security sections based on control type
+- **Token Optimization**: Achieves ~47% reduction in prompt tokens while maintaining quality and context relevance
+- **Smart Control Mapping**: Different NIST 800-53 control families receive targeted security context:
+  - Access Control (AC) → Authentication & Authorization context
+  - Audit & Accountability (AU) → Logging & Monitoring context  
+  - System Protection (SC) → Encryption & Data Protection context
 - **Enhanced Validation**: Incorporates security context into critique and revision processes
-- **Improved Accuracy**: Better control status determination through comprehensive service understanding
+- **Improved Accuracy**: Better control status determination through focused, relevant context
+
+### Cryptographic Operations Detection
+
+NEW in v0.3.0-alpha - MapOSCAL automatically detects and catalogs cryptographic operations in your codebase:
+
+- **Multi-Language Support**: Detects cryptographic patterns in Python and Go codebases
+- **Comprehensive Analysis**: Identifies encryption, hashing, signing, and key management operations
+- **Control Integration**: Automatically includes cryptographic context in relevant security control mappings
+- **Compliance Mapping**: Better accuracy for encryption-related controls (SC family) through detected crypto operations
 
 ### File Metadata Tracking
 
