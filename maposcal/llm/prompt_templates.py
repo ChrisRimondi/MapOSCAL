@@ -426,6 +426,7 @@ def build_control_prompt(
     main_uuid: str,
     statement_uuid: str,
     security_overview: str = None,
+    security_overview_section: str = None,
 ) -> str:
     """
     Build a prompt for generating OSCAL control implementations.
@@ -437,7 +438,8 @@ def build_control_prompt(
         evidence_chunks: List of evidence chunks from code analysis
         main_uuid: UUID for the main control
         statement_uuid: UUID for the control statement
-        security_overview: Optional security overview content to include as reference
+        security_overview: Optional full security overview content (deprecated, use security_overview_section)
+        security_overview_section: Optional pre-formatted security overview section
 
     Returns:
         str: Formatted prompt for LLM
@@ -450,10 +452,13 @@ def build_control_prompt(
         statement_uuid=statement_uuid,
     )
 
-    # Format security overview section if provided
-    security_overview_section = ""
-    if security_overview:
-        security_overview_section = (
+    # Use the new selective security overview section if provided, otherwise fall back to full overview
+    formatted_security_section = ""
+    if security_overview_section:
+        formatted_security_section = security_overview_section
+    elif security_overview:
+        # Legacy fallback - format the full security overview
+        formatted_security_section = (
             "## SERVICE SECURITY OVERVIEW (Reference)\n"
             "The following provides a high-level security overview of the service. "
             "Use this as context when analyzing the specific control implementation:\n\n"
@@ -466,7 +471,7 @@ def build_control_prompt(
         instructions=instructions,
         control_id=control_id,
         k=len(evidence_chunks),
-        security_overview_section=security_overview_section,
+        security_overview_section=formatted_security_section,
     )
     body = ""
     for c in evidence_chunks:
@@ -494,6 +499,7 @@ def build_content_generation_prompt(
     control_description: str,
     evidence_chunks: List[dict],
     security_overview: str = None,
+    security_overview_section: str = None,
 ) -> str:
     """
     Build a simplified prompt for generating control content only.
@@ -507,7 +513,8 @@ def build_content_generation_prompt(
         control_name: Human-readable name of the control
         control_description: Detailed description of the control
         evidence_chunks: List of evidence chunks from code analysis
-        security_overview: Optional security overview content to include as reference
+        security_overview: Optional full security overview content (deprecated, use security_overview_section)
+        security_overview_section: Optional pre-formatted security overview section
 
     Returns:
         str: Formatted prompt for LLM content generation
@@ -518,10 +525,13 @@ def build_content_generation_prompt(
         control_description=control_description,
     )
 
-    # Format security overview section if provided
-    security_overview_section = ""
-    if security_overview:
-        security_overview_section = (
+    # Use the new selective security overview section if provided, otherwise fall back to full overview
+    formatted_security_section = ""
+    if security_overview_section:
+        formatted_security_section = security_overview_section
+    elif security_overview:
+        # Legacy fallback - format the full security overview
+        formatted_security_section = (
             "## SERVICE SECURITY OVERVIEW (Reference)\n"
             "The following provides a high-level security overview of the service. "
             "Use this as context when analyzing the specific control implementation:\n\n"
@@ -532,7 +542,7 @@ def build_content_generation_prompt(
     header = CONTENT_GENERATION_PROMPT_HEADER.format(
         system=CONTENT_GENERATION_SYSTEM,
         instructions=instructions,
-        security_overview_section=security_overview_section,
+        security_overview_section=formatted_security_section,
     )
 
     body = ""
@@ -557,22 +567,28 @@ def build_content_generation_prompt(
 
 
 def build_critique_prompt(
-    implemented_requirements: List[dict], security_overview: str = None
+    implemented_requirements: List[dict], 
+    security_overview: str = None,
+    security_overview_section: str = None
 ) -> str:
     """
     Build a prompt for critiquing implemented requirements.
 
     Args:
         implemented_requirements: List of implemented requirement dictionaries
-        security_overview: Optional security overview content to include as reference
+        security_overview: Optional full security overview content (deprecated, use security_overview_section)
+        security_overview_section: Optional pre-formatted security overview section
 
     Returns:
         str: Formatted prompt for LLM critique
     """
-    # Format security overview section if provided
-    security_overview_section = ""
-    if security_overview:
-        security_overview_section = (
+    # Use the new selective security overview section if provided, otherwise fall back to full overview
+    formatted_security_section = ""
+    if security_overview_section:
+        formatted_security_section = security_overview_section
+    elif security_overview:
+        # Legacy fallback - format the full security overview
+        formatted_security_section = (
             "## SERVICE SECURITY OVERVIEW (Reference)\n"
             "The following provides a high-level security overview of the service. "
             "Use this as context when validating the control implementations:\n\n"
@@ -583,7 +599,7 @@ def build_critique_prompt(
     return CRITIQUE_PROMPT.format(
         system=CRITIQUE_REVISE_SYSTEM,
         implemented_requirements_json=json.dumps(implemented_requirements),
-        security_overview_section=security_overview_section,
+        security_overview_section=formatted_security_section,
     )
 
 
@@ -591,6 +607,7 @@ def build_revise_prompt(
     implemented_requirements: List[dict],
     violations: List[dict],
     security_overview: str = None,
+    security_overview_section: str = None,
 ) -> str:
     """
     Build a prompt for revising implemented requirements based on violations.
@@ -598,15 +615,19 @@ def build_revise_prompt(
     Args:
         implemented_requirements: List of implemented requirement dictionaries
         violations: List of validation violations to fix
-        security_overview: Optional security overview content to include as reference
+        security_overview: Optional full security overview content (deprecated, use security_overview_section)
+        security_overview_section: Optional pre-formatted security overview section
 
     Returns:
         str: Formatted prompt for LLM revision
     """
-    # Format security overview section if provided
-    security_overview_section = ""
-    if security_overview:
-        security_overview_section = (
+    # Use the new selective security overview section if provided, otherwise fall back to full overview
+    formatted_security_section = ""
+    if security_overview_section:
+        formatted_security_section = security_overview_section
+    elif security_overview:
+        # Legacy fallback - format the full security overview
+        formatted_security_section = (
             "## SERVICE SECURITY OVERVIEW (Reference)\n"
             "The following provides a high-level security overview of the service. "
             "Use this as context when fixing the control implementations:\n\n"
@@ -617,7 +638,7 @@ def build_revise_prompt(
         system=CRITIQUE_REVISE_SYSTEM,
         implemented_requirements_json=json.dumps(implemented_requirements),
         critique_violations_json=json.dumps(violations),
-        security_overview_section=security_overview_section,
+        security_overview_section=formatted_security_section,
     )
 
 

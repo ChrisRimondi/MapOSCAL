@@ -33,6 +33,11 @@ from pathlib import Path
 from maposcal.embeddings import faiss_index, meta_store, local_embedder
 import logging
 from .validation import validate_control_mapping
+from .security_section_mapper import (
+    parse_security_overview_sections,
+    build_selective_security_overview_section,
+    validate_security_overview_structure
+)
 import uuid
 
 logger = logging.getLogger()
@@ -424,16 +429,26 @@ def map_control(
     else:
         llm_handler = LLMHandler(command="generate")
 
-    # Load security overview if available
-    security_overview = None
+    # Load and parse security overview if available
+    security_overview_sections = {}
     security_overview_path = Path(output_dir) / "security_overview.md"
     if security_overview_path.exists():
         try:
             with open(security_overview_path, "r") as f:
-                security_overview = f.read().strip()
-            logger.info(f"Loaded security overview from {security_overview_path}")
+                security_overview_content = f.read().strip()
+            
+            # Validate and parse the security overview
+            is_valid, issues = validate_security_overview_structure(security_overview_content)
+            if not is_valid:
+                logger.warning(f"Security overview structure validation failed: {issues}")
+            
+            # Parse into sections regardless of validation (graceful degradation)
+            security_overview_sections = parse_security_overview_sections(security_overview_content)
+            logger.info(f"Loaded security overview from {security_overview_path} with {len(security_overview_sections)} sections")
+            
         except Exception as e:
-            logger.warning(f"Failed to load security overview: {e}")
+            logger.warning(f"Failed to load/parse security overview: {e}")
+            # Fallback to empty sections dict
 
     # Get the control statement and handle ODP substitution
     control_description = (
@@ -490,18 +505,23 @@ def map_control(
         statement_uuid,
     )
 
+    # Build selective security overview section for this control
+    selective_security_section = build_selective_security_overview_section(
+        control_dict["id"], security_overview_sections
+    )
+
     # Try up to 3 times to get valid content
     max_retries = 3
     for attempt in range(max_retries):
         logger.info(f"Attempt {attempt + 1} for control {control_dict['id']}")
 
-        # Generate content with simplified prompt
+        # Generate content with simplified prompt using selective security context
         content_prompt = prompt_templates.build_content_generation_prompt(
             control_dict["id"],
             control_dict["title"],
             control_description,
             relevant_chunks,
-            security_overview,
+            security_overview_section=selective_security_section,
         )
 
         response = llm_handler.query(prompt=content_prompt)
