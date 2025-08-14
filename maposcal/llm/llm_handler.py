@@ -118,26 +118,26 @@ class LLMHandler:
         """
         return len(self.encoding.encode(text))
 
-    def query(self, prompt: str, max_tokens: int = 8000) -> str:
+    def query(self, prompt: str, max_tokens: int = 8000, temperature: float = 0.7) -> str:
         """
         Query the LLM with a prompt.
 
         Args:
             prompt: The prompt to send to the LLM
             max_tokens: Maximum number of tokens to generate (default: 8000)
+            temperature: Temperature for response randomness (default: 0.7)
 
         Returns:
             str: The LLM's response
         """
         try:
-            # Determine which token parameter to use based on model
-            token_params = self._get_token_parameters(max_tokens)
+            # Determine which parameters to use based on model
+            model_params = self._get_model_parameters(max_tokens, temperature)
             
             response = self.client.chat.completions.create(
                 model=self.model,
                 messages=[{"role": "user", "content": prompt}],
-                temperature=0.7,
-                **token_params
+                **model_params
             )
             return response.choices[0].message.content
         except RateLimitError as e:
@@ -147,15 +147,16 @@ class LLMHandler:
             logger.error(f"Error querying LLM: {e}")
             raise
     
-    def _get_token_parameters(self, max_tokens: int) -> dict:
+    def _get_model_parameters(self, max_tokens: int, temperature: float = 0.7) -> dict:
         """
-        Get the appropriate token parameters based on the model.
+        Get the appropriate parameters based on the model.
         
         Args:
             max_tokens: Maximum number of tokens to generate
+            temperature: Temperature for response randomness
             
         Returns:
-            dict: Token parameters to use in the API call
+            dict: Parameters to use in the API call
         """
         # Models that use max_completion_tokens instead of max_tokens
         new_token_models = [
@@ -166,10 +167,28 @@ class LLMHandler:
             "gpt-5o-flash"
         ]
         
-        # Check if this model uses the new parameter
+        # Models that have restricted temperature (only support default value)
+        restricted_temperature_models = [
+            "gpt-5-mini",
+            "gpt-5"
+        ]
+        
+        params = {}
+        
+        # Handle token parameters
         if any(model in self.model.lower() for model in new_token_models):
             logger.debug(f"Using max_completion_tokens for model: {self.model}")
-            return {"max_completion_tokens": max_tokens}
+            params["max_completion_tokens"] = max_tokens
         else:
             logger.debug(f"Using max_tokens for model: {self.model}")
-            return {"max_tokens": max_tokens}
+            params["max_tokens"] = max_tokens
+        
+        # Handle temperature parameter
+        if any(model in self.model.lower() for model in restricted_temperature_models):
+            logger.debug(f"Using default temperature for restricted model: {self.model}")
+            # Don't set temperature - let it use the default
+        else:
+            logger.debug(f"Using custom temperature {temperature} for model: {self.model}")
+            params["temperature"] = temperature
+        
+        return params
