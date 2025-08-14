@@ -120,6 +120,16 @@ class Analyzer:
         # Store LLM configuration
         self.llm_config = llm_config
         
+        # Store configuration for Dockerfile analysis
+        self.config = {
+            "dockerfile": {
+                "path": "Dockerfile",
+                "transport_security": True,
+                "exclude_from_analysis": True,
+                "entrypoint_analysis": True
+            }
+        }
+        
         # Initialize Dockerfile analyzer if configuration is provided
         self.dockerfile_analyzer = None
         if hasattr(settings, 'dockerfile_extensions'):
