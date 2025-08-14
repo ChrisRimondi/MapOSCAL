@@ -216,17 +216,17 @@ def get_relevant_chunks(
     control_description: str, output_dir: str, top_k: int = 5, control_id: str = None
 ) -> List[Dict]:
     """
-    Query both index.faiss and summary_index.faiss using the control_description as the query.
+    Query index.faiss, summary_index.faiss, and dockerfile_index.faiss using the control_description as the query.
     Combine and deduplicate the results to return relevant chunks.
 
     Additionally, if control_id is provided, include all chunks and summaries from files
     that have matching control hints for that specific control.
 
-    This function performs semantic search across both code chunks and file summaries
+    This function performs semantic search across code chunks, file summaries, and Dockerfile analysis
     to find the most relevant evidence for control mapping. It uses FAISS indices
-    for efficient similarity search and combines results from both chunk-level and
-    summary-level analysis. When a control_id is provided, it also includes all
-    evidence from files that have been tagged with matching control hints.
+    for efficient similarity search and combines results from all analysis levels.
+    When a control_id is provided, it also includes all evidence from files that have
+    been tagged with matching control hints.
 
     Args:
         control_description (str): The control description to use as the query.
@@ -303,8 +303,28 @@ def get_relevant_chunks(
                         summary_results.append(v)
                         break
 
+    # Query dockerfile_index.faiss (Dockerfile analysis)
+    dockerfile_results = []
+    dockerfile_index_path = Path(output_dir) / "dockerfile_index.faiss"
+    dockerfile_meta_path = Path(output_dir) / "dockerfile_meta.json"
+    if dockerfile_index_path.exists() and dockerfile_meta_path.exists():
+        try:
+            dockerfile_index = faiss_index.load_index(dockerfile_index_path)
+            dockerfile_meta_data = meta_store.load_metadata(dockerfile_meta_path)
+            
+            dockerfile_indices, _ = faiss_index.search_index(
+                dockerfile_index, query_embedding, k=top_k
+            )
+            for idx in dockerfile_indices:
+                if idx < len(dockerfile_meta_data):
+                    dockerfile_results.append(dockerfile_meta_data[idx])
+            
+            logger.info(f"Found {len(dockerfile_results)} relevant Dockerfile results")
+        except Exception as e:
+            logger.warning(f"Error querying Dockerfile index: {e}")
+    
     # Combine semantic search results
-    relevant_chunks = chunk_results + summary_results
+    relevant_chunks = chunk_results + summary_results + dockerfile_results
 
     # If control_id is provided, add chunks from files with matching control hints
     if control_id:

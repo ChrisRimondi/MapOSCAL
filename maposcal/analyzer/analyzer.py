@@ -7,6 +7,7 @@ feature extraction, and file summarization.
 from pathlib import Path
 from maposcal.embeddings import local_embedder, faiss_index, meta_store
 from maposcal.analyzer import chunker, rules
+from maposcal.analyzer.dockerfile_analyzer import DockerfileAnalyzer
 from maposcal.llm.llm_handler import LLMHandler
 from maposcal.llm import prompt_templates as pt
 from maposcal.utils.metadata import generate_metadata, inject_metadata_into_json
@@ -118,6 +119,15 @@ class Analyzer:
 
         # Store LLM configuration
         self.llm_config = llm_config
+        
+        # Initialize Dockerfile analyzer if configuration is provided
+        self.dockerfile_analyzer = None
+        if hasattr(settings, 'dockerfile_extensions'):
+            self.dockerfile_analyzer = DockerfileAnalyzer(
+                repo_path=str(self.repo_path),
+                output_dir=str(self.output_dir),
+                config=self.config
+            )
 
     def run(self) -> None:
         """
@@ -167,6 +177,16 @@ class Analyzer:
 
         self.summarize_files()
         self.save_config_files()
+        
+        # Run Dockerfile analysis if configured
+        if self.dockerfile_analyzer:
+            logger.info("Running Dockerfile analysis...")
+            try:
+                dockerfile_results = self.dockerfile_analyzer.analyze()
+                logger.info(f"Dockerfile analysis completed: {dockerfile_results.get('vectors_created', 0)} vectors created")
+            except Exception as e:
+                logger.warning(f"Dockerfile analysis failed: {e}")
+                # Continue with the rest of the analysis
 
     def summarize_files(self) -> None:
         """

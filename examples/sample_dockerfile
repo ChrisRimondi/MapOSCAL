@@ -1,0 +1,40 @@
+FROM python:3.9-slim
+
+# Create non-root user for security
+RUN groupadd -r appuser && useradd -r -g appuser appuser
+
+# Set working directory
+WORKDIR /home/app
+
+# Install security updates and CA certificates
+RUN apt-get update && apt-get install -y ca-certificates curl && rm -rf /var/lib/apt/lists/*
+
+# Copy requirements and install dependencies
+COPY requirements.txt /app/
+RUN pip install --no-cache-dir -r requirements.txt
+
+# Copy application code
+COPY . /app/
+
+# Set proper permissions for security
+RUN chown -R appuser:appuser /app && chmod 750 /app
+
+# Switch to non-root user
+USER appuser:appuser
+
+# Expose ports (HTTP and HTTPS)
+EXPOSE 8080 443
+
+# Set environment variables for security
+ENV PYTHONUNBUFFERED=1
+ENV TLS_MIN_VERSION=1.2
+ENV APP_DEBUG=false
+ENV REQUESTS_CA_BUNDLE=/etc/ssl/certs/ca-certificates.crt
+
+# Health check for monitoring
+HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
+  CMD curl -f http://localhost:8080/health || exit 1
+
+# Entrypoint script for proper signal handling
+ENTRYPOINT ["./entrypoint.sh"]
+CMD ["python", "app.py"]

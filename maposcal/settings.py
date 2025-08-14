@@ -131,6 +131,7 @@ ignored_file_extensions = [
     ".pem",  # Apple certificates and keys
     ".p7s",
     ".p7m",  # PKCS#7 files
+    ".dockerfile",  # Dockerfile extensions
 ]
 ignored_filename_patterns = [
     "test",
@@ -141,6 +142,7 @@ ignored_filename_patterns = [
     ".golangci.yaml",
     ".goreleaser.yml",
     ".goreleaser.yaml",
+    "Dockerfile",  # Exclude Dockerfile from regular analysis
 ]
 
 ignored_directory_patterns = [
@@ -184,6 +186,10 @@ config_file_extensions = [
     ".conf",
     ".properties",
 ]
+
+# Dockerfile-specific extensions and patterns
+dockerfile_extensions = [".dockerfile", "Dockerfile", "dockerfile"]
+dockerfile_filename_patterns = ["Dockerfile", "Dockerfile.*", "*.dockerfile"]
 
 if __name__ == "__main__":
     print("This module not intended for interactive use.  Pleaes use cli.py.")

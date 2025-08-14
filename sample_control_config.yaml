@@ -18,6 +18,13 @@ config_extensions: [".yaml", ".yml", ".json", ".toml", ".ini", ".conf", ".proper
 auto_discover_config: true
 config_files: []  # Used when auto_discover_config is false
 
+# Dockerfile analysis settings
+dockerfile:
+  path: "Dockerfile"  # Path to Dockerfile relative to repo root
+  transport_security: true  # Whether Dockerfile handles TLS/transport security
+  exclude_from_analysis: true  # Exclude from regular repository analysis
+  entrypoint_analysis: true  # Analyze ENTRYPOINT scripts separately
+
 # LLM Configuration
 # You can specify different providers and models for each command
 llm:
