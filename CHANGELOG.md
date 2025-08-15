@@ -5,6 +5,75 @@ All notable changes to MapOSCAL will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.4.0] - 2025-08-15
+
+### 🚀 Major Features
+
+#### Dockerfile Analysis & Container Security
+- **NEW**: Comprehensive Dockerfile security analysis and control mapping
+- **Container Controls**: Automatic NIST 800-53 control identification from Dockerfile instructions
+- **Separate FAISS Index**: Dedicated `dockerfile_index.faiss` for container security analysis
+- **ENTRYPOINT Script Analysis**: Automatic analysis of container entrypoint scripts
+- **Transport Security Detection**: Automatic TLS/HTTPS configuration identification
+- **Security Pattern Recognition**: Intelligent detection of security-relevant Dockerfile patterns
+
+#### GPT-5 Model Family Support
+- **NEW**: Full compatibility with OpenAI's GPT-5 family of models
+- **Automatic Parameter Detection**: Smart handling of `max_tokens` vs `max_completion_tokens`
+- **Temperature Restrictions**: Automatic handling of GPT-5 temperature parameter limitations
+- **Backward Compatibility**: All existing models (GPT-4, GPT-3.5) continue to work unchanged
+- **Future-Proof**: Easy to add support for new model restrictions
+
+### ✨ Enhancements
+
+#### Dockerfile Control Mapping
+- **Comprehensive Coverage**: Maps 20+ Dockerfile instruction types to NIST controls
+- **Evidence Generation**: Line-specific evidence for each security control implementation
+- **OSCAL Integration**: Structured properties for automated compliance reporting
+- **Control Families**: Covers AC, CM, SC, CP, SI, IA families with detailed mappings
+
+#### Container Security Features
+- **User Management**: Non-root user detection and analysis (AC-6, CM-6)
+- **Network Security**: Port exposure analysis and TLS port identification (CM-7, SC-7, SC-8)
+- **File Security**: Permission and ownership analysis (CM-6, AC-6)
+- **Process Control**: Signal handling and health monitoring (CP-10, SI-4)
+- **Data Protection**: Volume declarations and credential file detection (CP-9, SC-28)
+
+#### Enhanced Analysis Workflow
+- **Separate Processing**: Dockerfiles excluded from regular repository analysis
+- **Integrated Results**: Container evidence combined with code evidence for comprehensive control mapping
+- **Performance Optimization**: Independent FAISS indexing for efficient container queries
+- **Metadata Management**: Comprehensive tracking of container security features
+
+### 🐛 Bug Fixes
+- Fixed Analyzer.config attribute error for Dockerfile analysis initialization
+- Resolved GPT-5 model parameter compatibility issues
+- Fixed temperature parameter restrictions for new OpenAI models
+- Improved error handling in Dockerfile instruction parsing
+
+### 🔧 Technical Improvements
+- **Dockerfile Parser**: Robust parsing of all Dockerfile instruction types
+- **Multi-line Support**: Proper handling of complex multi-line instructions (HEALTHCHECK, etc.)
+- **Language Detection**: Automatic script language identification for entrypoint scripts
+- **Pattern Matching**: Intelligent security pattern recognition in container configurations
+- **FAISS Integration**: Seamless integration with existing vector search infrastructure
+
+### 📚 Documentation
+- **Comprehensive Implementation Guide**: Complete Dockerfile analysis documentation
+- **Configuration Examples**: Sample Dockerfile and entrypoint script examples
+- **Control Mapping Reference**: Detailed NIST 800-53 control mappings
+- **Usage Examples**: Practical examples of container security analysis
+- **Architecture Documentation**: Detailed system design and integration details
+
+### 🔄 Migration Notes
+- **No Breaking Changes**: All existing functionality remains intact
+- **Configuration Updates**: New Dockerfile configuration options available
+- **Automatic Benefits**: Container security analysis works automatically when Dockerfiles are present
+- **Performance**: Minimal impact on existing analysis workflows
+- **Backward Compatibility**: All existing CLI commands and configurations continue to work
+
+---
+
 ## [0.3.0-alpha] - 2025-01-16
 
 ### 🚀 Major Features
@@ -93,25 +162,37 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Release Comparison
 
-| Feature | v0.1.0 | v0.2.0-alpha | v0.3.0-alpha |
-|---------|--------|--------------|--------------|
-| Basic Control Mapping | ✅ | ✅ | ✅ |
-| Security Overview | ❌ | ✅ | ✅ |
-| Selective Context | ❌ | ❌ | ✅ |
-| Crypto Detection | ❌ | ❌ | ✅ |
-| Token Optimization | ❌ | ❌ | ✅ |
-| Advanced Validation | ❌ | ✅ | ✅ |
+| Feature | v0.1.0 | v0.2.0-alpha | v0.3.0-alpha | v0.4.0 |
+|---------|--------|--------------|--------------|---------|
+| Basic Control Mapping | ✅ | ✅ | ✅ | ✅ |
+| Security Overview | ❌ | ✅ | ✅ | ✅ |
+| Selective Context | ❌ | ❌ | ✅ | ✅ |
+| Crypto Detection | ❌ | ❌ | ✅ | ✅ |
+| Token Optimization | ❌ | ❌ | ✅ | ✅ |
+| Advanced Validation | ❌ | ✅ | ✅ | ✅ |
+| Dockerfile Analysis | ❌ | ❌ | ❌ | ✅ |
+| Container Security | ❌ | ❌ | ❌ | ✅ |
+| GPT-5 Model Support | ❌ | ❌ | ❌ | ✅ |
+| Container Control Mapping | ❌ | ❌ | ❌ | ✅ |
 
 ## Upgrade Path
 
-### From v0.2.0-alpha to v0.3.0-alpha
-1. No configuration changes required
-2. Existing security overviews will automatically benefit from selective context
-3. Control mapping operations will immediately see token usage reduction
-4. All existing CLI commands continue to work unchanged
+### From v0.3.0-alpha to v0.4.0
+1. **No Breaking Changes**: All existing functionality remains intact
+2. **Dockerfile Analysis**: Automatically enabled when Dockerfiles are present
+3. **GPT-5 Models**: Immediate support for new OpenAI models
+4. **Configuration**: Optional Dockerfile configuration available in `sample_control_config.yaml`
+5. **Performance**: Container analysis runs independently, no impact on existing workflows
+
+### From v0.2.0-alpha to v0.4.0
+1. All benefits from v0.3.0-alpha upgrade
+2. Plus container security analysis capabilities
+3. Plus GPT-5 model family support
 
 ### Performance Expectations
-- **Token Usage**: ~47% reduction in security context tokens
-- **Processing Speed**: Faster due to smaller prompts
-- **API Costs**: Significant reduction in LLM API costs
-- **Accuracy**: Improved control mapping quality through focused context
+- **Token Usage**: ~47% reduction in security context tokens (v0.3.0 feature)
+- **Processing Speed**: Faster due to smaller prompts (v0.3.0 feature)
+- **API Costs**: Significant reduction in LLM API costs (v0.3.0 feature)
+- **Accuracy**: Improved control mapping quality through focused context (v0.3.0 feature)
+- **Container Analysis**: Independent processing with dedicated FAISS indices
+- **GPT-5 Support**: Automatic parameter optimization for new models

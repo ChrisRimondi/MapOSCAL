@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "maposcal"
-version = "0.3.0-alpha"
+version = "0.4.0"
 description = "CLI tool to generate OSCAL component definitions from source code."
 dependencies = ["typer[all]", "faiss-cpu", "openai", "PyYAML", "sentence-transformers", "dotenv", "tiktoken", "toml"]
 
