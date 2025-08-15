@@ -49,6 +49,28 @@ NEW in v0.3.0-alpha - MapOSCAL automatically detects and catalogs cryptographic 
 - **Control Integration**: Automatically includes cryptographic context in relevant security control mappings
 - **Compliance Mapping**: Better accuracy for encryption-related controls (SC family) through detected crypto operations
 
+### Dockerfile Analysis & Container Security
+
+NEW in v0.4.0 - MapOSCAL now provides comprehensive container security analysis:
+
+- **Dockerfile Security Scanning**: Automatically analyzes Dockerfiles for security controls and compliance features
+- **Container Control Mapping**: Maps Dockerfile instructions to NIST 800-53 controls (AC-6, CM-6, SC-7, SC-13, etc.)
+- **Transport Security Detection**: Identifies TLS/HTTPS configuration and certificate management
+- **ENTRYPOINT Script Analysis**: Analyzes container entrypoint scripts for security features
+- **Separate FAISS Indexing**: Dedicated container security analysis with `dockerfile_index.faiss`
+- **Comprehensive Coverage**: Supports all major Dockerfile instructions (USER, EXPOSE, ENV, COPY, RUN, etc.)
+- **OSCAL Integration**: Generates structured properties for automated compliance reporting
+
+### GPT-5 Model Family Support
+
+NEW in v0.4.0 - MapOSCAL now provides full compatibility with OpenAI's latest models:
+
+- **Automatic Parameter Detection**: Smart handling of `max_tokens` vs `max_completion_tokens` parameters
+- **Temperature Restrictions**: Automatic handling of GPT-5 temperature parameter limitations
+- **Backward Compatibility**: All existing models (GPT-4, GPT-3.5) continue to work unchanged
+- **Future-Proof**: Easy to add support for new model restrictions and parameters
+- **Performance Optimization**: Automatic parameter optimization for each model type
+
 ### File Metadata Tracking
 
 MapOSCAL automatically injects metadata into all output files to provide complete audit trails:
