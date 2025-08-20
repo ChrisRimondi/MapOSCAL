@@ -192,24 +192,35 @@ llm:
   # Global LLM settings (used as defaults)
   provider: "openai"
   model: "gpt-4"
+  temperature: 0.4  # Global default temperature
   
   # Command-specific LLM settings (override global settings)
   analyze:
     provider: "openai"
     model: "gpt-4o-mini"  # Fast, cost-effective for analysis
+    temperature: 0.1  # Low temperature for consistent analysis
     
   summarize:
     provider: "openai"
     model: "gpt-4"  # High quality for summaries
+    temperature: 0.2  # Low temperature for consistent summaries
     
   generate:
     provider: "openai"
     model: "gpt-4"  # High quality for OSCAL generation
+    temperature: 0.4  # Moderate temperature for creative but structured generation
     
   evaluate:
     provider: "openai"
     model: "gpt-4"  # High quality for evaluation
+    temperature: 0.0  # Very low temperature for deterministic evaluation
 ```
+
+**Temperature Guidelines:**
+- **analyze**: 0.1-0.3 (low) for consistent analysis and pattern recognition
+- **summarize**: 0.1-0.3 (low) for consistent and reliable summaries
+- **generate**: 0.3-0.6 (moderate) for creative but structured OSCAL generation
+- **evaluate**: 0.0-0.2 (very low) for deterministic and consistent assessment
 
 **Supported LLM Providers:**
 

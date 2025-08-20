@@ -147,7 +147,7 @@ def get_llm_config(config_data: dict, command: str) -> dict:
         command: The command being executed (analyze, summarize, generate, evaluate)
 
     Returns:
-        dict: LLM configuration with provider and model
+        dict: LLM configuration with provider, model, and temperature
     """
     # Check if there's a global LLM config
     global_llm_config = config_data.get("llm", {})
@@ -161,7 +161,7 @@ def get_llm_config(config_data: dict, command: str) -> dict:
     # If no config provided, use defaults from settings
     if not llm_config:
         return settings.DEFAULT_LLM_CONFIGS.get(
-            command, {"provider": "openai", "model": "gpt-4"}
+            command, {"provider": "openai", "model": "gpt-4", "temperature": 0.7}
         )
 
     # Validate provider
@@ -172,10 +172,11 @@ def get_llm_config(config_data: dict, command: str) -> dict:
         )
         provider = "openai"
 
-    # Get model (use default if not specified)
+    # Get model and temperature (use defaults if not specified)
     model = llm_config.get("model", "gpt-4")
+    temperature = llm_config.get("temperature", settings.DEFAULT_LLM_CONFIGS.get(command, {}).get("temperature", 0.7))
 
-    return {"provider": provider, "model": model}
+    return {"provider": provider, "model": model, "temperature": temperature}
 
 
 @app.command()
@@ -306,6 +307,9 @@ def summarize(
 
     # Query the LLM
     llm_handler = LLMHandler(provider=llm_config["provider"], model=llm_config["model"])
+    # Set custom temperature if specified
+    if "temperature" in llm_config:
+        llm_handler.default_temperature = llm_config["temperature"]
     typer.echo(
         f"Generating service security overview using {llm_config['provider']}/{llm_config['model']}..."
     )
@@ -340,8 +344,12 @@ def critique_and_revise(
     # Use provided LLM config or fall back to defaults
     if llm_config:
         llm_handler = LLMHandler(
-            provider=llm_config["provider"], model=llm_config["model"]
+            provider=llm_config["provider"], 
+            model=llm_config["model"]
         )
+        # Set custom temperature if specified
+        if "temperature" in llm_config:
+            llm_handler.default_temperature = llm_config["temperature"]
     else:
         llm_handler = LLMHandler(command="generate")
 
@@ -515,6 +523,9 @@ def generate(
         llm_handler = LLMHandler(
             provider=llm_config["provider"], model=llm_config["model"]
         )
+        # Set custom temperature if specified
+        if "temperature" in llm_config:
+            llm_handler.default_temperature = llm_config["temperature"]
         is_valid = False
         final_validation_errors = []
 
@@ -720,6 +731,9 @@ def evaluate(config: str = typer.Argument(..., help="Path to the configuration f
 
     # Initialize LLM handler
     llm_handler = LLMHandler(provider=llm_config["provider"], model=llm_config["model"])
+    # Set custom temperature if specified
+    if "temperature" in llm_config:
+        llm_handler.default_temperature = llm_config["temperature"]
     typer.echo(
         f"Using {llm_config['provider']}/{llm_config['model']} for evaluation..."
     )
@@ -944,6 +958,9 @@ def run_all(config: str = typer.Argument(None, help="Path to the configuration f
             llm_handler = LLMHandler(
                 provider=llm_config["provider"], model=llm_config["model"]
             )
+            # Set custom temperature if specified
+            if "temperature" in llm_config:
+                llm_handler.default_temperature = llm_config["temperature"]
             typer.echo(
                 f"Generating service security overview using {llm_config['provider']}/{llm_config['model']}..."
             )
@@ -1040,6 +1057,9 @@ def run_all(config: str = typer.Argument(None, help="Path to the configuration f
             llm_handler = LLMHandler(
                 provider=llm_config["provider"], model=llm_config["model"]
             )
+            # Set custom temperature if specified
+            if "temperature" in llm_config:
+                llm_handler.default_temperature = llm_config["temperature"]
             is_valid = False
             final_validation_errors = []
 
@@ -1199,6 +1219,9 @@ def run_all(config: str = typer.Argument(None, help="Path to the configuration f
         llm_handler = LLMHandler(
             provider=llm_config["provider"], model=llm_config["model"]
         )
+        # Set custom temperature if specified
+        if "temperature" in llm_config:
+            llm_handler.default_temperature = llm_config["temperature"]
         typer.echo(
             f"Using {llm_config['provider']}/{llm_config['model']} for evaluation..."
         )

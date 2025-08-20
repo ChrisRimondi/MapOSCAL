@@ -219,6 +219,9 @@ class Analyzer:
             llm_handler = LLMHandler(
                 provider=self.llm_config["provider"], model=self.llm_config["model"]
             )
+            # Set custom temperature if specified
+            if "temperature" in self.llm_config:
+                llm_handler.default_temperature = self.llm_config["temperature"]
         else:
             llm_handler = LLMHandler(command="analyze")
 

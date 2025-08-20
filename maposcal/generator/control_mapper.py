@@ -446,6 +446,9 @@ def map_control(
         llm_handler = LLMHandler(
             provider=llm_config["provider"], model=llm_config["model"]
         )
+        # Set custom temperature if specified
+        if "temperature" in llm_config:
+            llm_handler.default_temperature = llm_config["temperature"]
     else:
         llm_handler = LLMHandler(command="generate")
 

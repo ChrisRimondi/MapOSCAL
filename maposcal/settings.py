@@ -19,18 +19,22 @@ DEFAULT_LLM_CONFIGS = {
     "analyze": {
         "provider": "openai",
         "model": "gpt-4.1-mini",  # Fast, cost-effective for analysis
+        "temperature": 0.1,  # Low temperature for consistent analysis
     },
     "summarize": {
         "provider": "openai",
         "model": "gpt-4.1",  # High quality for summaries
+        "temperature": 0.2,  # Low temperature for consistent summaries
     },
     "generate": {
         "provider": "openai",
         "model": "gpt-4.1",  # High quality for OSCAL generation
+        "temperature": 0.4,  # Moderate temperature for creative but structured generation
     },
     "evaluate": {
         "provider": "openai",
         "model": "gpt-4.1",  # High quality for evaluation
+        "temperature": 0.0,  # Very low temperature for deterministic evaluation
     },
 }
 

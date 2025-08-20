@@ -33,15 +33,18 @@ class LLMHandler:
             # Use provided provider and model
             self.provider = provider
             self.model = model
+            self.default_temperature = 0.7  # Legacy default
         elif command and command in settings.DEFAULT_LLM_CONFIGS:
             # Use command-specific defaults
             config = settings.DEFAULT_LLM_CONFIGS[command]
             self.provider = config["provider"]
             self.model = config["model"]
+            self.default_temperature = config.get("temperature", 0.7)
         else:
             # Fall back to legacy defaults
             self.provider = "openai"
             self.model = settings.openai_model
+            self.default_temperature = 0.7
 
         # Validate provider
         if self.provider not in settings.LLM_PROVIDERS:
@@ -59,24 +62,10 @@ class LLMHandler:
         # Log for debugging (mask the key for security)
         logger.info(f"Provider: {self.provider}")
         logger.info(f"Looking for API key in environment variable: {self.api_key_env}")
+        logger.info(f"Default temperature: {self.default_temperature}")
 
-        if api_key:
-            masked_key = (
-                api_key[:8] + "..." + api_key[-4:] if len(api_key) > 12 else "***"
-            )
-            logger.info(f"Found API key: {masked_key}")
-            logger.info(f"Using base URL: {base_url}")
-
-            # Check if this looks like the right type of API key
-            if self.provider == "openai" and not api_key.startswith("sk-"):
-                logger.warning(
-                    "API key doesn't look like an OpenAI key (should start with 'sk-')"
-                )
-            elif self.provider == "gemini" and not api_key.startswith("AIza"):
-                logger.warning(
-                    "API key doesn't look like a Gemini key (should start with 'AIza')"
-                )
-        else:
+        # Validate API key
+        if not api_key:
             logger.error(
                 f"No API key found for environment variable: {self.api_key_env}"
             )
@@ -118,18 +107,24 @@ class LLMHandler:
         """
         return len(self.encoding.encode(text))
 
-    def query(self, prompt: str, max_tokens: int = 8000, temperature: float = 0.7) -> str:
+    def query(self, prompt: str, max_tokens: int = 8000, temperature: float = None) -> str:
         """
         Query the LLM with a prompt.
 
         Args:
             prompt: The prompt to send to the LLM
             max_tokens: Maximum number of tokens to generate (default: 8000)
-            temperature: Temperature for response randomness (default: 0.7)
+            temperature: Temperature for response randomness (default: uses command-specific default)
 
         Returns:
             str: The LLM's response
         """
+        # Use default temperature if none specified
+        if temperature is None:
+            temperature = self.default_temperature
+            
+        logger.debug(f"Using temperature: {temperature} for model: {self.model}")
+        
         try:
             # Determine which parameters to use based on model
             model_params = self._get_model_parameters(max_tokens, temperature)
