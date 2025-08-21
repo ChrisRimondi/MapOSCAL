@@ -1309,9 +1309,53 @@ def run_all(config: str = typer.Argument(None, help="Path to the configuration f
         else:
             typer.echo(f"  ❌ {filename} (not generated)")
 
-    typer.echo(
-        "\n🚀 Workflow complete! Review the generated files for your OSCAL components."
-    )
+            typer.echo(
+            "\n🚀 Workflow complete! Review the generated files for your OSCAL components."
+        )
+
+
+@app.command()
+def plan(
+    repo_path: str = typer.Argument(..., help="Path to the repository containing Argo CD manifests"),
+    output: str = typer.Option("plan.yaml", "-o", "--output", help="Output file for the execution plan"),
+    minimal: bool = typer.Option(False, "--minimal", help="Generate minimal plan with only essential steps enabled"),
+    validate_only: bool = typer.Option(False, "--validate-only", help="Only validate the generated plan without saving"),
+    verbose: bool = typer.Option(False, "--verbose", "-v", help="Enable verbose output"),
+):
+    """
+    Generate execution plan for Argo CD Application repository.
+    
+    This command analyzes an Argo CD Application repository and generates an execution plan
+    that can be used with the execute-plan command to perform deep analysis and generate OSCAL components.
+    """
+    try:
+        from maposcal.cli.plan import plan_command
+        
+        # Create a mock args object to match the expected interface
+        class MockArgs:
+            def __init__(self, repo_path, output, minimal, validate_only, verbose):
+                self.repo_path = repo_path
+                self.output = output
+                self.minimal = minimal
+                self.validate_only = validate_only
+                self.verbose = verbose
+        
+        args = MockArgs(repo_path, output, minimal, validate_only, verbose)
+        exit_code = plan_command(args)
+        
+        if exit_code != 0:
+            raise typer.Exit(exit_code)
+            
+    except ImportError as e:
+        typer.echo(f"❌ Failed to import plan command: {e}")
+        typer.echo("⚠️  Make sure all required modules are available")
+        raise typer.Exit(1)
+    except Exception as e:
+        typer.echo(f"❌ Plan command failed: {e}")
+        if verbose:
+            import traceback
+            typer.echo(traceback.format_exc())
+        raise typer.Exit(1)
 
 
 if __name__ == "__main__":
