@@ -1358,5 +1358,91 @@ def plan(
         raise typer.Exit(1)
 
 
+@app.command()
+def execute_plan(
+    plan_file: str = typer.Argument(..., help="Path to the execution plan YAML file"),
+    force: bool = typer.Option(False, "--force", help="Force execution even if cached results exist"),
+    only_steps: str = typer.Option(None, "--only-steps", help="Comma-separated list of step IDs to execute (e.g., render,inventory)"),
+    skip_steps: str = typer.Option(None, "--skip-steps", help="Comma-separated list of step IDs to skip (e.g., sbom,provenance)"),
+    only_targets: str = typer.Option(None, "--only-targets", help="Comma-separated list of targets to execute (e.g., workload:frontend)"),
+    verbose: bool = typer.Option(False, "--verbose", "-v", help="Enable verbose output"),
+):
+    """
+    Execute a generated MapOSCAL execution plan.
+    
+    This command executes a previously generated execution plan to perform
+    deep analysis and generate OSCAL components for Argo CD Applications.
+    """
+    try:
+        from maposcal.cli.execute_plan import execute_plan_command
+
+        # Create a mock args object to match the expected interface
+        class MockArgs:
+            def __init__(self, plan_file, force, only_steps, skip_steps, only_targets, verbose):
+                self.plan_file = plan_file
+                self.force = force
+                self.only_steps = only_steps
+                self.skip_steps = skip_steps
+                self.only_targets = only_targets
+                self.verbose = verbose
+
+        args = MockArgs(plan_file, force, only_steps, skip_steps, only_targets, verbose)
+        exit_code = execute_plan_command(args)
+
+        if exit_code != 0:
+            raise typer.Exit(exit_code)
+
+    except ImportError as e:
+        typer.echo(f"❌ Failed to import execute-plan command: {e}")
+        typer.echo("⚠️  Make sure all required modules are available")
+        raise typer.Exit(1)
+    except Exception as e:
+        typer.echo(f"❌ Execute-plan command failed: {e}")
+        if verbose:
+            import traceback
+            typer.echo(traceback.format_exc())
+        raise typer.Exit(1)
+
+
+@app.command()
+def resume(
+    plan_file: str = typer.Argument(..., help="Path to the execution plan YAML file"),
+    force: bool = typer.Option(False, "--force", help="Force re-execution of failed steps"),
+    verbose: bool = typer.Option(False, "--verbose", "-v", help="Enable verbose output"),
+):
+    """
+    Resume an interrupted MapOSCAL execution.
+    
+    This command resumes execution from where it left off after interruption,
+    allowing you to continue analysis without starting over.
+    """
+    try:
+        from maposcal.cli.resume import resume_command
+
+        # Create a mock args object to match the expected interface
+        class MockArgs:
+            def __init__(self, plan_file, force, verbose):
+                self.plan_file = plan_file
+                self.force = force
+                self.verbose = verbose
+
+        args = MockArgs(plan_file, force, verbose)
+        exit_code = resume_command(args)
+
+        if exit_code != 0:
+            raise typer.Exit(exit_code)
+
+    except ImportError as e:
+        typer.echo(f"❌ Failed to import resume command: {e}")
+        typer.echo("⚠️  Make sure all required modules are available")
+        raise typer.Exit(1)
+    except Exception as e:
+        typer.echo(f"❌ Resume command failed: {e}")
+        if verbose:
+            import traceback
+            typer.echo(traceback.format_exc())
+        raise typer.Exit(1)
+
+
 if __name__ == "__main__":
     app()

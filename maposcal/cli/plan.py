@@ -98,9 +98,12 @@ def plan_command(args) -> int:
             logger.warning("No Argo CD Applications found in repository")
             # Create a minimal plan anyway
             application_name = repo_path.name
+            application_namespace = "default"
         else:
             application_name = applications[0].name
+            application_namespace = applications[0].namespace
             logger.info(f"Found {len(applications)} Argo CD Application(s)")
+            logger.info(f"  Application: {application_name} (namespace: {application_namespace})")
         
         # Step 2: Process manifests for each application
         logger.info("Step 2: Processing Kubernetes manifests...")
@@ -152,11 +155,12 @@ def plan_command(args) -> int:
         plan_generator = PlanGenerator()
         
         if args.minimal:
-            plan = plan_generator.create_minimal_plan(application_name, workload_groups)
+            plan = plan_generator.create_minimal_plan(application_name, application_namespace, workload_groups)
             logger.info("  Generated minimal execution plan")
         else:
             plan = plan_generator.generate_plan(
                 application_name, 
+                application_namespace,
                 workload_groups,
                 grouped_resources.get("namespace_policies", {}),
                 grouped_resources.get("standalone_resources", [])

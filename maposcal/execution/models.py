@@ -127,6 +127,7 @@ class ExecutionPlan:
     
     version: int = 1
     application: str = ""
+    application_namespace: str = ""
     generated_at: datetime = field(default_factory=datetime.utcnow)
     steps: List[str] = field(default_factory=list)  # List of step IDs
     targets: Dict[str, Any] = field(default_factory=dict)  # workloads, repos, etc.
@@ -162,6 +163,26 @@ class ExecutionPlan:
         """Save execution plan to YAML file."""
         with open(filepath, 'w') as f:
             f.write(self.to_yaml())
+    
+    def get_cache_base_path(self) -> str:
+        """Get the base cache path for this application.
+        
+        Returns:
+            Base cache path for application artifacts
+        """
+        if not self.application:
+            return ".maposcal/artifacts/default"
+        return f".maposcal/artifacts/applications/{self.application}"
+    
+    def get_state_file_path(self) -> str:
+        """Get the state file path for this application.
+        
+        Returns:
+            Path to the application state file
+        """
+        if not self.application:
+            return ".maposcal/applications/default/state.json"
+        return f".maposcal/applications/{self.application}/state.json"
 
 
 @dataclass

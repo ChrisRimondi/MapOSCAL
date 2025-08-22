@@ -37,12 +37,14 @@ class PlanGenerator:
             "source_link": ["oci_labels"],
         }
     
-    def generate_plan(self, application_name: str, workload_groups: List[WorkloadGroup], 
+    def generate_plan(self, application_name: str, application_namespace: str, 
+                     workload_groups: List[WorkloadGroup], 
                      namespace_policies: Dict[str, Any], standalone_resources: List[Any]) -> ExecutionPlan:
         """Generate an execution plan for Argo CD Application analysis.
         
         Args:
             application_name: Name of the Argo CD Application
+            application_namespace: Namespace of the Argo CD Application
             workload_groups: List of discovered workload groups
             namespace_policies: Namespace-level policies
             standalone_resources: Resources not part of any workload group
@@ -53,6 +55,7 @@ class PlanGenerator:
         # Create the base execution plan
         plan = ExecutionPlan(
             application=application_name,
+            application_namespace=application_namespace,
             steps=self.standard_steps
         )
         
@@ -282,11 +285,13 @@ class PlanGenerator:
         
         return False
     
-    def create_minimal_plan(self, application_name: str, workload_groups: List[WorkloadGroup]) -> ExecutionPlan:
+    def create_minimal_plan(self, application_name: str, application_namespace: str, 
+                           workload_groups: List[WorkloadGroup]) -> ExecutionPlan:
         """Create a minimal execution plan with only essential steps enabled.
         
         Args:
             application_name: Name of the Argo CD Application
+            application_namespace: Namespace of the Argo CD Application
             workload_groups: List of discovered workload groups
             
         Returns:
@@ -297,6 +302,7 @@ class PlanGenerator:
         
         plan = ExecutionPlan(
             application=application_name,
+            application_namespace=application_namespace,
             steps=minimal_steps
         )
         
