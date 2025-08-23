@@ -9,13 +9,15 @@ categories: updates
 
 ## **Downshifting Compliance**
 
-### **Introduction**: Embedding Compliance into Platform Abstractions**
+### **Introduction**: Embedding Compliance into Platform Abstractions
 
 Engineering teams constantly balance efficiency, quality, and cost, all while delivering value to customers. Compliance is often treated as something bolted on at the end of the process, creating overhead and slowing teams down.
 
 But there’s a better way. In a recent talk from Google at PlatformCon 2025, they emphasized the idea of **“shift down”**: 
 
+
 > Shift down is an approach that advocates for embedding decisions and responsibilities into underlying internal developer platforms (IDPs), thereby reducing the operational burden on developers. This contrasts with the DevOps trend of "shift left," which pushes more effort earlier into the development cycle, a method that is proving difficult at scale due to the sheer volume and rate of change in requirements.
+
 
 We think this type of thinking applies equally in the compliance space.
 
