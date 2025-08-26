@@ -56,7 +56,12 @@ class PlanGenerator:
         plan = ExecutionPlan(
             application=application_name,
             application_namespace=application_namespace,
-            steps=self.standard_steps
+            steps=self.standard_steps,
+            config={
+                "source_analysis": {
+                    "source_directories": []
+                }
+            }
         )
         
         # Create targets structure

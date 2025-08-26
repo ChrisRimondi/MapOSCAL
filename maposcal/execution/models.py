@@ -131,15 +131,18 @@ class ExecutionPlan:
     generated_at: datetime = field(default_factory=datetime.utcnow)
     steps: List[str] = field(default_factory=list)  # List of step IDs
     targets: Dict[str, Any] = field(default_factory=dict)  # workloads, repos, etc.
+    config: Dict[str, Any] = field(default_factory=dict)  # Configuration for analysis steps
     
     def to_dict(self) -> Dict[str, Any]:
         """Convert execution plan to dictionary for serialization."""
         return {
             "version": self.version,
             "application": self.application,
+            "application_namespace": self.application_namespace,
             "generated_at": self.generated_at.isoformat(),
             "steps": self.steps,
             "targets": self.targets,
+            "config": self.config,
         }
     
     @classmethod
@@ -148,9 +151,11 @@ class ExecutionPlan:
         return cls(
             version=data.get("version", 1),
             application=data.get("application", ""),
+            application_namespace=data.get("application_namespace", ""),
             generated_at=datetime.fromisoformat(data["generated_at"]) if data.get("generated_at") else datetime.utcnow(),
             steps=data.get("steps", []),
             targets=data.get("targets", {}),
+            config=data.get("config", {}),
         )
     
     def to_yaml(self) -> str:
