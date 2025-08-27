@@ -9,6 +9,8 @@ import logging
 from typing import Dict, List, Any, Optional, Set
 from pathlib import Path
 from datetime import datetime
+import os
+import uuid
 
 from .models import ExecutionPlan, Step, StepStatus
 from .cache_manager import CacheManager
@@ -1050,60 +1052,146 @@ class ExecutionEngine:
         Returns:
             Dictionary with mapped controls
         """
-        # This is a placeholder implementation
-        # In a full implementation, this would:
-        # 1. Use existing MapOSCAL control mapping logic
-        # 2. Analyze workload characteristics for control relevance
-        # 3. Apply AI-powered control suggestions
+        try:
+            from maposcal.generator.k8s_control_mapper import K8sControlMapper, create_k8s_workload_context
+            
+            # Get the manifest content for this workload
+            manifest_content = self._get_workload_manifest_content(workload_name, namespace)
+            
+            # Create workload context
+            workload_context = create_k8s_workload_context(
+                name=workload_name,
+                namespace=namespace,
+                resource_types=resource_types,
+                images=images,
+                manifest_content=manifest_content,
+                source_path=self._get_workload_source_path(workload_name)
+            )
+            
+            # Initialize K8s control mapper
+            k8s_mapper = K8sControlMapper(llm_config=self._get_llm_config())
+            
+            # Map controls
+            mapping_result = k8s_mapper.map_workload_controls(workload_context, top_k_controls=15)
+            
+            self.logger.info(f"Successfully mapped {len(mapping_result.get('top_controls', []))} controls for workload {workload_name}")
+            
+            return mapping_result
+            
+        except ImportError as e:
+            self.logger.warning(f"K8s control mapper not available, using fallback: {e}")
+            return self._map_workload_controls_fallback(workload_name, namespace, resource_types, images)
+        except Exception as e:
+            self.logger.error(f"Failed to map workload controls for {workload_name}: {e}")
+            return self._map_workload_controls_fallback(workload_name, namespace, resource_types, images)
+    
+    def _get_workload_manifest_content(self, workload_name: str, namespace: str) -> str:
+        """Get the manifest content for a specific workload."""
+        try:
+            # Look for manifest files in the cache
+            cache_base = self.plan.get_cache_base_path()
+            manifest_dir = f"{cache_base}/workloads/{workload_name}"
+            
+            if not os.path.exists(manifest_dir):
+                return f"Workload: {workload_name}\nNamespace: {namespace}\nResource Types: {', '.join(self._get_workload_resource_types(workload_name))}"
+            
+            # Collect manifest content from all relevant files
+            manifest_content = []
+            manifest_content.append(f"Workload: {workload_name}")
+            manifest_content.append(f"Namespace: {namespace}")
+            
+            # Look for YAML files
+            for file_path in Path(manifest_dir).glob("*.yaml"):
+                try:
+                    with open(file_path, 'r') as f:
+                        content = f.read()
+                        manifest_content.append(f"\n--- {file_path.name} ---")
+                        manifest_content.append(content)
+                except Exception as e:
+                    self.logger.warning(f"Failed to read manifest file {file_path}: {e}")
+            
+            return "\n".join(manifest_content)
+            
+        except Exception as e:
+            self.logger.warning(f"Failed to get manifest content for {workload_name}: {e}")
+            return f"Workload: {workload_name}\nNamespace: {namespace}"
+    
+    def _get_workload_resource_types(self, workload_name: str) -> List[str]:
+        """Get resource types for a specific workload from the plan."""
+        try:
+            workloads = self.plan.targets.get("workloads", [])
+            for workload in workloads:
+                if workload.get("name") == workload_name:
+                    return workload.get("resource_types", [])
+            return []
+        except Exception:
+            return []
+    
+    def _get_workload_source_path(self, workload_name: str) -> Optional[str]:
+        """Get the source path for a workload if available."""
+        try:
+            workloads = self.plan.targets.get("workloads", [])
+            for workload in workloads:
+                if workload.get("name") == workload_name:
+                    return workload.get("source_path")
+            return None
+        except Exception:
+            return None
+    
+    def _get_llm_config(self) -> Dict[str, Any]:
+        """Get LLM configuration from plan or environment."""
+        # This could be enhanced to read from plan configuration
+        return {
+            "provider": "openai",  # Default provider
+            "model": "gpt-4"       # Default model
+        }
+    
+    def _map_workload_controls_fallback(self, workload_name: str, namespace: str, 
+                                       resource_types: List[str], images: List[Dict[str, Any]]) -> Dict[str, Any]:
+        """Fallback control mapping when K8s mapper is not available."""
+        self.logger.info(f"Using fallback control mapping for workload {workload_name}")
         
         controls = {
-            "access_control": [],
-            "data_protection": [],
-            "network_security": [],
-            "monitoring": [],
-            "compliance": []
+            "workload_name": workload_name,
+            "namespace": namespace,
+            "resource_types": resource_types,
+            "total_controls_found": 0,
+            "top_controls": [],
+            "control_implementations": {},
+            "mapping_timestamp": str(uuid.uuid4()),
+            "fallback_used": True
         }
         
-        # Map controls based on resource types
+        # Basic control mapping based on resource types
         if "Deployment" in resource_types:
-            controls["access_control"].extend([
-                "AC-2: Account Management",
-                "AC-3: Access Enforcement"
-            ])
-            controls["network_security"].extend([
-                "SC-7: Boundary Protection",
-                "SC-8: Transmission Confidentiality and Integrity"
-            ])
+            controls["total_controls_found"] += 2
+            controls["top_controls"].append({
+                "control_id": "AC-6",
+                "confidence_score": 0.5,
+                "matched_hints": ["Deployment resource type"],
+                "workload_context": f"Workload: {workload_name}\nNamespace: {namespace}",
+                "relevant_manifest_sections": ["Deployment configuration"]
+            })
         
         if "Service" in resource_types:
-            controls["network_security"].extend([
-                "SC-7: Boundary Protection",
-                "SC-8: Transmission Confidentiality and Integrity"
-            ])
+            controls["total_controls_found"] += 2
+            controls["top_controls"].append({
+                "control_id": "SC-7",
+                "confidence_score": 0.4,
+                "matched_hints": ["Service resource type"],
+                "workload_context": f"Workload: {workload_name}\nNamespace: {namespace}",
+                "relevant_manifest_sections": ["Service configuration"]
+            })
         
         if "Secret" in resource_types:
-            controls["data_protection"].extend([
-                "SC-8: Transmission Confidentiality and Integrity",
-                "SC-12: Cryptographic Key Establishment and Management"
-            ])
-        
-        if "ConfigMap" in resource_types:
-            controls["data_protection"].extend([
-                "SC-8: Transmission Confidentiality and Integrity"
-            ])
-        
-        # Add common controls for all workloads
-        controls["monitoring"].extend([
-            "AU-2: Audit Events",
-            "AU-3: Content of Audit Records"
-        ])
-        
-        controls["compliance"].extend([
-            "CM-6: Configuration Settings",
-            "CM-8: Information System Component Inventory"
-        ])
-        
-        self.logger.info(f"Mapped controls for workload {workload_name} (placeholder implementation)")
+            controls["total_controls_found"] += 1
+            controls["top_controls"].append({
+                "control_id": "SC-8",
+                "confidence_score": 0.6,
+                "matched_hints": ["Secret resource type"],
+                "workload_context": f"Workload: {workload_name}\nNamespace: {namespace}",
+                "relevant_manifest_sections": ["Secret configuration"]
+            })
         
         return controls
     

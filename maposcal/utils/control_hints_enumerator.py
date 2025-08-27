@@ -1,7 +1,7 @@
 """
 Control hints enumerator module.
 
-This module provides functionality to enumerate all control hints from the control_hints.py file,
+This module provides functionality to enumerate all control hints from the control_hints.py and control_hints_k8s.py files,
 both generic and language-specific, for use by language inspectors.
 """
 
@@ -9,12 +9,13 @@ import inspect
 import re
 from typing import Dict, List
 import maposcal.utils.control_hints as control_hints
+import maposcal.utils.control_hints_k8s as control_hints_k8s
 import logging
 
 logger = logging.getLogger(__name__)
 
 # Supported languages
-SUPPORTED_LANGUAGES = ["python", "golang", "java", "cpp"]
+SUPPORTED_LANGUAGES = ["python", "golang", "java", "cpp", "kubernetes"]
 
 # Pattern to extract control ID from variable names
 CONTROL_ID_PATTERN = re.compile(r"^([a-z]+\d+(?:\.\d+)?)$", re.IGNORECASE)
@@ -22,7 +23,7 @@ CONTROL_ID_PATTERN = re.compile(r"^([a-z]+\d+(?:\.\d+)?)$", re.IGNORECASE)
 
 def get_all_control_hints() -> Dict[str, Dict[str, List[str]]]:
     """
-    Enumerate all control hints from the control_hints module.
+    Enumerate all control hints from the control_hints and control_hints_k8s modules.
 
     Returns:
         Dict mapping control IDs to their generic and language-specific hints.
@@ -32,58 +33,78 @@ def get_all_control_hints() -> Dict[str, Dict[str, List[str]]]:
                 'python': [list_of_python_hints],
                 'golang': [list_of_golang_hints],
                 'java': [list_of_java_hints],
-                'cpp': [list_of_cpp_hints]
+                'cpp': [list_of_cpp_hints],
+                'kubernetes': [list_of_kubernetes_hints]
             }
         }
     """
     control_hints_dict = {}
 
-    # Get all attributes from the control_hints module
-    for attr_name, attr_value in inspect.getmembers(control_hints):
-        # Skip private attributes and non-list attributes
-        if attr_name.startswith("_") or not isinstance(attr_value, list):
-            continue
+    # Process both control hints modules
+    modules_to_process = [control_hints, control_hints_k8s]
+    
+    for module in modules_to_process:
+        module_name = module.__name__.split('.')[-1]
+        logger.debug(f"Processing control hints from {module_name}")
+        
+        # Get all attributes from the module
+        for attr_name, attr_value in inspect.getmembers(module):
+            # Skip private attributes and non-list attributes
+            if attr_name.startswith("_") or not isinstance(attr_value, list):
+                continue
 
-        # Check if this is a control ID (generic hints)
-        control_match = CONTROL_ID_PATTERN.match(attr_name)
-        if control_match:
-            control_id = control_match.group(1)
-            if control_id not in control_hints_dict:
-                control_hints_dict[control_id] = {
-                    "generic": [],
-                    "python": [],
-                    "golang": [],
-                    "java": [],
-                    "cpp": [],
-                }
-            control_hints_dict[control_id]["generic"] = attr_value
-            logger.debug(
-                f"Found generic hints for control {control_id}: {len(attr_value)} hints"
-            )
-
-        # Check if this is a language-specific control (e.g., ac10_python)
-        for lang in SUPPORTED_LANGUAGES:
-            lang_pattern = f"_{lang}$"
-            if re.search(lang_pattern, attr_name):
-                # Extract the base control ID
-                base_control = attr_name[
-                    : -len(f"_{lang}")
-                ]  # Remove _python, _golang, etc.
-                control_match = CONTROL_ID_PATTERN.match(base_control)
-                if control_match:
-                    control_id = control_match.group(1)
-                    if control_id not in control_hints_dict:
-                        control_hints_dict[control_id] = {
-                            "generic": [],
-                            "python": [],
-                            "golang": [],
-                            "java": [],
-                            "cpp": [],
-                        }
-                    control_hints_dict[control_id][lang] = attr_value
+            # Check if this is a control ID (generic hints)
+            control_match = CONTROL_ID_PATTERN.match(attr_name)
+            if control_match:
+                control_id = control_match.group(1)
+                if control_id not in control_hints_dict:
+                    control_hints_dict[control_id] = {
+                        "generic": [],
+                        "python": [],
+                        "golang": [],
+                        "java": [],
+                        "cpp": [],
+                        "kubernetes": [],
+                    }
+                
+                # Add hints to the appropriate category
+                if module_name == "control_hints_k8s":
+                    # K8s hints go to kubernetes category
+                    control_hints_dict[control_id]["kubernetes"].extend(attr_value)
                     logger.debug(
-                        f"Found {lang} hints for control {control_id}: {len(attr_value)} hints"
+                        f"Found kubernetes hints for control {control_id}: {len(attr_value)} hints"
                     )
+                else:
+                    # Regular hints go to generic category
+                    control_hints_dict[control_id]["generic"].extend(attr_value)
+                    logger.debug(
+                        f"Found generic hints for control {control_id}: {len(attr_value)} hints"
+                    )
+
+            # Check if this is a language-specific control (e.g., ac10_python)
+            for lang in SUPPORTED_LANGUAGES:
+                lang_pattern = f"_{lang}$"
+                if re.search(lang_pattern, attr_name):
+                    # Extract the base control ID
+                    base_control = attr_name[
+                        : -len(f"_{lang}")
+                    ]  # Remove _python, _golang, etc.
+                    control_match = CONTROL_ID_PATTERN.match(base_control)
+                    if control_match:
+                        control_id = control_match.group(1)
+                        if control_id not in control_hints_dict:
+                            control_hints_dict[control_id] = {
+                                "generic": [],
+                                "python": [],
+                                "golang": [],
+                                "java": [],
+                                "cpp": [],
+                                "kubernetes": [],
+                            }
+                        control_hints_dict[control_id][lang] = attr_value
+                        logger.debug(
+                            f"Found {lang} hints for control {control_id}: {len(attr_value)} hints"
+                        )
 
     logger.info(f"Enumerated {len(control_hints_dict)} controls with hints")
     return control_hints_dict
@@ -94,7 +115,7 @@ def get_control_hints_for_language(language: str) -> Dict[str, List[str]]:
     Get all control hints for a specific language.
 
     Args:
-        language (str): The language to get hints for ('python', 'golang', 'java', 'cpp')
+        language (str): The language to get hints for ('python', 'golang', 'java', 'cpp', 'kubernetes')
 
     Returns:
         Dict mapping control IDs to their hints for the specified language.
@@ -124,7 +145,7 @@ def search_control_hints_in_content(file_contents: str, language: str) -> List[s
 
     Args:
         file_contents (str): The contents of the file to search
-        language (str): The language to search for ('python', 'golang', 'java', 'cpp')
+        language (str): The language to search for ('python', 'golang', 'java', 'cpp', 'kubernetes')
 
     Returns:
         List of control IDs that were found in the content
@@ -167,7 +188,8 @@ def get_control_hints_summary() -> Dict[str, Dict[str, int]]:
                 'python': count,
                 'golang': count,
                 'java': count,
-                'cpp': count
+                'cpp': count,
+                'kubernetes': count
             }
         }
     """
@@ -181,6 +203,7 @@ def get_control_hints_summary() -> Dict[str, Dict[str, int]]:
             "golang": len(hints_dict["golang"]),
             "java": len(hints_dict["java"]),
             "cpp": len(hints_dict["cpp"]),
+            "kubernetes": len(hints_dict["kubernetes"]),
         }
 
     return summary

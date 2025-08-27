@@ -655,3 +655,131 @@ def build_evaluate_prompt(requirement: dict) -> str:
     return EVALUATE_PROMPT.format(
         system=EVALUATE_SYSTEM, control_json=json.dumps(requirement, indent=2)
     )
+
+
+# ---------------------------------------------------------------------------
+# 6. KUBERNETES CONTROL MAPPING
+# ---------------------------------------------------------------------------
+
+K8S_CONTROL_MAPPING_SYSTEM = """
+You are a senior security engineer specializing in Kubernetes security and compliance.
+Your task is to analyze Kubernetes manifests and generate detailed control implementation
+statements for NIST SP 800-53 Rev. 5 security controls.
+"""
+
+K8S_CONTROL_MAPPING_INSTRUCTIONS = dedent(
+    """
+    Based on the provided Kubernetes workload context and manifest content, generate a detailed
+    control implementation statement for the specified security control.
+    
+    Your response should include:
+    
+    1. **Control Status**: Determine if the control is:
+       - "implemented" - Fully implemented with evidence
+       - "partially-implemented" - Partially implemented with gaps
+       - "not-implemented" - Not implemented or no evidence found
+       - "not-applicable" - Control doesn't apply to this workload type
+    
+    2. **Implementation Details**: Provide specific details about how the control is implemented,
+       including relevant manifest sections, configurations, and security features.
+    
+    3. **Evidence**: Reference specific parts of the manifest that demonstrate control implementation.
+    
+    4. **Gaps and Recommendations**: If partially implemented or not implemented, identify gaps
+       and provide specific recommendations for improvement.
+    
+    5. **Compliance Level**: Assess the overall compliance level (High/Medium/Low) based on
+       implementation completeness and security posture.
+    
+    **IMPORTANT GUIDELINES:**
+    - Base your analysis ONLY on the provided manifest content and workload context
+    - Do not make assumptions about external configurations or cluster settings
+    - Focus on security-relevant configurations and best practices
+    - Be specific about which manifest sections support your assessment
+    - Use technical terminology appropriate for Kubernetes security
+    
+    **CONTEXT INFORMATION:**
+    {workload_context}
+    
+    **CONTROL TO ANALYZE:**
+    Control ID: {control_id}
+    Confidence Score: {confidence_score}
+    
+    **MATCHED SECURITY HINTS:**
+    {matched_hints}
+    
+    **RELEVANT MANIFEST SECTIONS:**
+    {relevant_sections}
+    
+    **RESPONSE FORMAT:**
+    Return your response in the following JSON format:
+    {{
+        "control_id": "{control_id}",
+        "status": "implemented|partially-implemented|not-implemented|not-applicable",
+        "implementation_details": "Detailed description of how the control is implemented...",
+        "evidence": ["List of specific manifest sections or configurations that demonstrate implementation"],
+        "gaps": ["List of identified gaps or missing implementations"],
+        "recommendations": ["Specific recommendations for improvement"],
+        "compliance_level": "High|Medium|Low",
+        "confidence_score": {confidence_score},
+        "analysis_notes": "Additional analysis notes or context"
+    }}
+    
+    **EXAMPLE RESPONSE:**
+    {{
+        "control_id": "AC-6",
+        "status": "partially-implemented",
+        "implementation_details": "The workload implements least privilege principles through securityContext configurations, including runAsNonRoot and readOnlyRootFilesystem settings. However, some privilege escalation controls are not explicitly configured.",
+        "evidence": [
+            "securityContext.runAsNonRoot: true",
+            "securityContext.readOnlyRootFilesystem: true",
+            "securityContext.allowPrivilegeEscalation not explicitly set"
+        ],
+        "gaps": [
+            "Missing explicit allowPrivilegeEscalation: false",
+            "No capabilities.drop configuration specified"
+        ],
+        "recommendations": [
+            "Add allowPrivilegeEscalation: false to securityContext",
+            "Configure capabilities.drop to remove unnecessary capabilities"
+        ],
+        "compliance_level": "Medium",
+        "confidence_score": 0.75,
+        "analysis_notes": "Good baseline security configuration with room for hardening"
+    }}
+    """
+)
+
+K8S_CONTROL_MAPPING_PROMPT = "{system}\n\n{instructions}"
+
+
+def build_k8s_control_mapping_prompt(
+    control_id: str,
+    workload_context: str,
+    matched_hints: List[str],
+    relevant_sections: List[str],
+    confidence_score: float
+) -> str:
+    """
+    Build a prompt for generating Kubernetes control implementation statements.
+
+    Args:
+        control_id: The NIST control ID to analyze
+        workload_context: Summary of the workload context
+        matched_hints: List of matched security hints
+        relevant_sections: Relevant manifest sections
+        confidence_score: Confidence score for this control match
+
+    Returns:
+        str: Formatted prompt for LLM
+    """
+    return K8S_CONTROL_MAPPING_PROMPT.format(
+        system=K8S_CONTROL_MAPPING_SYSTEM,
+        instructions=K8S_CONTROL_MAPPING_INSTRUCTIONS.format(
+            control_id=control_id,
+            workload_context=workload_context,
+            matched_hints="\n".join(f"- {hint}" for hint in matched_hints) if matched_hints else "None found",
+            relevant_sections="\n".join(f"- {section}" for section in relevant_sections) if relevant_sections else "None found",
+            confidence_score=confidence_score
+        )
+    )
