@@ -1016,7 +1016,8 @@ class ExecutionEngine:
                     "namespace": workload_namespace,
                     "resource_types": resource_types,
                     "image_count": len(images),
-                    "controls": workload_controls,
+                    "controls": workload_controls.get("top_controls", []),
+                    "total_controls": workload_controls.get("total_controls_found", 0),
                     "mapped_at": datetime.utcnow().isoformat()
                 }
             
@@ -1053,17 +1054,18 @@ class ExecutionEngine:
             Dictionary with mapped controls
         """
         try:
-            from maposcal.generator.k8s_control_mapper import K8sControlMapper, create_k8s_workload_context
+            from maposcal.generator.k8s_control_mapper import K8sControlMapper
             
             # Get the manifest content for this workload
             manifest_content = self._get_workload_manifest_content(workload_name, namespace)
             
             # Create workload context
-            workload_context = create_k8s_workload_context(
+            from maposcal.generator.k8s_control_mapper import K8sWorkloadContext
+            workload_context = K8sWorkloadContext(
                 name=workload_name,
                 namespace=namespace,
                 resource_types=resource_types,
-                images=images,
+                images=[img.get("ref", "") for img in images],
                 manifest_content=manifest_content,
                 source_path=self._get_workload_source_path(workload_name)
             )
@@ -1072,9 +1074,9 @@ class ExecutionEngine:
             k8s_mapper = K8sControlMapper(llm_config=self._get_llm_config())
             
             # Map controls
-            mapping_result = k8s_mapper.map_workload_controls(workload_context, top_k_controls=15)
+            mapping_result = k8s_mapper.map_workload_controls(workload_context)
             
-            self.logger.info(f"Successfully mapped {len(mapping_result.get('top_controls', []))} controls for workload {workload_name}")
+            self.logger.info(f"Successfully mapped {mapping_result.get('total_controls_found', 0)} controls for workload {workload_name}")
             
             return mapping_result
             
@@ -1341,11 +1343,16 @@ class ExecutionEngine:
                     "workload_count": 0
                 }
             
+            # For now, we'll create basic control implementations based on workload characteristics
+            # In a full implementation, this would integrate with actual control mapping results
+            control_mappings = {}
+            
             # Create OSCAL Component Definition
             component_def = create_component_definition_from_execution_results(
                 application_name=self.plan.application,
                 application_namespace=self.plan.application_namespace,
-                workloads=workloads
+                workloads=workloads,
+                control_mappings=control_mappings
             )
             
             # Generate output path

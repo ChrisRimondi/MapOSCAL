@@ -65,9 +65,12 @@ class K8sControlMapper:
         """Initialize the LLM handler with configuration."""
         if self.llm_config:
             return LLMHandler(
-                provider=self.llm_config.get("provider", "openai"),
-                model=self.llm_config.get("model", "gpt-4")
+                provider=self.llm_config["provider"], 
+                model=self.llm_config["model"]
             )
+            # Set custom temperature if specified
+            if "temperature" in self.llm_config:
+                self.llm_handler.default_temperature = self.llm_config["temperature"]
         else:
             return LLMHandler(command="generate")
     
@@ -242,6 +245,29 @@ class K8sControlMapper:
         
         return min(score, 1.0)
     
+    def _create_control_dict(self, control_match: ControlMatch) -> Dict[str, Any]:
+         """Create control_dict format for implementation generation."""
+         # This is a simplified mapping - in a real implementation, you'd want to
+         # map to actual NIST 800-53 control descriptions
+         control_descriptions = {
+             "ac": "Access Control - The organization limits information system access to authorized users, processes acting on behalf of authorized users, or devices (including other information systems).",
+             "sc": "System and Communications Protection - The organization monitors, controls, and protects organizational communications (i.e., information transmitted or received by organizational information systems) at the external boundaries and key internal boundaries of the information systems.",
+             "cm": "Configuration Management - The organization establishes and maintains baseline configurations and inventories of organizational information systems (including hardware, software, firmware, and documentation) throughout the respective system development life cycles.",
+             "si": "System and Information Integrity - The organization identifies, reports, and corrects information and information system flaws in a timely manner.",
+             "au": "Audit and Accountability - The organization creates, protects, and retains information system audit records to the extent needed to enable the monitoring, analysis, investigation, and reporting of unlawful, unauthorized, or inappropriate information system activity.",
+             "ia": "Identification and Authentication - The organization identifies and authenticates organizational users (or processes acting on behalf of organizational users)."
+         }
+         
+         control_family = control_match.control_id.split("-")[0].lower()
+         base_description = control_descriptions.get(control_family, "Security control for system protection and compliance.")
+         
+         return {
+             "id": control_match.control_id.upper(),
+             "title": f"{control_match.control_id.upper()} - {base_description.split(' - ')[1] if ' - ' in base_description else base_description}",
+             "statement": [base_description],
+             "params": []  # No parameters for now
+         }
+     
     def _calculate_resource_type_relevance(self, control_id: str, resource_types: List[str]) -> float:
         """Calculate relevance based on resource types."""
         # Define control-to-resource mappings
@@ -258,14 +284,14 @@ class K8sControlMapper:
             "sc12": ["Certificate", "Issuer"],  # Cryptographic Key Management
             "sc28": ["Secret", "ExternalSecret"],  # Protection of Information at Rest
         }
-        
+         
         relevant_resources = control_resource_mapping.get(control_id, [])
         if not relevant_resources:
             return 0.0
-        
+         
         matches = sum(1 for rt in resource_types if rt in relevant_resources)
         return matches / len(relevant_resources)
-    
+     
     def _calculate_image_security_relevance(self, control_id: str, images: List[Dict[str, Any]]) -> float:
         """Calculate relevance based on image security characteristics."""
         if not images:
@@ -347,10 +373,11 @@ class K8sControlMapper:
         
         for control_match in control_matches:
             try:
-                implementation = self._generate_single_control_implementation(
+                implementation = self._generate_control_implementation(
                     workload, control_match
                 )
-                implementations[control_match.control_id] = implementation
+                if implementation:
+                    implementations[control_match.control_id] = implementation
                 
             except Exception as e:
                 logger.error(f"Failed to generate implementation for {control_match.control_id}: {e}")
@@ -362,61 +389,187 @@ class K8sControlMapper:
         
         return implementations
     
-    def _generate_single_control_implementation(
-        self, 
-        workload: K8sWorkloadContext, 
-        control_match: ControlMatch
-    ) -> Dict[str, Any]:
+    def _generate_control_implementation(self, workload: K8sWorkloadContext, control_match: ControlMatch) -> Optional[Dict[str, Any]]:
         """
-        Generate implementation for a single control.
+        Generate control implementation directly without FAISS dependency.
         
         Args:
-            workload: The workload context
-            control_match: The control match being implemented
+            workload: Kubernetes workload context
+            control_match: Control match with relevance scoring
             
         Returns:
-            Dictionary containing the control implementation
+            Control implementation dict or None if generation failed
         """
-        # Build prompt for this specific control
-        prompt = build_k8s_control_mapping_prompt(
-            control_id=control_match.control_id,
-            workload_context=control_match.workload_context,
-            matched_hints=control_match.matched_hints,
-            relevant_sections=control_match.relevant_manifest_sections,
-            confidence_score=control_match.confidence_score
-        )
+        try:
+            # Generate a basic implementation without relying on FAISS
+            implementation = self._generate_basic_implementation(workload, control_match)
+            
+            # Add workload-specific metadata
+            implementation["workload_metadata"] = {
+                "workload_name": workload.name,
+                "namespace": workload.namespace,
+                "resource_types": workload.resource_types,
+                "confidence_score": control_match.confidence_score,
+                "matched_hints": control_match.matched_hints
+            }
+            
+            return implementation
+                
+        except Exception as e:
+            logger.error(f"Failed to generate implementation for {control_match.control_id}: {e}")
+            return None
+    
+    def _generate_basic_implementation(self, workload: K8sWorkloadContext, control_match: ControlMatch) -> Dict[str, Any]:
+        """Generate a basic control implementation based on workload characteristics."""
         
-        # Query LLM
-        response = self.llm_handler.query(prompt=prompt)
+        # Get control description
+        control_dict = self._create_control_dict(control_match)
         
-        # Parse response (this would need to be implemented based on your LLM response format)
-        implementation = self._parse_llm_response(response, control_match)
+        # Analyze manifest for relevant sections
+        relevant_sections = self._extract_relevant_manifest_sections(workload, control_match)
+        
+        # Generate implementation status based on evidence
+        implementation_status = self._determine_implementation_status(workload, control_match, relevant_sections)
+        
+        # Create basic implementation structure
+        implementation = {
+            "control_id": control_match.control_id.upper(),
+            "control_title": control_dict["title"],
+            "status": implementation_status,
+            "confidence_score": control_match.confidence_score,
+            "evidence": relevant_sections,
+            "matched_hints": control_match.matched_hints,
+            "resource_types": workload.resource_types,
+            "images": workload.images,
+            "implementation_details": self._generate_implementation_details(workload, control_match, relevant_sections),
+            "gaps": self._identify_implementation_gaps(workload, control_match, relevant_sections),
+            "recommendations": self._generate_recommendations(workload, control_match, relevant_sections),
+            "compliance_level": self._assess_compliance_level(implementation_status, control_match.confidence_score)
+        }
         
         return implementation
     
-    def _parse_llm_response(self, response: str, control_match: ControlMatch) -> Dict[str, Any]:
-        """
-        Parse LLM response into structured control implementation.
+    def _extract_relevant_manifest_sections(self, workload: K8sWorkloadContext, control_match: ControlMatch) -> List[str]:
+        """Extract manifest sections relevant to the control."""
+        relevant_sections = []
+        manifest_lines = workload.manifest_content.split('\n')
         
-        Args:
-            response: Raw LLM response
-            control_match: The control match being implemented
-            
-        Returns:
-            Structured control implementation
-        """
-        # This is a simplified implementation
-        # In a full implementation, you'd want to parse structured output
+        # Look for lines that might be relevant to the control
+        control_keywords = self._get_control_keywords(control_match.control_id)
         
-        return {
-            "control_id": control_match.control_id,
-            "status": "implemented",
-            "confidence_score": control_match.confidence_score,
-            "implementation_details": response,
-            "matched_hints": control_match.matched_hints,
-            "generated_at": str(uuid.uuid4())
+        for line in manifest_lines:
+            line_lower = line.lower()
+            if any(keyword.lower() in line_lower for keyword in control_keywords):
+                relevant_sections.append(line.strip())
+        
+        # Limit to most relevant sections
+        return relevant_sections[:5]
+    
+    def _get_control_keywords(self, control_id: str) -> List[str]:
+        """Get relevant keywords for a control based on its family."""
+        control_family = control_id.split("-")[0].lower()
+        
+        keyword_mapping = {
+            "ac": ["serviceaccount", "rbac", "role", "rolebinding", "securitycontext", "runasuser", "runasgroup"],
+            "sc": ["networkpolicy", "ingress", "service", "tls", "secret", "encryption", "securitycontext"],
+            "cm": ["configmap", "secret", "environment", "volume", "mount", "config"],
+            "si": ["securitycontext", "readonlyrootfilesystem", "allowprivilegeescalation", "runasnonroot"],
+            "au": ["log", "audit", "monitoring", "metrics", "trace"],
+            "ia": ["serviceaccount", "token", "authentication", "authorization", "identity"]
         }
-
+        
+        return keyword_mapping.get(control_family, ["security", "config", "policy"])
+    
+    def _determine_implementation_status(self, workload: K8sWorkloadContext, control_match: ControlMatch, relevant_sections: List[str]) -> str:
+        """Determine the implementation status based on evidence."""
+        if not relevant_sections:
+            return "not-implemented"
+        
+        # Check if we have strong evidence
+        strong_evidence_count = len([s for s in relevant_sections if any(hint.lower() in s.lower() for hint in control_match.matched_hints)])
+        
+        if strong_evidence_count >= 2:
+            return "implemented"
+        elif strong_evidence_count >= 1:
+            return "partially-implemented"
+        else:
+            return "not-implemented"
+    
+    def _generate_implementation_details(self, workload: K8sWorkloadContext, control_match: ControlMatch, relevant_sections: List[str]) -> str:
+        """Generate implementation details based on workload and control."""
+        control_family = control_match.control_id.split("-")[0].lower()
+        
+        if control_family == "ac":
+            return f"Access control mechanisms implemented through {', '.join(workload.resource_types)} with {len(control_match.matched_hints)} relevant security configurations."
+        elif control_family == "sc":
+            return f"System and communications protection implemented through network policies, services, and {len(control_match.matched_hints)} security configurations."
+        elif control_family == "cm":
+            return f"Configuration management implemented through ConfigMaps, Secrets, and {len(control_match.matched_hints)} configuration elements."
+        elif control_family == "si":
+            return f"System and information integrity implemented through security contexts and {len(control_match.matched_hints)} integrity controls."
+        elif control_family == "au":
+            return f"Audit and accountability implemented through logging and monitoring with {len(control_match.matched_hints)} audit configurations."
+        elif control_family == "ia":
+            return f"Identification and authentication implemented through service accounts and {len(control_match.matched_hints)} identity controls."
+        else:
+            return f"Security control {control_match.control_id} implemented through {len(control_match.matched_hints)} relevant configurations."
+    
+    def _identify_implementation_gaps(self, workload: K8sWorkloadContext, control_match: ControlMatch, relevant_sections: List[str]) -> List[str]:
+        """Identify potential implementation gaps."""
+        gaps = []
+        
+        if not relevant_sections:
+            gaps.append(f"No manifest evidence found for control {control_match.control_id}")
+        
+        if control_match.confidence_score < 0.5:
+            gaps.append(f"Low confidence score ({control_match.confidence_score:.2f}) suggests incomplete implementation")
+        
+        # Check for common gaps based on control family
+        control_family = control_match.control_id.split("-")[0].lower()
+        
+        if control_family == "ac" and "serviceaccount" not in workload.manifest_content.lower():
+            gaps.append("No explicit service account configuration found")
+        
+        if control_family == "sc" and "networkpolicy" not in workload.manifest_content.lower():
+            gaps.append("No network policy configuration found")
+        
+        if control_family == "si" and "securitycontext" not in workload.manifest_content.lower():
+            gaps.append("No security context configuration found")
+        
+        return gaps
+    
+    def _generate_recommendations(self, workload: K8sWorkloadContext, control_match: ControlMatch, relevant_sections: List[str]) -> List[str]:
+        """Generate recommendations for improving control implementation."""
+        recommendations = []
+        
+        if control_match.confidence_score < 0.7:
+            recommendations.append(f"Increase implementation coverage for control {control_match.control_id}")
+        
+        if not relevant_sections:
+            recommendations.append(f"Add manifest configurations that address control {control_match.control_id} requirements")
+        
+        # Control-specific recommendations
+        control_family = control_match.control_id.split("-")[0].lower()
+        
+        if control_family == "ac":
+            recommendations.append("Implement explicit RBAC policies and service account configurations")
+        
+        if control_family == "sc":
+            recommendations.append("Configure network policies and TLS encryption for communications")
+        
+        if control_family == "si":
+            recommendations.append("Add security contexts with least privilege principles")
+        
+        return recommendations
+    
+    def _assess_compliance_level(self, implementation_status: str, confidence_score: float) -> str:
+        """Assess the overall compliance level."""
+        if implementation_status == "implemented" and confidence_score >= 0.8:
+            return "high"
+        elif implementation_status == "partially-implemented" or confidence_score >= 0.5:
+            return "medium"
+        else:
+            return "low"
 
 def create_k8s_workload_context(
     name: str,
@@ -448,4 +601,5 @@ def create_k8s_workload_context(
         manifest_content=manifest_content,
         source_path=source_path
     )
+
 

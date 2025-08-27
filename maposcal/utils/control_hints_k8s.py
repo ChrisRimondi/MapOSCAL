@@ -1,315 +1,213 @@
 """
 Kubernetes control hints mapping for NIST SP 800-53 Rev. 5
 
-This module provides SIMPLE TOKEN hints (whitespace-delimited) that commonly
-appear in Kubernetes/Argo CD manifests. It mirrors the shape of your existing
-control_hints.py by exposing one list variable per control (e.g., ac6, sc7, si7_1).
-Your existing enumerator will pick these up as "generic" hints when scanning
-YAML because it lowercases both the file tokens and the hint tokens.
-
-IMPORTANT tokenization note (to maximize matches against YAML):
-- For YAML keys, we include both the plain key and the key with a trailing ':'
-  where helpful (e.g., 'securityContext' and 'securityContext:').
-- We avoid multi-word tokens like 'privileged: true' since your enumerator
-  splits on whitespace. Matching 'privileged:' is still a useful hint.
-- We include common CRD kinds/annotations for Argo CD, Istio, Kyverno, Gatekeeper,
-  Sigstore/Cosign, External Secrets, and Pod Security Admission.
-
-Generated on: 2025-08-26T19:19:17
+This file contains Kubernetes-specific control hints that help identify
+relevant security controls in Kubernetes manifests and Argo CD configurations.
 """
 
-# -----------------------------------------------------------------------------
-# ACCESS CONTROL (AC)
-# -----------------------------------------------------------------------------
-
-# AC-2: Account Management – service accounts and related secrets/tokens
+# AC-2: Account Management
 ac2 = [
-    "ServiceAccount",                # Use of distinct workload identities
-    "serviceAccountName", "serviceAccountName:",
-    "serviceAccount", "serviceAccount:",
-    "automountServiceAccountToken", "automountServiceAccountToken:",
-    "kubernetes.io/service-account-token",  # Secret type (legacy tokens)
-    "bound-service-account-token",          # Bound tokens feature (hint term)
-    "projected", "projected:",              # Projected SA token volume
-    "token",                                # Generic token reference in Secret/Env
+    "ServiceAccount", "serviceAccountName", "serviceAccount",
+    "imagePullSecrets", "imagePullSecrets",
+    "auth-provider", "oidc", "oidc",
+    "serviceAccountName", "serviceAccount",
+    "imagePullSecrets", "imagePullSecrets",
+    "auth-provider", "oidc", "oidc",
 ]
 
-# AC-3: Access Enforcement – RBAC primitives
+# AC-3: Access Enforcement
 ac3 = [
-    "rbac.authorization.k8s.io",
-    "Role", "ClusterRole", "RoleBinding", "ClusterRoleBinding",
-    "roles.rbac.authorization.k8s.io", "clusterroles.rbac.authorization.k8s.io",
-    "rolebindings.rbac.authorization.k8s.io", "clusterrolebindings.rbac.authorization.k8s.io",
-    "verbs:", "resources:", "resourceNames:", "apiGroups:", "subjects:",
+    "rbac", "RBAC", "Role", "role", "ClusterRole", "clusterRole",
+    "RoleBinding", "roleBinding", "ClusterRoleBinding", "clusterRoleBinding",
+    "ServiceAccount", "serviceAccount", "permissions", "rules",
+    "apiGroups", "resources", "verbs", "subjects",
 ]
 
-# AC-4: Information Flow Enforcement – Network segmentation & policies
+# AC-4: Information Flow Enforcement
 ac4 = [
-    "NetworkPolicy", "networking.k8s.io/v1",
-    "policyTypes:", "ingress:", "egress:", "podSelector:", "namespaceSelector:", "ipBlock:",
-    "from:", "to:", "ports:",
+    "NetworkPolicy", "networkPolicy", "ingress", "egress",
+    "podSelector", "namespaceSelector", "ipBlock", "ports",
+    "protocol", "from", "to", "allow", "deny",
 ]
 
-# AC-6: Least Privilege – container & pod hardening knobs
+# AC-6: Least Privilege
 ac6 = [
-    "securityContext", "securityContext:",
-    "runAsNonRoot", "runAsNonRoot:",
-    "readOnlyRootFilesystem", "readOnlyRootFilesystem:",
-    "allowPrivilegeEscalation", "allowPrivilegeEscalation:",
-    "capabilities", "capabilities:", "drop:", "add:",
-    "seccompProfile", "seccompProfile:",
-    "procMount", "procMount:",
-    "privileged", "privileged:",
-    "hostNetwork", "hostNetwork:",
-    "hostPID", "hostPID:",
-    "hostIPC", "hostIPC:",
-    "hostPort", "hostPort:",
-    "hostPath", "hostPath:",
-    "shareProcessNamespace", "shareProcessNamespace:",
-    "automountServiceAccountToken", "automountServiceAccountToken:",
-    # Pod Security Admission & legacy PodSecurityPolicy indicators (policy-based least privilege)
-    "pod-security.kubernetes.io/enforce", "pod-security.kubernetes.io/enforce:",
-    "pod-security.kubernetes.io/warn", "pod-security.kubernetes.io/audit",
-    "restricted", "baseline",  # common PSA levels
-    "policy/v1beta1", "PodSecurityPolicy",  # legacy PSP (still seen in older clusters/manifests)
-    # AppArmor (node-based hardening)
-    "container.apparmor.security.beta.kubernetes.io/",
-    # Seccomp default
-    "RuntimeDefault", "runtime/default",
+    "securityContext", "runAsNonRoot", "runAsUser", "runAsGroup",
+    "fsGroup", "supplementalGroups", "allowPrivilegeEscalation",
+    "capabilities", "drop", "add", "privileged", "readOnlyRootFilesystem",
+    "runAsNonRoot", "runAsUser", "runAsGroup", "fsGroup",
+    "supplementalGroups", "allowPrivilegeEscalation", "capabilities",
+    "drop", "add", "privileged", "readOnlyRootFilesystem",
 ]
 
-# -----------------------------------------------------------------------------
-# IDENTIFICATION & AUTHENTICATION (IA)
-# -----------------------------------------------------------------------------
+# AC-7: Unsuccessful Logon Attempts
+ac7 = [
+    "loginAttempts", "lockoutThreshold", "accountLockout",
+    "maxLoginAttempts", "lockoutDuration", "failedLoginAttempts",
+]
+
+# AC-10: Concurrent Session Control
+ac10 = [
+    "maxSessions", "concurrentSessions", "sessionLimit",
+    "maxConcurrentSessions", "sessionTimeout", "idleTimeout",
+]
+
+# AC-12: Session Termination
+ac12 = [
+    "logout", "sessionTimeout", "idleTimeout", "maxSessionTime",
+    "sessionTermination", "logoutTimeout", "inactivityTimeout",
+]
+
+# AC-17: Remote Access
+ac17 = [
+    "ssh", "vpn", "remoteDesktop", "remoteAccess",
+    "externalAccess", "ingress", "loadBalancer", "NodePort",
+]
 
 # IA-2: Identification and Authentication (organizational users) – proxies via workload identity
 ia2 = [
-    "ServiceAccount", "serviceAccountName:", "serviceAccount:",
-    "imagePullSecrets", "imagePullSecrets:",  # auth to private registries
-    "auth-provider", "oidc", "oidc:",         # hints for cluster OIDC (rare in app manifests)
+    "ServiceAccount", "serviceAccountName", "serviceAccount",
+    "imagePullSecrets", "imagePullSecrets",
+    "auth-provider", "oidc", "oidc",
+    "authentication", "identity", "credentials", "tokens",
 ]
 
-# IA-5: Authenticator Management – secret material and credentials
+# IA-5: Authenticator Management
 ia5 = [
-    "Secret", "Secret:", "kind: Secret",
-    "stringData:", "data:", "secretKeyRef:", "valueFrom:", "envFrom:",
-    "kubernetes.io/tls", "tls.crt", "tls.key",
-    "kubernetes.io/basic-auth", "kubernetes.io/ssh-auth",
-    "external-secrets.io", "ExternalSecret", "ClusterSecretStore", "SecretStore",
-    "secrets-store.csi.k8s.io", "SecretProviderClass", "SecretProviderClass:",
+    "passwordPolicy", "keyRotation", "tokenLifetime", "secretRotation",
+    "imagePullSecrets", "secrets", "configMaps", "credentials",
+    "passwordExpiration", "keyExpiration", "tokenExpiration",
 ]
 
-# -----------------------------------------------------------------------------
-# AUDIT & ACCOUNTABILITY (AU)
-# -----------------------------------------------------------------------------
-
-# AU-12: Audit Generation – common logging/collection sidecars and monitors
+# AU-12: Audit Log Generation
 au12 = [
-    "fluent-bit", "fluentd", "vector", "filebeat", "logstash", "promtail",
-    "sidecar", "sidecar:", "stdout", "stderr",
-    "otel-collector", "OpenTelemetryCollector", "opentelemetry.io",
+    "audit", "logging", "logs", "logLevel", "logFormat",
+    "auditLog", "auditPolicy", "auditConfig", "logRetention",
+    "logRotation", "logShipping", "syslog", "fluentd",
 ]
 
-# -----------------------------------------------------------------------------
-# CONFIGURATION MANAGEMENT (CM)
-# -----------------------------------------------------------------------------
-
-# CM-2: Baseline Configuration – Argo CD desired state and pinning
+# CM-2: Baseline Configuration
 cm2 = [
-    "argoproj.io/v1alpha1", "Application",
-    "spec:", "source:", "repoURL:", "targetRevision:", "path:", "directory:",
-    "helm:", "values:", "valueFiles:", "kustomize:", "images:",
-    "revisionHistoryLimit:", "argocd.argoproj.io/tracking-id",
-    "recurse:", "directory.recurse:", "plugin:", "configManagementPlugins",
+    "baseline", "configuration", "config", "settings", "defaults",
+    "baselineConfig", "baseConfig", "defaultConfig", "standardConfig",
+    "configurationBaseline", "baselineSettings",
 ]
 
-# CM-3: Configuration Change Control – Argo CD sync policy & validation
+# CM-3: Configuration Change Control
 cm3 = [
-    "syncPolicy:", "automated:", "prune:", "selfHeal:", "retry:", "syncOptions:",
-    "managedNamespaceMetadata:", "resourceAnnotations:",
-    "argocd.argoproj.io/compare-options", "IgnoreDifferences",
-    "Validate=", "CreateNamespace=", "PrunePropagationPolicy=", "PruneLast=", "ApplyOutOfSyncOnly=",
+    "changeControl", "configChange", "versionControl", "git",
+    "changeManagement", "configVersion", "deploymentStrategy",
+    "rollingUpdate", "recreate", "blueGreen", "canary",
 ]
 
-# CM-5: Access Restrictions for Change – protecting config surfaces
+# CM-5: Access Restrictions for Change
 cm5 = [
-    "argocd.argoproj.io/manifest-generate-paths",    # restrict path scope
-    "argocd.argoproj.io/sync-options",               # enforce/relax server-side checks
-    "SkipDryRunOnMissingResource=",                  # beware: can bypass validation
-    "Replace=true",                                  # server-side apply replace
+    "pullRequest", "codeReview", "changeApproval", "mergeRequest",
+    "changeControl", "accessRestrictions", "changePermissions",
+    "approvalWorkflow", "changeAuthorization",
 ]
 
-# CM-6: Configuration Settings – policy as code (Kyverno/Gatekeeper/PSA)
+# CM-6: Configuration Settings
 cm6 = [
-    "pod-security.kubernetes.io/enforce", "pod-security.kubernetes.io/warn", "pod-security.kubernetes.io/audit",
-    "restricted", "baseline",
-    "templates.gatekeeper.sh", "constraints.gatekeeper.sh", "ConstraintTemplate", "K8sPSP",
-    "policies.kyverno.io", "ClusterPolicy", "Policy",
-    "validate:", "mutate:", "verifyImages:", "validationFailureAction:",
+    "configSettings", "systemSettings", "runtimeConfig", "sysctl",
+    "configurationSettings", "systemConfiguration", "runtimeSettings",
+    "kernelParams", "systemParameters",
 ]
 
-# CM-7: Least Functionality – disable/avoid high-privilege & host access
+# CM-7: Least Functionality
 cm7 = [
-    "readOnlyRootFilesystem", "readOnlyRootFilesystem:",
-    "capabilities:", "capabilities", "drop:", "add:",
-    "privileged", "privileged:",
-    "hostNetwork", "hostNetwork:", "hostPID", "hostPID:", "hostIPC", "hostIPC:",
-    "hostPath", "hostPath:", "hostPort", "hostPort:",
-    "mountPropagation", "mountPropagation:",
-    "allowPrivilegeEscalation", "allowPrivilegeEscalation:",
+    "leastFunctionality", "disableServices", "removePackages",
+    "minimalInstall", "securityHardening", "unnecessaryServices",
+    "disableUnused", "removeUnused", "securityBaseline",
 ]
 
-# -----------------------------------------------------------------------------
-# CONTINGENCY PLANNING / RESILIENCY (CP, SC-5)
-# -----------------------------------------------------------------------------
-
-# CP-10: System Recovery and Reconstitution – probes, rollouts, PDB
+# CP-10: Information System Recovery and Reconstitution
 cp10 = [
-    "livenessProbe", "livenessProbe:",
-    "readinessProbe", "readinessProbe:",
-    "startupProbe", "startupProbe:",
-    "strategy:", "rollingUpdate:", "maxUnavailable:", "maxSurge:",
-    "PodDisruptionBudget", "minAvailable:", "maxUnavailable:",
-    "topologySpreadConstraints", "topologySpreadConstraints:",
-    "affinity:", "podAntiAffinity:", "nodeAffinity:", "tolerations:",
+    "backup", "restore", "recovery", "disasterRecovery", "DR",
+    "backupStrategy", "restoreStrategy", "recoveryTime", "RTO",
+    "recoveryPoint", "RPO", "backupRetention", "snapshots",
 ]
 
-# SC-5: Denial-of-Service Protection – resource control and throttling
+# SC-5: Denial of Service Protection
 sc5 = [
-    "resources:", "limits:", "requests:", "cpu", "memory",
-    "LimitRange", "ResourceQuota",
-    "nginx.ingress.kubernetes.io/limit-rps", "nginx.ingress.kubernetes.io/limit-connections",
-    "priorityClassName", "PriorityClass",
+    "rateLimit", "dosProtection", "throttle", "requestLimit",
+    "connectionLimit", "bandwidthLimit", "resourceQuotas",
+    "requestThrottling", "connectionThrottling",
 ]
 
-# -----------------------------------------------------------------------------
-# SYSTEM & COMMUNICATIONS PROTECTION (SC)
-# -----------------------------------------------------------------------------
-
-# SC-7: Boundary Protection – network boundaries and ingress/egress control
+# SC-7: Boundary Protection
 sc7 = [
-    "NetworkPolicy", "policyTypes:", "ingress:", "egress:", "from:", "to:", "ipBlock:",
-    "Ingress", "IngressClass", "ingressClassName",
-    "nginx.ingress.kubernetes.io/whitelist-source-range",
+    "NetworkPolicy", "networkPolicy", "ingress", "egress",
+    "firewall", "securityGroups", "networkIsolation", "podSecurity",
+    "namespaceIsolation", "clusterIsolation", "networkSegmentation",
 ]
 
-# SC-8: Transmission Confidentiality & Integrity – TLS in mesh/ingress
+# SC-8: Transmission Confidentiality and Integrity
 sc8 = [
-    "tls:", "secretName:", "kubernetes.io/tls", "https",
-    "nginx.ingress.kubernetes.io/ssl-redirect", "nginx.ingress.kubernetes.io/backend-protocol",
-    "alb.ingress.kubernetes.io/listen-ports", "service.beta.kubernetes.io/aws-load-balancer-ssl-cert",
-    "istio", "PeerAuthentication", "DestinationRule", "ISTIO_MUTUAL", "STRICT",
-    "linkerd.io/inject", "linkerd.io/inject:",
+    "tls", "ssl", "https", "encryption", "certificates",
+    "transportSecurity", "secureCommunication", "encryptedTraffic",
+    "tlsConfig", "sslConfig", "certificateManagement",
 ]
 
-# SC-12: Cryptographic Key Establishment & Management – cert managers & issuers
+# SC-12: Cryptographic Key Establishment and Management
 sc12 = [
-    "cert-manager.io/v1", "Certificate", "Issuer", "ClusterIssuer",
-    "acme:", "privateKey:", "issuerRef:", "certificateRef:",
-    "kubernetes.io/tls", "tls.key", "tls.crt",
+    "crypto", "encryption", "keys", "certificates", "secrets",
+    "keyManagement", "certificateManagement", "secretManagement",
+    "encryptionKeys", "signingKeys", "keyRotation",
 ]
 
-# SC-13: Cryptographic Protection – mTLS and service mesh policy
+# SC-13: Cryptographic Protection
 sc13 = [
-    "PeerAuthentication", "mtls:", "mode:", "STRICT", "PERMISSIVE",
-    "DestinationRule", "trafficPolicy:", "tls:", "ISTIO_MUTUAL",
-    "sidecar.istio.io/inject", "sidecar.istio.io/inject:",
-    "peer-authentication.istio.io", "authentication.istio.io",
+    "crypto", "encryption", "cipher", "algorithm", "hash",
+    "cryptographicProtection", "encryptionAlgorithm", "hashAlgorithm",
+    "cipherSuite", "encryptionStrength",
 ]
 
-# SC-28: Protection of Information at Rest – secrets and encryption
+# SC-28: Protection of Information at Rest
 sc28 = [
-    "SealedSecret", "bitnami.com/v1alpha1", "encryptedData:",
-    "sops", "sops:", "age", "age-encryption.org",
-    "external-secrets.io", "ExternalSecret", "SecretStore", "ClusterSecretStore",
-    "secrets-store.csi.k8s.io", "SecretProviderClass",
-    "kms", "KMSKeyID", "encryptionKey", "keyvault", "gcp-kms", "aws-kms",
+    "encryption", "atRest", "storageEncryption", "diskEncryption",
+    "dataEncryption", "persistentVolume", "storageClass",
+    "encryptedStorage", "dataProtection", "restEncryption",
 ]
 
-# -----------------------------------------------------------------------------
-# SYSTEM & INFORMATION INTEGRITY (SI) / SUPPLY CHAIN (SA-12)
-# -----------------------------------------------------------------------------
-
-# SI-2: Flaw Remediation – image update hygiene and pull behavior
+# SI-2: Flaw Remediation
 si2 = [
-    "imagePullPolicy:", "Always",
-    "strategy:", "rollingUpdate:", "maxUnavailable:", "maxSurge:",
+    "vulnerability", "patch", "update", "upgrade", "securityUpdate",
+    "vulnerabilityScan", "patchManagement", "updateManagement",
+    "securityPatches", "vulnerabilityRemediation",
 ]
 
-# SI-3: Malicious Code Protection – scanners/agents
+# SI-3: Malicious Code Protection
 si3 = [
-    "trivy", "grype", "anchore", "clair",
-    "starboard", "kubescape",
-    "falco", "falcosidekick",  # runtime threat detection
+    "antivirus", "malware", "scanning", "maliciousCode",
+    "malwareProtection", "virusScan", "maliciousCodeScan",
+    "securityScanning", "threatDetection",
 ]
 
-# SI-4: System Monitoring – metrics & traces
+# SI-4: System Monitoring
 si4 = [
-    "ServiceMonitor", "PodMonitor", "monitoring.coreos.com/v1",
-    "prometheus.io/scrape", "prometheus.io/scrape:",
-    "OpenTelemetryCollector", "otel-collector", "opentelemetry.io",
-    "kube-state-metrics",
+    "monitoring", "logging", "alerting", "metrics", "observability",
+    "systemMonitoring", "performanceMonitoring", "healthChecks",
+    "probes", "livenessProbe", "readinessProbe", "startupProbe",
 ]
 
-# SI-7: Software, Firmware, and Information Integrity – image pinning/signing
+# SI-7: Software and Information Integrity
 si7 = [
-    "@sha256:", "digest:", "imageDigest",   # immutable image references
-    "cosign", "cosigned", "policy.sigstore.dev", "clusterimagepolicy",
-    "rekor", "fulcio", "sigstore", "in-toto", "provenance", "slsa",
-    "kyverno.io/verifyImages", "verifyImages:",
+    "integrity", "checksums", "signatures", "verification",
+    "codeSigning", "imageSigning", "integrityChecks",
+    "signatureVerification", "checksumVerification",
 ]
 
-# SA-12: Supply Chain Protection – signature/policy controls
+# SA-12: Supply Chain Risk Management
 sa12 = [
-    "cosign", "cosigned", "policy.sigstore.dev", "clusterimagepolicy",
-    "attestor", "attestors:", "fulcio", "rekor", "sigstore",
-    "verifyImages:", "kyverno.io/verifyImages",
+    "supplyChain", "dependencies", "vulnerabilities", "licenses",
+    "thirdParty", "vendor", "supplier", "riskAssessment",
+    "dependencyScan", "licenseCompliance", "vulnerabilityAssessment",
 ]
 
-# RA-5: Vulnerability Monitoring and Scanning – image scanners & policies
+# RA-5: Risk Assessment
 ra5 = [
-    "trivy", "grype", "anchore", "clair",
-    "starboard", "kubescape", "polaris",
-    "ImagePolicyWebhook", "imagepolicy.k8s.io",  # legacy admission
+    "riskAssessment", "vulnerabilityAssessment", "threatAssessment",
+    "riskAnalysis", "securityAssessment", "complianceAssessment",
+    "riskEvaluation", "securityRisk", "threatModeling",
 ]
-
-# -----------------------------------------------------------------------------
-# Optional: helpful groupings (not used by the enumerator, but handy for testing)
-# -----------------------------------------------------------------------------
-
-K8S_PRIMARY_RESOURCES = [
-    "Deployment", "StatefulSet", "DaemonSet", "ReplicaSet", "Pod",
-    "Service", "Ingress", "ConfigMap", "Secret", "ServiceAccount",
-    "Role", "ClusterRole", "RoleBinding", "ClusterRoleBinding",
-    "NetworkPolicy", "PodDisruptionBudget",
-    "PersistentVolumeClaim", "PersistentVolume", "StorageClass",
-    "Application",  # Argo CD
-]
-
-CONTROL_TO_PRIMARY_RESOURCE_HINT = {
-    "ac2": ["ServiceAccount", "Secret"],
-    "ac3": ["Role", "RoleBinding", "ClusterRole", "ClusterRoleBinding"],
-    "ac4": ["NetworkPolicy"],
-    "ac6": ["Deployment", "Pod"],
-    "ia2": ["ServiceAccount"],
-    "ia5": ["Secret", "ExternalSecret", "SecretProviderClass"],
-    "au12": ["Deployment", "DaemonSet"],
-    "cm2": ["Application"],
-    "cm3": ["Application"],
-    "cm5": ["Application"],
-    "cm6": ["ClusterPolicy", "ConstraintTemplate"],
-    "cm7": ["Deployment", "Pod"],
-    "cp10": ["Deployment", "PodDisruptionBudget"],
-    "sc5": ["LimitRange", "ResourceQuota"],
-    "sc7": ["NetworkPolicy", "Ingress"],
-    "sc8": ["Ingress", "DestinationRule", "PeerAuthentication"],
-    "sc12": ["Certificate", "Issuer", "ClusterIssuer"],
-    "sc13": ["PeerAuthentication", "DestinationRule"],
-    "sc28": ["SealedSecret", "ExternalSecret", "SecretProviderClass"],
-    "si2": ["Deployment"],
-    "si3": ["DaemonSet", "Deployment"],
-    "si4": ["ServiceMonitor", "PodMonitor"],
-    "si7": ["Deployment"],
-    "sa12": ["ClusterImagePolicy", "Policy"],
-    "ra5": ["Deployment", "AdmissionConfiguration"],
-}

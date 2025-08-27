@@ -98,7 +98,7 @@ class OSCALComponent:
     links: List[Dict[str, Any]] = field(default_factory=list)
     
     # Control implementations (placeholder for future RAG flow)
-    control_implementations: List[Dict[str, Any]] = field(default_factory=list)
+    control_implementations: List["OSCALControlImplementation"] = field(default_factory=list)
     
     # Status and lifecycle
     status: str = "operational"
@@ -112,7 +112,7 @@ class OSCALComponent:
             "type": self.component_type,
             "props": self.props,
             "links": self.links,
-            "control-implementations": self.control_implementations,
+            "control-implementations": [ci.to_dict() for ci in self.control_implementations],
             "status": {"state": self.status}
         }
 
@@ -129,7 +129,7 @@ class OSCALCapability:
     props: List[Dict[str, Any]] = field(default_factory=list)
     
     # Control implementations (placeholder for future RAG flow)
-    control_implementations: List[Dict[str, Any]] = field(default_factory=list)
+    control_implementations: List["OSCALControlImplementation"] = field(default_factory=list)
     
     def to_dict(self) -> Dict[str, Any]:
         """Convert to dictionary for OSCAL serialization."""
@@ -138,7 +138,7 @@ class OSCALCapability:
             "name": self.name,
             "description": self.description,
             "props": self.props,
-            "control-implementations": self.control_implementations
+            "control-implementations": [ci.to_dict() for ci in self.control_implementations]
         }
 
 
@@ -175,7 +175,7 @@ class OSCALComponentDefinition:
     capabilities: List[OSCALCapability] = field(default_factory=list)
     
     # Control implementations (placeholder for future RAG flow)
-    control_implementations: List[OSCALControlImplementation] = field(default_factory=list)
+    control_implementations: List["OSCALControlImplementation"] = field(default_factory=list)
     
     def to_dict(self) -> Dict[str, Any]:
         """Convert to dictionary for OSCAL serialization."""
@@ -267,7 +267,8 @@ def create_capability_from_type(capability_type: str, description: str) -> OSCAL
 def create_component_definition_from_execution_results(
     application_name: str,
     application_namespace: str,
-    workloads: List[Dict[str, Any]]
+    workloads: List[Dict[str, Any]],
+    control_mappings: Optional[Dict[str, Any]] = None
 ) -> OSCALComponentDefinition:
     """Create an OSCAL Component Definition from execution results."""
     
@@ -282,6 +283,36 @@ def create_component_definition_from_execution_results(
     # Add components from workloads
     for workload in workloads:
         component = create_component_from_workload(workload)
+        
+        # Add basic control implementations based on workload characteristics
+        # This is a simplified approach - in a full implementation, this would use actual control mapping results
+        workload_name = workload.get("name")
+        
+        # Create basic control implementations based on resource types
+        resource_types = workload.get("resource_types", [])
+        if "Deployment" in resource_types:
+            # Add access control implementation
+            ac_impl = OSCALControlImplementation(
+                control_id="AC-6",
+                description="Least Privilege - Deployment uses container security features"
+            )
+            component.control_implementations.append(ac_impl)
+            
+            # Add system protection implementation
+            sc_impl = OSCALControlImplementation(
+                control_id="SC-2",
+                description="Application Partitioning - Container isolation provides boundary protection"
+            )
+            component.control_implementations.append(sc_impl)
+        
+        if "Job" in resource_types:
+            # Add audit implementation
+            au_impl = OSCALControlImplementation(
+                control_id="AU-3",
+                description="Content of Audit Records - Job execution provides audit trail"
+            )
+            component.control_implementations.append(au_impl)
+        
         component_def.add_component(component)
     
     # Add common capabilities
