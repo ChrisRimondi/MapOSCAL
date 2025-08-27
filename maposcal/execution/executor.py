@@ -323,10 +323,7 @@ class ExecutionEngine:
             return self._execute_source_analysis_step()
         elif step_id == "control_mapping":
             return self._execute_control_mapping_step()
-        elif step_id == "sbom":
-            return self._execute_sbom_step()
-        elif step_id == "provenance":
-            return self._execute_provenance_step()
+
         elif step_id == "oscal_emit":
             return self._execute_oscal_emit_step()
         else:
@@ -1199,118 +1196,13 @@ class ExecutionEngine:
     
     # Removed complex MapOSCAL integration methods - using simple control mapping instead
     
-    def _execute_sbom_step(self) -> Dict[str, Any]:
-        """Execute the SBOM step."""
-        return {
-            "status": "completed",
-            "message": "SBOM generated",
-            "timestamp": datetime.utcnow().isoformat()
-        }
+
     
-    def _execute_provenance_step(self) -> Dict[str, Any]:
-        """Execute the provenance step - collect build and deployment provenance.
-        
-        Returns:
-            Dictionary with provenance information
-        """
-        try:
-            self.logger.info("Executing provenance step: collecting build and deployment provenance")
-            
-            # Get all workloads and their metadata
-            workloads = self.plan.targets.get("workloads", [])
-            provenance_data = {}
-            
-            for workload in workloads:
-                workload_name = workload.get("name")
-                workload_namespace = workload.get("namespace")
-                images = workload.get("images", [])
-                
-                # Collect provenance for this workload
-                workload_provenance = self._collect_workload_provenance(
-                    workload_name, workload_namespace, images
-                )
-                
-                provenance_data[workload_name] = {
-                    "namespace": workload_namespace,
-                    "image_count": len(images),
-                    "provenance": workload_provenance,
-                    "collected_at": datetime.utcnow().isoformat()
-                }
-            
-            self.logger.info(f"Provenance step completed: collected data for {len(provenance_data)} workloads")
-            
-            return {
-                "status": "completed",
-                "message": "Provenance collected",
-                "timestamp": datetime.utcnow().isoformat(),
-                "total_workloads": len(provenance_data),
-                "provenance_data": provenance_data
-            }
-            
-        except Exception as e:
-            self.logger.error(f"Provenance step failed: {e}")
-            return {
-                "status": "failed",
-                "message": f"Provenance step failed: {str(e)}",
-                "timestamp": datetime.utcnow().isoformat(),
-                "error": str(e)
-            }
+
     
-    def _collect_workload_provenance(self, workload_name: str, namespace: str, 
-                                   images: List[Dict[str, Any]]) -> Dict[str, Any]:
-        """Collect provenance information for a specific workload.
-        
-        Args:
-            workload_name: Name of the workload
-            namespace: Kubernetes namespace
-            images: List of container images
-            
-        Returns:
-            Dictionary with provenance information
-        """
-        # This is a placeholder implementation
-        # In a full implementation, this would:
-        # 1. Extract build information from container images
-        # 2. Collect deployment metadata from Kubernetes
-        # 3. Gather CI/CD pipeline information
-        # 4. Document configuration management details
-        
-        provenance = {
-            "build_info": {
-                "build_tool": "unknown",
-                "build_timestamp": datetime.utcnow().isoformat(),
-                "build_platform": "unknown"
-            },
-            "deployment_info": {
-                "deployment_tool": "Argo CD",
-                "deployment_namespace": namespace,
-                "deployment_timestamp": datetime.utcnow().isoformat()
-            },
-            "configuration": {
-                "config_management": "GitOps (Argo CD)",
-                "config_source": "Git repository",
-                "config_version": "latest"
-            },
-            "security": {
-                "image_scanning": "unknown",
-                "vulnerability_assessment": "unknown",
-                "compliance_checking": "unknown"
-            }
-        }
-        
-        # Try to infer build tool from image references
-        for image in images:
-            image_ref = image.get("ref", "")
-            if "docker" in image_ref.lower():
-                provenance["build_info"]["build_tool"] = "Docker"
-            elif "buildah" in image_ref.lower():
-                provenance["build_info"]["build_tool"] = "Buildah"
-            elif "kaniko" in image_ref.lower():
-                provenance["build_info"]["build_tool"] = "Kaniko"
-        
-        self.logger.info(f"Collected provenance for workload {workload_name} (placeholder implementation)")
-        
-        return provenance
+
+    
+
     
     def _execute_oscal_emit_step(self) -> Dict[str, Any]:
         """Execute the OSCAL emit step - generate OSCAL Component Definition."""

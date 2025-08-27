@@ -48,7 +48,7 @@ def create_execute_plan_parser(subparsers) -> argparse.ArgumentParser:
     
     execute_parser.add_argument(
         '--skip-steps',
-        help='Comma-separated list of step IDs to skip (e.g., sbom,provenance)'
+        help='Comma-separated list of step IDs to skip'
     )
     
     execute_parser.add_argument(
@@ -190,7 +190,7 @@ def main():
     
     parser.add_argument(
         '--skip-steps',
-        help='Comma-separated list of step IDs to skip (e.g., sbom,provenance)'
+        help='Comma-separated list of step IDs to skip'
     )
     
     parser.add_argument(

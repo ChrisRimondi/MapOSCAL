@@ -1363,7 +1363,7 @@ def execute_plan(
     plan_file: str = typer.Argument(..., help="Path to the execution plan YAML file"),
     force: bool = typer.Option(False, "--force", help="Force execution even if cached results exist"),
     only_steps: str = typer.Option(None, "--only-steps", help="Comma-separated list of step IDs to execute (e.g., render,inventory)"),
-    skip_steps: str = typer.Option(None, "--skip-steps", help="Comma-separated list of step IDs to skip (e.g., sbom,provenance)"),
+    skip_steps: str = typer.Option(None, "--skip-steps", help="Comma-separated list of step IDs to skip"),
     only_targets: str = typer.Option(None, "--only-targets", help="Comma-separated list of targets to execute (e.g., workload:frontend)"),
     verbose: bool = typer.Option(False, "--verbose", "-v", help="Enable verbose output"),
 ):

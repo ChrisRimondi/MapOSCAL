@@ -24,8 +24,6 @@ class PlanGenerator:
             "source_link",
             "source_analysis",
             "control_mapping",
-            "sbom",
-            "provenance",
             "oscal_emit"
         ]
         
@@ -127,8 +125,7 @@ class PlanGenerator:
         # Create steps for the image
         image_steps = {
             "oci_labels": self._create_step("oci_labels", enabled=True),
-            "sbom": self._create_step("sbom", enabled=False),  # Disabled by default
-            "provenance": self._create_step("provenance", enabled=False)  # Disabled by default
+
         }
         
         # Create repo placeholder (will be filled during execution)
@@ -366,8 +363,7 @@ class PlanGenerator:
         # Only enable essential steps
         image_steps = {
             "oci_labels": self._create_step("oci_labels", enabled=False),  # Disabled in minimal plan
-            "sbom": self._create_step("sbom", enabled=False),
-            "provenance": self._create_step("provenance", enabled=False)
+
         }
         
         return ImageTarget(
