@@ -27,11 +27,14 @@ dockerfile:
   exclude_from_analysis: true  # Exclude from regular repository analysis
   entrypoint_analysis: true  # Analyze ENTRYPOINT scripts separately
 
-# Argo application analysis settings
-# Configure Argo CD application analysis for OSCAL component generation
-argo:
-  argo_path: "/path/to/your/argo-application.yaml"  # Path to Argo application YAML file
-  # Additional Argo-specific settings can be added here as needed
+# Kubernetes resource analysis settings
+# Configure Kubernetes manifest analysis for OSCAL component generation
+k8s:
+  k8s_paths:  # List of directories containing K8s resource YAML files
+    - "/path/to/your/k8s/manifests"
+    - "/path/to/your/helm/charts"
+    - "/path/to/your/operators"
+  # Additional K8s-specific settings can be added here as needed
 
 # LLM Configuration
 # You can specify different LLM providers and models for each command
@@ -62,10 +65,10 @@ llm:
     model: "gpt-4"  # High quality for evaluation
     temperature: 0.0  # Very low temperature for deterministic evaluation
     
-  argo_process:
+  k8s_process:
     provider: "openai"
-    model: "gpt-4"  # High quality for Argo application analysis
-    temperature: 0.3  # Moderate temperature for structured Argo analysis
+    model: "gpt-4"  # High quality for Kubernetes resource analysis
+    temperature: 0.3  # Moderate temperature for structured K8s analysis
 
 # Example configurations for different providers:
 # 

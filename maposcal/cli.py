@@ -98,7 +98,7 @@ def main(
     • summarize: Generate security overview for improved control mapping  
     • generate: Create validated OSCAL components with comprehensive validation
     • evaluate: Assess the quality of generated components
-    • argo-process: Process Argo application YAML files for OSCAL generation
+    • k8s-process: Process Kubernetes resource YAML files for OSCAL generation
     • run-all: Execute the complete workflow (analyze → summarize → generate → evaluate)
     • metadata: Extract and display metadata from MapOSCAL output files
     
@@ -799,13 +799,13 @@ def evaluate(config: str = typer.Argument(..., help="Path to the configuration f
 
 
 @app.command()
-def argo_process(config: str = typer.Argument(None, help="Path to the configuration file.")):
+def k8s_process(config: str = typer.Argument(None, help="Path to the configuration file.")):
     """
-    Process Argo application YAML files and generate initial OSCAL component definitions.
+    Process Kubernetes resource YAML files and generate initial OSCAL component definitions.
     
-    Analyzes Argo CD application manifests to extract application metadata, deployment
+    Analyzes Kubernetes manifests to extract resource metadata, deployment
     configurations, and security-relevant information. Generates initial OSCAL component
-    structures based on the Argo application properties.
+    structures based on the K8s resource properties.
     
     The analysis results are stored in the specified output directory and serve
     as the foundation for further OSCAL generation and validation.
@@ -813,26 +813,30 @@ def argo_process(config: str = typer.Argument(None, help="Path to the configurat
     config_data = load_config(config)
     output_dir = config_data.get("output_dir", ".oscalgen")
     
-    # Get Argo-specific configuration
-    argo_path = config_data.get("argo", {}).get("argo_path")
+    # Get K8s-specific configuration
+    k8s_paths = config_data.get("k8s", {}).get("k8s_paths", [])
     
-    if not argo_path:
-        typer.echo("Argo path not specified in configuration. Please add 'argo_path' to the 'argo' section.")
+    if not k8s_paths:
+        typer.echo("K8s paths not specified in configuration. Please add 'k8s_paths' to the 'k8s' section.")
         raise typer.Exit(code=1)
     
-    if not os.path.exists(argo_path):
-        typer.echo(f"Argo YAML file not found: {argo_path}")
-        raise typer.Exit(code=1)
+    # Validate that all specified paths exist
+    for k8s_path in k8s_paths:
+        if not os.path.exists(k8s_path):
+            typer.echo(f"K8s directory not found: {k8s_path}")
+            raise typer.Exit(code=1)
     
     # Get LLM configuration from config
-    llm_config = get_llm_config(config_data, "argo_process")
+    llm_config = get_llm_config(config_data, "k8s_process")
     
-    typer.echo(f"Processing Argo application from: {argo_path}")
+    typer.echo(f"Processing K8s resources from {len(k8s_paths)} directories:")
+    for k8s_path in k8s_paths:
+        typer.echo(f"  - {k8s_path}")
     typer.echo(f"Output directory: {output_dir}")
     
-    # TODO: Implement Argo processing logic
+    # TODO: Implement K8s processing logic
     # This will be expanded in future steps
-    typer.echo("Argo processing command initialized successfully")
+    typer.echo("K8s processing command initialized successfully")
     typer.echo("Processing logic will be implemented in future steps")
 
 
