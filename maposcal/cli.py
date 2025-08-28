@@ -98,6 +98,7 @@ def main(
     • summarize: Generate security overview for improved control mapping  
     • generate: Create validated OSCAL components with comprehensive validation
     • evaluate: Assess the quality of generated components
+    • argo-process: Process Argo application YAML files for OSCAL generation
     • run-all: Execute the complete workflow (analyze → summarize → generate → evaluate)
     • metadata: Extract and display metadata from MapOSCAL output files
     
@@ -795,6 +796,44 @@ def evaluate(config: str = typer.Argument(..., help="Path to the configuration f
     typer.echo(f"   Total controls evaluated: {len(evaluation_results)}")
     typer.echo(f"   Successful evaluations: {len(valid_evaluations)}")
     typer.echo(f"   Average total score: {avg_score:.1f}/8.0")
+
+
+@app.command()
+def argo_process(config: str = typer.Argument(None, help="Path to the configuration file.")):
+    """
+    Process Argo application YAML files and generate initial OSCAL component definitions.
+    
+    Analyzes Argo CD application manifests to extract application metadata, deployment
+    configurations, and security-relevant information. Generates initial OSCAL component
+    structures based on the Argo application properties.
+    
+    The analysis results are stored in the specified output directory and serve
+    as the foundation for further OSCAL generation and validation.
+    """
+    config_data = load_config(config)
+    output_dir = config_data.get("output_dir", ".oscalgen")
+    
+    # Get Argo-specific configuration
+    argo_path = config_data.get("argo", {}).get("argo_path")
+    
+    if not argo_path:
+        typer.echo("Argo path not specified in configuration. Please add 'argo_path' to the 'argo' section.")
+        raise typer.Exit(code=1)
+    
+    if not os.path.exists(argo_path):
+        typer.echo(f"Argo YAML file not found: {argo_path}")
+        raise typer.Exit(code=1)
+    
+    # Get LLM configuration from config
+    llm_config = get_llm_config(config_data, "argo_process")
+    
+    typer.echo(f"Processing Argo application from: {argo_path}")
+    typer.echo(f"Output directory: {output_dir}")
+    
+    # TODO: Implement Argo processing logic
+    # This will be expanded in future steps
+    typer.echo("Argo processing command initialized successfully")
+    typer.echo("Processing logic will be implemented in future steps")
 
 
 @app.command()
