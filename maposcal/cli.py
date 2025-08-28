@@ -834,10 +834,44 @@ def k8s_process(config: str = typer.Argument(None, help="Path to the configurati
         typer.echo(f"  - {k8s_path}")
     typer.echo(f"Output directory: {output_dir}")
     
-    # TODO: Implement K8s processing logic
-    # This will be expanded in future steps
-    typer.echo("K8s processing command initialized successfully")
-    typer.echo("Processing logic will be implemented in future steps")
+    # Import and run K8s analyzer
+    from maposcal.analyzer.k8s_analyzer import K8sAnalyzer
+    
+    try:
+        # Initialize and run K8s analyzer
+        k8s_analyzer = K8sAnalyzer(
+            k8s_paths=k8s_paths,
+            output_dir=output_dir,
+            llm_config=llm_config
+        )
+        
+        # Run the analysis
+        results = k8s_analyzer.analyze()
+        
+        typer.echo(f"✅ K8s analysis completed successfully!")
+        typer.echo(f"📊 Created {results['vectors_created']} vectors")
+        typer.echo(f"📊 Generated {results['metadata_entries']} metadata entries")
+        typer.echo(f"🏗️  Identified {len(results['workloads'])} workload groupings")
+        
+        # Show workload summary
+        if results['workloads']:
+            typer.echo("\n📋 Workload Summary:")
+            for workload_id, workload in results['workloads'].items():
+                services_count = len(workload['services'])
+                ingress_count = len(workload['ingress'])
+                configs_count = len(workload['configMaps'])
+                secrets_count = len(workload['secrets'])
+                shared_count = len(workload['sharedRefs'])
+                
+                typer.echo(f"  • {workload_id}: {services_count} services, {ingress_count} ingress, {configs_count} configs, {secrets_count} secrets")
+                if shared_count > 0:
+                    typer.echo(f"    (shares {shared_count} resources)")
+        
+        typer.echo(f"\n📁 Analysis results saved to: {output_dir}")
+        
+    except Exception as e:
+        typer.echo(f"❌ K8s analysis failed: {e}")
+        raise typer.Exit(code=1)
 
 
 @app.command()
