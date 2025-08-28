@@ -8,7 +8,7 @@ for OSCAL component generation.
 
 import logging
 from pathlib import Path
-from typing import List, Dict, Any, Optional, Set
+from typing import List, Dict, Any, Optional, Set, Tuple
 import yaml
 import json
 import hashlib
@@ -18,6 +18,725 @@ from maposcal.embeddings import local_embedder, faiss_index, meta_store
 from maposcal.utils.metadata import generate_metadata, inject_metadata_into_json
 
 logger = logging.getLogger(__name__)
+
+
+class OwnerReferenceResolver:
+    """
+    Resolves owner references and expands workload seeds to include child resources.
+    """
+    
+    def __init__(self):
+        self.by_key = {}  # (kind, name, namespace) -> object
+        self.owners_of = {}  # uid -> [child objects]
+    
+    def build_owner_graph(self, resources: List[Dict[str, Any]]):
+        """
+        Build owner reference indices for efficient lookup.
+        
+        Args:
+            resources: List of parsed K8s resources
+        """
+        # Build byKey index
+        for resource in resources:
+            key = (resource['kind'], resource['name'], resource['namespace'])
+            self.by_key[key] = resource
+        
+        # Build ownersOf index
+        for resource in resources:
+            owner_refs = resource.get('raw_resource', {}).get('metadata', {}).get('ownerReferences', [])
+            for owner_ref in owner_refs:
+                owner_uid = owner_ref.get('uid')
+                if owner_uid:
+                    if owner_uid not in self.owners_of:
+                        self.owners_of[owner_uid] = []
+                    self.owners_of[owner_uid].append(resource)
+    
+    def expand_workload_children(self, seed: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Expand a workload seed to include all child resources.
+        
+        Args:
+            seed: Workload seed resource
+            
+        Returns:
+            Dictionary with expanded children information
+        """
+        children = {
+            'pods': {'materialized': False, 'items': [], 'template_labels': seed.get('pod_template', {}).get('labels', {})},
+            'replicaSets': [],
+            'jobs': []
+        }
+        
+        seed_uid = seed.get('raw_resource', {}).get('metadata', {}).get('uid')
+        if not seed_uid:
+            return children
+        
+        # Find children based on seed type
+        if seed['kind'] == 'Deployment':
+            children.update(self._expand_deployment_children(seed_uid))
+        elif seed['kind'] == 'StatefulSet':
+            children.update(self._expand_statefulset_children(seed_uid))
+        elif seed['kind'] == 'DaemonSet':
+            children.update(self._expand_daemonset_children(seed_uid))
+        elif seed['kind'] == 'CronJob':
+            children.update(self._expand_cronjob_children(seed_uid))
+        elif seed['kind'] == 'Job':
+            children.update(self._expand_job_children(seed_uid))
+        elif seed['kind'] == 'Pod':
+            children['pods']['materialized'] = True
+            children['pods']['items'].append(seed['name'])
+        
+        return children
+    
+    def _expand_deployment_children(self, deployment_uid: str) -> Dict[str, Any]:
+        """Expand Deployment → ReplicaSet → Pod chain."""
+        children = {'replicaSets': [], 'pods': {'materialized': False, 'items': []}}
+        
+        # Find ReplicaSets owned by this Deployment
+        replica_sets = self.owners_of.get(deployment_uid, [])
+        for rs in replica_sets:
+            if rs['kind'] == 'ReplicaSet':
+                children['replicaSets'].append(rs['name'])
+                
+                # Find Pods owned by this ReplicaSet
+                rs_uid = rs.get('raw_resource', {}).get('metadata', {}).get('uid')
+                if rs_uid:
+                    pods = self.owners_of.get(rs_uid, [])
+                    for pod in pods:
+                        if pod['kind'] == 'Pod':
+                            children['pods']['items'].append(pod['name'])
+                            children['pods']['materialized'] = True
+        
+        return children
+    
+    def _expand_statefulset_children(self, statefulset_uid: str) -> Dict[str, Any]:
+        """Expand StatefulSet → Pod chain."""
+        children = {'pods': {'materialized': False, 'items': []}}
+        
+        pods = self.owners_of.get(statefulset_uid, [])
+        for pod in pods:
+            if pod['kind'] == 'Pod':
+                children['pods']['items'].append(pod['name'])
+                children['pods']['materialized'] = True
+        
+        return children
+    
+    def _expand_daemonset_children(self, daemonset_uid: str) -> Dict[str, Any]:
+        """Expand DaemonSet → Pod chain."""
+        children = {'pods': {'materialized': False, 'items': []}}
+        
+        pods = self.owners_of.get(daemonset_uid, [])
+        for pod in pods:
+            if pod['kind'] == 'Pod':
+                children['pods']['items'].append(pod['name'])
+                children['pods']['materialized'] = True
+        
+        return children
+    
+    def _expand_cronjob_children(self, cronjob_uid: str) -> Dict[str, Any]:
+        """Expand CronJob → Job → Pod chain."""
+        children = {'jobs': [], 'pods': {'materialized': False, 'items': []}}
+        
+        # Find Jobs owned by this CronJob
+        jobs = self.owners_of.get(cronjob_uid, [])
+        for job in jobs:
+            if job['kind'] == 'Job':
+                children['jobs'].append(job['name'])
+                
+                # Find Pods owned by this Job
+                job_uid = job.get('raw_resource', {}).get('metadata', {}).get('uid')
+                if job_uid:
+                    pods = self.owners_of.get(job_uid, [])
+                    for pod in pods:
+                        if pod['kind'] == 'Pod':
+                            children['pods']['items'].append(pod['name'])
+                            children['pods']['materialized'] = True
+        
+        return children
+    
+    def _expand_job_children(self, job_uid: str) -> Dict[str, Any]:
+        """Expand Job → Pod chain."""
+        children = {'pods': {'materialized': False, 'items': []}}
+        
+        pods = self.owners_of.get(job_uid, [])
+        for pod in pods:
+            if pod['kind'] == 'Pod':
+                children['pods']['items'].append(pod['name'])
+                children['pods']['materialized'] = True
+        
+        return children
+
+
+class StorageResolver:
+    """
+    Resolves storage relationships: PVC → PV → StorageClass.
+    """
+    
+    def __init__(self):
+        self.pvc_by_name = {}  # (namespace, name) -> PVC
+        self.pv_by_name = {}   # name -> PV
+        self.sc_by_name = {}   # name -> StorageClass
+    
+    def build_storage_indices(self, resources: List[Dict[str, Any]]):
+        """
+        Build storage resource indices.
+        
+        Args:
+            resources: List of parsed K8s resources
+        """
+        for resource in resources:
+            if resource['kind'] == 'PersistentVolumeClaim':
+                key = (resource['namespace'], resource['name'])
+                self.pvc_by_name[key] = resource
+            elif resource['kind'] == 'PersistentVolume':
+                self.pv_by_name[resource['name']] = resource
+            elif resource['kind'] == 'StorageClass':
+                self.sc_by_name[resource['name']] = resource
+    
+    def resolve_workload_storage(self, workload: Dict[str, Any], resources: List[Dict[str, Any]]) -> Dict[str, Any]:
+        """
+        Resolve storage resources for a workload.
+        
+        Args:
+            workload: Workload dictionary
+            resources: Available resources
+            
+        Returns:
+            Dictionary with storage information
+        """
+        storage = {
+            'pvcs': [],
+            'pvs': [],
+            'storageClasses': []
+        }
+        
+        # Find PVCs used by the workload's pods
+        referenced_pvcs = set()
+        
+        # Check if we have materialized pods or need to use template
+        if workload.get('pods', {}).get('materialized', False):
+            # Use actual pod resources
+            for pod_name in workload['pods']['items']:
+                pod_resource = self._find_pod_resource(pod_name, workload['namespace'], resources)
+                if pod_resource:
+                    referenced_pvcs.update(self._extract_pvc_references(pod_resource))
+        else:
+            # Use seed pod template
+            seed_resource = self._find_seed_resource(workload, resources)
+            if seed_resource:
+                referenced_pvcs.update(self._extract_pvc_references(seed_resource))
+        
+        # Attach referenced PVCs
+        for pvc_key in referenced_pvcs:
+            if pvc_key in self.pvc_by_name:
+                pvc = self.pvc_by_name[pvc_key]
+                storage['pvcs'].append({
+                    'name': pvc['name'],
+                    'storageClassName': pvc.get('raw_resource', {}).get('spec', {}).get('storageClassName'),
+                    'accessModes': pvc.get('raw_resource', {}).get('spec', {}).get('accessModes', [])
+                })
+        
+        # Bind PVCs to PVs and StorageClasses
+        for pvc in storage['pvcs']:
+            pvc_key = (workload['namespace'], pvc['name'])
+            if pvc_key in self.pvc_by_name:
+                pvc_resource = self.pvc_by_name[pvc_key]
+                
+                # Find bound PV
+                pv_name = pvc_resource.get('raw_resource', {}).get('spec', {}).get('volumeName')
+                if pv_name and pv_name in self.pv_by_name:
+                    pv = self.pv_by_name[pv_name]
+                    storage['pvs'].append({
+                        'name': pv['name'],
+                        'storageClassName': pv.get('raw_resource', {}).get('spec', {}).get('storageClassName'),
+                        'accessModes': pv.get('raw_resource', {}).get('spec', {}).get('accessModes', [])
+                    })
+                    
+                    # Attach StorageClass
+                    sc_name = pv.get('raw_resource', {}).get('spec', {}).get('storageClassName')
+                    if sc_name and sc_name in self.sc_by_name:
+                        sc = self.sc_by_name[sc_name]
+                        storage['storageClasses'].append({
+                            'name': sc['name'],
+                            'provisioner': sc.get('raw_resource', {}).get('provisioner', ''),
+                            'volumeBindingMode': sc.get('raw_resource', {}).get('volumeBindingMode', '')
+                        })
+        
+        return storage
+    
+    def _find_pod_resource(self, pod_name: str, namespace: str, resources: List[Dict[str, Any]]) -> Optional[Dict[str, Any]]:
+        """Find a specific pod resource."""
+        for resource in resources:
+            if (resource['kind'] == 'Pod' and 
+                resource['name'] == pod_name and 
+                resource['namespace'] == namespace):
+                return resource
+        return None
+    
+    def _find_seed_resource(self, workload: Dict[str, Any], resources: List[Dict[str, Any]]) -> Optional[Dict[str, Any]]:
+        """Find the seed resource for a workload."""
+        for resource in resources:
+            if (resource['kind'] == workload['seed']['kind'] and 
+                resource['name'] == workload['seed']['name'] and 
+                resource['namespace'] == workload['namespace']):
+                return resource
+        return None
+    
+    def _extract_pvc_references(self, resource: Dict[str, Any]) -> Set[str]:
+        """Extract PVC references from a resource's volumes."""
+        pvc_refs = set()
+        
+        volumes = resource.get('pod_template', {}).get('volumes', [])
+        if not volumes:
+            # Direct pod resource
+            volumes = resource.get('raw_resource', {}).get('spec', {}).get('volumes', [])
+        
+        for volume in volumes:
+            if 'persistentVolumeClaim' in volume:
+                claim_name = volume['persistentVolumeClaim'].get('claimName')
+                if claim_name:
+                    pvc_refs.add((resource['namespace'], claim_name))
+        
+        return pvc_refs
+
+
+class ResilienceResolver:
+    """
+    Resolves resilience and network policies: HPA, PDB, NetworkPolicy.
+    """
+    
+    def __init__(self):
+        self.hpas = {}  # namespace -> [HPA]
+        self.pdbs = {}  # namespace -> [PDB]
+        self.network_policies = {}  # namespace -> [NetworkPolicy]
+    
+    def build_resilience_indices(self, resources: List[Dict[str, Any]]):
+        """
+        Build resilience resource indices.
+        
+        Args:
+            resources: List of parsed K8s resources
+        """
+        for resource in resources:
+            if resource['kind'] == 'HorizontalPodAutoscaler':
+                namespace = resource['namespace']
+                if namespace not in self.hpas:
+                    self.hpas[namespace] = []
+                self.hpas[namespace].append(resource)
+            elif resource['kind'] == 'PodDisruptionBudget':
+                namespace = resource['namespace']
+                if namespace not in self.pdbs:
+                    self.pdbs[namespace] = []
+                self.pdbs[namespace].append(resource)
+            elif resource['kind'] == 'NetworkPolicy':
+                namespace = resource['namespace']
+                if namespace not in self.network_policies:
+                    self.network_policies[namespace] = []
+                self.network_policies[namespace].append(resource)
+    
+    def resolve_workload_resilience(self, workload: Dict[str, Any], resources: List[Dict[str, Any]]) -> Dict[str, Any]:
+        """
+        Resolve resilience resources for a workload.
+        
+        Args:
+            workload: Workload dictionary
+            resources: Available resources
+            
+        Returns:
+            Dictionary with resilience information
+        """
+        resilience = {
+            'hpas': [],
+            'pdbs': [],
+            'networkPolicies': []
+        }
+        
+        namespace = workload['namespace']
+        
+        # Resolve HPAs
+        if namespace in self.hpas:
+            for hpa in self.hpas[namespace]:
+                if self._hpa_matches_workload(hpa, workload):
+                    resilience['hpas'].append({
+                        'name': hpa['name'],
+                        'targetRef': hpa.get('raw_resource', {}).get('spec', {}).get('scaleTargetRef', {}),
+                        'minReplicas': hpa.get('raw_resource', {}).get('spec', {}).get('minReplicas'),
+                        'maxReplicas': hpa.get('raw_resource', {}).get('spec', {}).get('maxReplicas')
+                    })
+        
+        # Resolve PDBs
+        if namespace in self.pdbs:
+            for pdb in self.pdbs[namespace]:
+                if self._pdb_matches_workload(pdb, workload):
+                    resilience['pdbs'].append({
+                        'name': pdb['name'],
+                        'minAvailable': pdb.get('raw_resource', {}).get('spec', {}).get('minAvailable'),
+                        'maxUnavailable': pdb.get('raw_resource', {}).get('spec', {}).get('maxUnavailable'),
+                        'selector': pdb.get('raw_resource', {}).get('spec', {}).get('selector', {})
+                    })
+        
+        # Resolve NetworkPolicies
+        if namespace in self.network_policies:
+            for np in self.network_policies[namespace]:
+                if self._network_policy_matches_workload(np, workload):
+                    resilience['networkPolicies'].append({
+                        'name': np['name'],
+                        'podSelector': np.get('raw_resource', {}).get('spec', {}).get('podSelector', {}),
+                        'policyTypes': np.get('raw_resource', {}).get('spec', {}).get('policyTypes', [])
+                    })
+        
+        return resilience
+    
+    def _hpa_matches_workload(self, hpa: Dict[str, Any], workload: Dict[str, Any]) -> bool:
+        """Check if HPA targets this workload."""
+        target_ref = hpa.get('raw_resource', {}).get('spec', {}).get('scaleTargetRef', {})
+        return (target_ref.get('kind') == workload['seed']['kind'] and 
+                target_ref.get('name') == workload['seed']['name'])
+    
+    def _pdb_matches_workload(self, pdb: Dict[str, Any], workload: Dict[str, Any]) -> bool:
+        """Check if PDB applies to this workload."""
+        pdb_selector = pdb.get('raw_resource', {}).get('spec', {}).get('selector', {})
+        if not pdb_selector:
+            return False
+        
+        # Check if PDB selector matches workload pods
+        workload_labels = workload.get('pods', {}).get('template_labels', {})
+        return self._selectors_overlap(pdb_selector, workload_labels)
+    
+    def _network_policy_matches_workload(self, np: Dict[str, Any], workload: Dict[str, Any]) -> bool:
+        """Check if NetworkPolicy applies to this workload."""
+        np_selector = np.get('raw_resource', {}).get('spec', {}).get('podSelector', {})
+        if not np_selector:
+            return False
+        
+        # Check if NetworkPolicy selector matches workload pods
+        workload_labels = workload.get('pods', {}).get('template_labels', {})
+        return self._selectors_overlap(np_selector, workload_labels)
+    
+    def _selectors_overlap(self, selector: Dict[str, Any], labels: Dict[str, Any]) -> bool:
+        """Check if selector overlaps with labels."""
+        if not selector or not labels:
+            return False
+        
+        # Simple label matching - could be enhanced for complex selectors
+        for key, value in selector.items():
+            if key in labels and labels[key] == value:
+                return True
+        
+        return False
+
+
+class RBACResolver:
+    """
+    Resolves RBAC relationships: ServiceAccount → Role/ClusterRole via Bindings.
+    """
+    
+    def __init__(self):
+        self.sa_by_name = {}  # (namespace, name) -> ServiceAccount
+        self.role_by_name = {}  # (namespace, name) -> Role
+        self.cluster_role_by_name = {}  # name -> ClusterRole
+        self.role_binding_by_name = {}  # (namespace, name) -> RoleBinding
+        self.cluster_role_binding_by_name = {}  # name -> ClusterRoleBinding
+    
+    def build_rbac_indices(self, resources: List[Dict[str, Any]]):
+        """
+        Build RBAC resource indices.
+        
+        Args:
+            resources: List of parsed K8s resources
+        """
+        for resource in resources:
+            if resource['kind'] == 'ServiceAccount':
+                key = (resource['namespace'], resource['name'])
+                self.sa_by_name[key] = resource
+            elif resource['kind'] == 'Role':
+                key = (resource['namespace'], resource['name'])
+                self.role_by_name[key] = resource
+            elif resource['kind'] == 'ClusterRole':
+                self.cluster_role_by_name[resource['name']] = resource
+            elif resource['kind'] == 'RoleBinding':
+                key = (resource['namespace'], resource['name'])
+                self.role_binding_by_name[key] = resource
+            elif resource['kind'] == 'ClusterRoleBinding':
+                self.cluster_role_binding_by_name[resource['name']] = resource
+    
+    def resolve_workload_rbac(self, workload: Dict[str, Any], resources: List[Dict[str, Any]]) -> Dict[str, Any]:
+        """
+        Resolve RBAC resources for a workload.
+        
+        Args:
+            workload: Workload dictionary
+            resources: Available resources
+            
+        Returns:
+            Dictionary with RBAC information
+        """
+        rbac = {
+            'serviceAccounts': [],
+            'roleBindings': [],
+            'roles': [],
+            'clusterRoleBindings': [],
+            'clusterRoles': [],
+            'effectiveRules': {}
+        }
+        
+        # Gather ServiceAccounts used by the workload
+        service_accounts = set()
+        
+        # Check seed pod template
+        if workload.get('pods', {}).get('template_labels'):
+            sa_name = workload.get('pods', {}).get('template_labels', {}).get('serviceAccountName', 'default')
+            if sa_name != 'default':
+                service_accounts.add((workload['namespace'], sa_name))
+            else:
+                service_accounts.add((workload['namespace'], 'default'))
+        
+        # Check materialized pods
+        if workload.get('pods', {}).get('materialized', False):
+            for pod_name in workload['pods']['items']:
+                pod_resource = self._find_pod_resource(pod_name, workload['namespace'], resources)
+                if pod_resource:
+                    sa_name = pod_resource.get('raw_resource', {}).get('spec', {}).get('serviceAccountName', 'default')
+                    if sa_name != 'default':
+                        service_accounts.add((workload['namespace'], sa_name))
+                    else:
+                        service_accounts.add((workload['namespace'], 'default'))
+        
+        # Resolve RBAC for each ServiceAccount
+        for sa_key in service_accounts:
+            if sa_key in self.sa_by_name:
+                sa = self.sa_by_name[sa_key]
+                rbac['serviceAccounts'].append({
+                    'name': sa['name'],
+                    'automountServiceAccountToken': sa.get('raw_resource', {}).get('automountServiceAccountToken', True)
+                })
+                
+                # Find RoleBindings that grant to this SA
+                self._resolve_role_bindings(sa_key, rbac)
+                
+                # Find ClusterRoleBindings that grant to this SA
+                self._resolve_cluster_role_bindings(sa_key, rbac)
+        
+        # Compute effective rules summary
+        rbac['effectiveRules'] = self._compute_effective_rules(rbac)
+        
+        return rbac
+    
+    def _resolve_role_bindings(self, sa_key: Tuple[str, str], rbac: Dict[str, Any]):
+        """Resolve RoleBindings for a ServiceAccount."""
+        namespace, sa_name = sa_key
+        
+        for rb_key, rb in self.role_binding_by_name.items():
+            if rb_key[0] == namespace:  # Same namespace
+                if self._binding_includes_sa(rb, sa_name, namespace):
+                    rbac['roleBindings'].append({
+                        'name': rb['name'],
+                        'roleRef': rb.get('raw_resource', {}).get('roleRef', {})
+                    })
+                    
+                    # Attach the referenced Role
+                    role_ref = rb.get('raw_resource', {}).get('roleRef', {})
+                    if role_ref.get('kind') == 'Role':
+                        role_key = (namespace, role_ref['name'])
+                        if role_key in self.role_by_name:
+                            role = self.role_by_name[role_key]
+                            rbac['roles'].append({
+                                'name': role['name'],
+                                'rules': role.get('raw_resource', {}).get('rules', [])
+                            })
+    
+    def _resolve_cluster_role_bindings(self, sa_key: Tuple[str, str], rbac: Dict[str, Any]):
+        """Resolve ClusterRoleBindings for a ServiceAccount."""
+        namespace, sa_name = sa_key
+        
+        for crb_name, crb in self.cluster_role_binding_by_name.items():
+            if self._binding_includes_sa(crb, sa_name, namespace):
+                rbac['clusterRoleBindings'].append({
+                    'name': crb_name,
+                    'roleRef': crb.get('raw_resource', {}).get('roleRef', {})
+                })
+                
+                # Attach the referenced ClusterRole
+                role_ref = crb.get('raw_resource', {}).get('roleRef', {})
+                if role_ref.get('kind') == 'ClusterRole':
+                    if role_ref['name'] in self.cluster_role_by_name:
+                        cr = self.cluster_role_by_name[role_ref['name']]
+                        rbac['clusterRoles'].append({
+                            'name': cr['name'],
+                            'rules': cr.get('raw_resource', {}).get('rules', [])
+                        })
+    
+    def _binding_includes_sa(self, binding: Dict[str, Any], sa_name: str, sa_namespace: str) -> bool:
+        """Check if a binding includes the specified ServiceAccount."""
+        subjects = binding.get('raw_resource', {}).get('subjects', [])
+        for subject in subjects:
+            if (subject.get('kind') == 'ServiceAccount' and 
+                subject.get('name') == sa_name and 
+                subject.get('namespace') == sa_namespace):
+                return True
+        return False
+    
+    def _find_pod_resource(self, pod_name: str, namespace: str, resources: List[Dict[str, Any]]) -> Optional[Dict[str, Any]]:
+        """Find a specific pod resource."""
+        for resource in resources:
+            if (resource['kind'] == 'Pod' and 
+                resource['name'] == pod_name and 
+                resource['namespace'] == namespace):
+                return resource
+        return None
+    
+    def _compute_effective_rules(self, rbac: Dict[str, Any]) -> Dict[str, Any]:
+        """Compute effective rules summary from attached Roles and ClusterRoles."""
+        effective_rules = {
+            'verbs': set(),
+            'apiGroups': set(),
+            'resources': set()
+        }
+        
+        # Aggregate rules from Roles
+        for role in rbac['roles']:
+            for rule in role.get('rules', []):
+                effective_rules['verbs'].update(rule.get('verbs', []))
+                effective_rules['apiGroups'].update(rule.get('apiGroups', []))
+                effective_rules['resources'].update(rule.get('resources', []))
+        
+        # Aggregate rules from ClusterRoles
+        for cr in rbac['clusterRoles']:
+            for rule in cr.get('rules', []):
+                effective_rules['verbs'].update(rule.get('verbs', []))
+                effective_rules['apiGroups'].update(rule.get('apiGroups', []))
+                effective_rules['resources'].update(rule.get('resources', []))
+        
+        # Convert sets to lists for JSON serialization
+        return {
+            'verbs': list(effective_rules['verbs']),
+            'apiGroups': list(effective_rules['apiGroups']),
+            'resources': list(effective_rules['resources'])
+        }
+
+
+class ConflictDetector:
+    """
+    Detects conflicts and anomalies in K8s resource relationships.
+    """
+    
+    def __init__(self):
+        self.conflicts = []
+        self.orphans = []
+        self.cross_namespace = []
+    
+    def detect_conflicts(self, workloads: Dict[str, Any], resources: List[Dict[str, Any]]) -> Dict[str, Any]:
+        """
+        Detect conflicts and anomalies across all workloads.
+        
+        Args:
+            workloads: Dictionary of workload groupings
+            resources: List of all parsed resources
+            
+        Returns:
+            Dictionary with detected issues
+        """
+        issues = {
+            'conflicts': [],
+            'orphans': [],
+            'crossNamespace': [],
+            'selectorOverlaps': []
+        }
+        
+        # Detect selector overlaps between workloads
+        self._detect_selector_overlaps(workloads, issues)
+        
+        # Detect orphaned resources
+        self._detect_orphaned_resources(workloads, resources, issues)
+        
+        # Detect cross-namespace anomalies
+        self._detect_cross_namespace_issues(workloads, issues)
+        
+        # Detect owner reference conflicts
+        self._detect_owner_conflicts(workloads, issues)
+        
+        return issues
+    
+    def _detect_selector_overlaps(self, workloads: Dict[str, Any], issues: Dict[str, Any]):
+        """Detect when multiple workloads have overlapping selectors."""
+        workload_list = list(workloads.values())
+        
+        for i, workload1 in enumerate(workload_list):
+            for j, workload2 in enumerate(workload_list[i+1:], i+1):
+                if workload1['namespace'] == workload2['namespace']:
+                    overlap = self._compute_selector_overlap(
+                        workload1.get('pods', {}).get('template_labels', {}),
+                        workload2.get('pods', {}).get('template_labels', {})
+                    )
+                    if overlap:
+                        issues['selectorOverlaps'].append({
+                            'workload1': workload1['id'],
+                            'workload2': workload2['id'],
+                            'overlapping_labels': overlap
+                        })
+    
+    def _detect_orphaned_resources(self, workloads: Dict[str, Any], resources: List[Dict[str, Any]], issues: Dict[str, Any]):
+        """Detect resources that aren't attached to any workload."""
+        attached_resources = set()
+        
+        # Collect all resources attached to workloads
+        for workload in workloads.values():
+            # Services
+            for service in workload.get('services', []):
+                attached_resources.add(f"Service:{workload['namespace']}:{service['name']}")
+            
+            # Ingress
+            for ingress in workload.get('ingress', []):
+                attached_resources.add(f"Ingress:{workload['namespace']}:{ingress['name']}")
+            
+            # ConfigMaps
+            for config_map in workload.get('configMaps', []):
+                attached_resources.add(f"ConfigMap:{workload['namespace']}:{config_map['name']}")
+            
+            # Secrets
+            for secret in workload.get('secrets', []):
+                attached_resources.add(f"Secret:{workload['namespace']}:{secret['name']}")
+        
+        # Find orphaned resources
+        for resource in resources:
+            if resource['kind'] in ['Service', 'Ingress', 'ConfigMap', 'Secret']:
+                resource_key = f"{resource['kind']}:{resource['namespace']}:{resource['name']}"
+                if resource_key not in attached_resources:
+                    issues['orphans'].append({
+                        'kind': resource['kind'],
+                        'name': resource['name'],
+                        'namespace': resource['namespace'],
+                        'source_file': resource['source_file']
+                    })
+    
+    def _detect_cross_namespace_issues(self, workloads: Dict[str, Any], issues: Dict[str, Any]):
+        """Detect potential cross-namespace issues."""
+        for workload in workloads.values():
+            # Check for cross-namespace storage references
+            for pvc in workload.get('storage', {}).get('pvcs', []):
+                # This would need enhancement to detect actual cross-namespace issues
+                pass
+            
+            # Check for cross-namespace service references
+            for service in workload.get('services', []):
+                # Services are namespaced, so this is more about validation
+                pass
+    
+    def _detect_owner_conflicts(self, workloads: Dict[str, Any], issues: Dict[str, Any]):
+        """Detect conflicts in owner references."""
+        for workload in workloads.values():
+            # Check for multiple owners in child resources
+            for pod_name in workload.get('pods', {}).get('items', []):
+                # This would need enhancement to detect actual owner conflicts
+                pass
+    
+    def _compute_selector_overlap(self, labels1: Dict[str, str], labels2: Dict[str, str]) -> Dict[str, str]:
+        """Compute overlapping labels between two sets."""
+        overlap = {}
+        for key, value in labels1.items():
+            if key in labels2 and labels2[key] == value:
+                overlap[key] = value
+        return overlap
 
 
 class K8sResourceParser:
@@ -263,7 +982,15 @@ class WorkloadGrouper:
             'configMaps': [],
             'secrets': [],
             'serviceAccount': None,
-            'sharedRefs': []
+            'sharedRefs': [],
+            # New enhanced fields
+            'pods': {'materialized': False, 'items': [], 'template_labels': seed.get('pod_template', {}).get('labels', {})},
+            'replicaSets': [],
+            'jobs': [],
+            'storage': {'pvcs': [], 'pvs': [], 'storageClasses': []},
+            'resilience': {'hpas': [], 'pdbs': [], 'networkPolicies': []},
+            'rbac': {'serviceAccounts': [], 'roleBindings': [], 'roles': [], 'clusterRoleBindings': [], 'clusterRoles': [], 'effectiveRules': {}},
+            'notes': {'conflicts': [], 'orphans': [], 'crossNamespace': []}
         }
         
         return workload
@@ -478,6 +1205,11 @@ class K8sAnalyzer:
         # Initialize components
         self.parser = K8sResourceParser()
         self.grouper = WorkloadGrouper()
+        self.owner_resolver = OwnerReferenceResolver()
+        self.storage_resolver = StorageResolver()
+        self.resilience_resolver = ResilienceResolver()
+        self.rbac_resolver = RBACResolver()
+        self.conflict_detector = ConflictDetector()
         
         # Analysis results
         self.workloads = {}
@@ -505,15 +1237,30 @@ class K8sAnalyzer:
             resources = self.parser.parse_resources(resource_files)
             logger.info(f"Parsed {len(resources)} K8s resources")
             
-            # Step 3: Group into workloads
+            # Step 3: Group into workloads (v1 grouping)
             self.workloads = self.grouper.group_resources(resources)
             logger.info(f"Created {len(self.workloads)} workload groupings")
             
-            # Step 4: Create FAISS index and metadata
+            # Step 4: Build resolver indices
+            logger.info("Building resolver indices...")
+            self.owner_resolver.build_owner_graph(resources)
+            self.storage_resolver.build_storage_indices(resources)
+            self.resilience_resolver.build_resilience_indices(resources)
+            self.rbac_resolver.build_rbac_indices(resources)
+            
+            # Step 5: Enhance workloads with expanded resources
+            logger.info("Enhancing workloads with expanded resources...")
+            self._enhance_workloads(resources)
+            
+            # Step 6: Detect conflicts and anomalies
+            logger.info("Detecting conflicts and anomalies...")
+            issues = self.conflict_detector.detect_conflicts(self.workloads, resources)
+            
+            # Step 7: Create FAISS index and metadata
             if self.workloads:
                 self._create_indices()
             
-            # Step 5: Save analysis results
+            # Step 8: Save analysis results
             self._save_analysis_results()
             
             logger.info("K8s analysis completed successfully")
@@ -527,6 +1274,39 @@ class K8sAnalyzer:
             "vectors_created": len(self.vectors),
             "metadata_entries": len(self.metadata)
         }
+    
+    def _enhance_workloads(self, resources: List[Dict[str, Any]]):
+        """
+        Enhance workloads with expanded resources using all resolvers.
+        
+        Args:
+            resources: List of parsed K8s resources
+        """
+        for workload_id, workload in self.workloads.items():
+            # Find the seed resource for this workload
+            seed_resource = None
+            for resource in resources:
+                if (resource['kind'] == workload['seed']['kind'] and 
+                    resource['name'] == workload['seed']['name'] and 
+                    resource['namespace'] == workload['namespace']):
+                    seed_resource = resource
+                    break
+            
+            if seed_resource:
+                # Expand owner references
+                children = self.owner_resolver.expand_workload_children(seed_resource)
+                workload['pods'] = children['pods']
+                workload['replicaSets'] = children['replicaSets']
+                workload['jobs'] = children['jobs']
+                
+                # Resolve storage
+                workload['storage'] = self.storage_resolver.resolve_workload_storage(workload, resources)
+                
+                # Resolve resilience
+                workload['resilience'] = self.resilience_resolver.resolve_workload_resilience(workload, resources)
+                
+                # Resolve RBAC
+                workload['rbac'] = self.rbac_resolver.resolve_workload_rbac(workload, resources)
     
     def _find_resource_files(self) -> List[str]:
         """
@@ -638,6 +1418,59 @@ class K8sAnalyzer:
             lines.append("Shared Resources:")
             for shared_ref in workload['sharedRefs']:
                 lines.append(f"  - {shared_ref}")
+        
+        # Enhanced fields
+        if workload.get('pods', {}).get('items'):
+            lines.append("Pods:")
+            for pod in workload['pods']['items']:
+                lines.append(f"  - {pod}")
+            lines.append("")
+        
+        if workload.get('replicaSets'):
+            lines.append("ReplicaSets:")
+            for rs in workload['replicaSets']:
+                lines.append(f"  - {rs}")
+            lines.append("")
+        
+        if workload.get('jobs'):
+            lines.append("Jobs:")
+            for job in workload['jobs']:
+                lines.append(f"  - {job}")
+            lines.append("")
+        
+        if workload.get('storage', {}).get('pvcs'):
+            lines.append("Storage:")
+            for pvc in workload['storage']['pvcs']:
+                lines.append(f"  - PVC: {pvc['name']}")
+            for pv in workload['storage']['pvs']:
+                lines.append(f"  - PV: {pv['name']}")
+            for sc in workload['storage']['storageClasses']:
+                lines.append(f"  - StorageClass: {sc['name']}")
+            lines.append("")
+        
+        if workload.get('resilience', {}).get('hpas'):
+            lines.append("Resilience:")
+            for hpa in workload['resilience']['hpas']:
+                lines.append(f"  - HPA: {hpa['name']}")
+            for pdb in workload['resilience']['pdbs']:
+                lines.append(f"  - PDB: {pdb['name']}")
+            for np in workload['resilience']['networkPolicies']:
+                lines.append(f"  - NetworkPolicy: {np['name']}")
+            lines.append("")
+        
+        if workload.get('rbac', {}).get('serviceAccounts'):
+            lines.append("RBAC:")
+            for sa in workload['rbac']['serviceAccounts']:
+                lines.append(f"  - ServiceAccount: {sa['name']}")
+            for rb in workload['rbac']['roleBindings']:
+                lines.append(f"  - RoleBinding: {rb['name']}")
+            for role in workload['rbac']['roles']:
+                lines.append(f"  - Role: {role['name']}")
+            for crb in workload['rbac']['clusterRoleBindings']:
+                lines.append(f"  - ClusterRoleBinding: {crb['name']}")
+            for cr in workload['rbac']['clusterRoles']:
+                lines.append(f"  - ClusterRole: {cr['name']}")
+            lines.append("")
         
         return "\n".join(lines)
     
