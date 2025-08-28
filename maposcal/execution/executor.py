@@ -16,6 +16,12 @@ from .models import ExecutionPlan, Step, StepStatus
 from .cache_manager import CacheManager
 from .state_manager import StateManager
 
+# Import for profile control extraction
+try:
+    from maposcal.generator.profile_control_extractor import ProfileControlExtractor
+except ImportError:
+    ProfileControlExtractor = None
+
 
 class ExecutionEngine:
     """Executes MapOSCAL execution plans with step orchestration."""
@@ -47,6 +53,9 @@ class ExecutionEngine:
         self.execution_order: List[str] = []
         self.completed_steps: Set[str] = set()
         self.failed_steps: Set[str] = set()
+        
+        # Store control mapping results for OSCAL generation
+        self.control_mapping_results: Dict[str, Any] = {}
         
         # Setup logging
         self.logger = logging.getLogger(__name__)
@@ -1009,6 +1018,9 @@ class ExecutionEngine:
                     workload_name, workload_namespace, resource_types, images
                 )
                 
+                # Store detailed control mapping results for OSCAL generation
+                self.control_mapping_results[workload_name] = workload_controls
+                
                 control_mappings[workload_name] = {
                     "namespace": workload_namespace,
                     "resource_types": resource_types,
@@ -1052,6 +1064,10 @@ class ExecutionEngine:
         """
         try:
             from maposcal.generator.k8s_control_mapper import K8sControlMapper
+            from maposcal.generator.profile_control_extractor import ProfileControlExtractor
+            
+            # Get profile-relevant controls
+            profile_controls = self._get_profile_controls()
             
             # Get the manifest content for this workload
             manifest_content = self._get_workload_manifest_content(workload_name, namespace)
@@ -1067,8 +1083,8 @@ class ExecutionEngine:
                 source_path=self._get_workload_source_path(workload_name)
             )
             
-            # Initialize K8s control mapper
-            k8s_mapper = K8sControlMapper(llm_config=self._get_llm_config())
+            # Initialize K8s control mapper with profile controls
+            k8s_mapper = K8sControlMapper(llm_config=self._get_llm_config(), profile_controls=profile_controls)
             
             # Map controls
             mapping_result = k8s_mapper.map_workload_controls(workload_context)
@@ -1085,7 +1101,7 @@ class ExecutionEngine:
             return self._map_workload_controls_fallback(workload_name, namespace, resource_types, images)
     
     def _get_workload_manifest_content(self, workload_name: str, namespace: str) -> str:
-        """Get the manifest content for a specific workload."""
+        """Get comprehensive manifest content for a specific workload including all related resources."""
         try:
             # Look for manifest files in the cache
             cache_base = self.plan.get_cache_base_path()
@@ -1094,26 +1110,103 @@ class ExecutionEngine:
             if not os.path.exists(manifest_dir):
                 return f"Workload: {workload_name}\nNamespace: {namespace}\nResource Types: {', '.join(self._get_workload_resource_types(workload_name))}"
             
-            # Collect manifest content from all relevant files
+            # Build comprehensive workload summary
             manifest_content = []
-            manifest_content.append(f"Workload: {workload_name}")
+            manifest_content.append(f"=== WORKLOAD SUMMARY ===")
+            manifest_content.append(f"Name: {workload_name}")
             manifest_content.append(f"Namespace: {namespace}")
             
-            # Look for YAML files
-            for file_path in Path(manifest_dir).glob("*.yaml"):
-                try:
-                    with open(file_path, 'r') as f:
-                        content = f.read()
-                        manifest_content.append(f"\n--- {file_path.name} ---")
-                        manifest_content.append(content)
-                except Exception as e:
-                    self.logger.warning(f"Failed to read manifest file {file_path}: {e}")
+            # Get workload details from plan
+            workload_details = self._get_workload_details(workload_name)
+            if workload_details:
+                manifest_content.append(f"Resource Types: {', '.join(workload_details.get('resource_types', []))}")
+                manifest_content.append(f"Container Images: {len(workload_details.get('images', []))}")
+                for i, img in enumerate(workload_details.get('images', []), 1):
+                    manifest_content.append(f"  Image {i}: {img.get('ref', 'unknown')}")
+            
+            manifest_content.append(f"\n=== MANIFEST FILES ===")
+            
+            # Collect manifest content from all relevant files
+            yaml_files = list(Path(manifest_dir).glob("*.yaml"))
+            yaml_files.extend(Path(manifest_dir).glob("*.yml"))
+            
+            if not yaml_files:
+                manifest_content.append("No manifest files found")
+            else:
+                for file_path in yaml_files:
+                    try:
+                        with open(file_path, 'r') as f:
+                            content = f.read()
+                            manifest_content.append(f"\n--- {file_path.name} ---")
+                            manifest_content.append(content)
+                    except Exception as e:
+                        self.logger.warning(f"Failed to read manifest file {file_path}: {e}")
+            
+            # Add security-relevant configurations
+            manifest_content.append(f"\n=== SECURITY ANALYSIS ===")
+            security_info = self._analyze_workload_security(workload_name, namespace)
+            manifest_content.extend(security_info)
             
             return "\n".join(manifest_content)
             
         except Exception as e:
             self.logger.warning(f"Failed to get manifest content for {workload_name}: {e}")
             return f"Workload: {workload_name}\nNamespace: {namespace}"
+    
+    def _get_workload_details(self, workload_name: str) -> Optional[Dict[str, Any]]:
+        """Get detailed workload information from the plan."""
+        try:
+            workloads = self.plan.targets.get("workloads", [])
+            for workload in workloads:
+                if workload.get("name") == workload_name:
+                    return workload
+            return None
+        except Exception as e:
+            self.logger.warning(f"Failed to get workload details for {workload_name}: {e}")
+            return None
+    
+    def _analyze_workload_security(self, workload_name: str, namespace: str) -> List[str]:
+        """Analyze security-relevant configurations for a workload."""
+        security_info = []
+        
+        try:
+            # Get workload details
+            workload_details = self._get_workload_details(workload_name)
+            if not workload_details:
+                return ["Unable to analyze security - workload details not found"]
+            
+            resource_types = workload_details.get("resource_types", [])
+            images = workload_details.get("images", [])
+            
+            # Analyze resource types for security implications
+            if "Deployment" in resource_types:
+                security_info.append("• Deployment: Container orchestration with security context")
+            if "Service" in resource_types:
+                security_info.append("• Service: Network exposure and access control")
+            if "Secret" in resource_types:
+                security_info.append("• Secret: Sensitive data management")
+            if "ConfigMap" in resource_types:
+                security_info.append("• ConfigMap: Configuration management")
+            if "NetworkPolicy" in resource_types:
+                security_info.append("• NetworkPolicy: Network security controls")
+            if "Role" in resource_types or "RoleBinding" in resource_types:
+                security_info.append("• RBAC: Role-based access control")
+            
+            # Analyze container images
+            if images:
+                security_info.append(f"• Container Images: {len(images)} images requiring security scanning")
+                for img in images:
+                    img_ref = img.get("ref", "")
+                    if "latest" in img_ref:
+                        security_info.append("  - Warning: Using 'latest' tag may pose security risks")
+            
+            # Add namespace security context
+            security_info.append(f"• Namespace: {namespace} (isolates workload resources)")
+            
+        except Exception as e:
+            security_info.append(f"Error analyzing security: {e}")
+        
+        return security_info
     
     def _get_workload_resource_types(self, workload_name: str) -> List[str]:
         """Get resource types for a specific workload from the plan."""
@@ -1125,6 +1218,48 @@ class ExecutionEngine:
             return []
         except Exception:
             return []
+    
+    def _get_profile_controls(self) -> Dict[str, Any]:
+        """Get profile-relevant controls using ProfileControlExtractor."""
+        if ProfileControlExtractor is None:
+            self.logger.warning("ProfileControlExtractor not available, using fallback")
+            return {}
+            
+        try:
+            # Default profile path
+            profile_path = "examples/custom_maposcal_profile.json"
+            catalog_path = "examples/NIST_SP-800-53_rev5_catalog.json"
+            
+            # Check if we have a config file with different paths
+            config = self.plan.config.get("source_analysis", {})
+            if "profile_path" in config:
+                profile_path = config["profile_path"]
+            if "catalog_path" in config:
+                catalog_path = config["catalog_path"]
+            
+            # Initialize profile extractor
+            extractor = ProfileControlExtractor(catalog_path, profile_path)
+            
+            # Get all controls from the profile
+            profile_controls = {}
+            profile_data = extractor.profile
+            
+            # Extract control IDs from the profile
+            for import_item in profile_data["profile"].get("imports", []):
+                for include in import_item.get("include-controls", []):
+                    for control_id in include.get("with-ids", []):
+                        # Extract control information
+                        control_info = extractor.extract_control_parameters(control_id)
+                        if control_info:
+                            profile_controls[control_id] = control_info
+            
+            self.logger.info(f"Loaded {len(profile_controls)} controls from profile: {profile_path}")
+            return profile_controls
+            
+        except Exception as e:
+            self.logger.warning(f"Failed to load profile controls, using fallback: {e}")
+            # Return empty dict as fallback
+            return {}
     
     def _get_workload_source_path(self, workload_name: str) -> Optional[str]:
         """Get the source path for a workload if available."""
@@ -1139,11 +1274,25 @@ class ExecutionEngine:
     
     def _get_llm_config(self) -> Dict[str, Any]:
         """Get LLM configuration from plan or environment."""
-        # This could be enhanced to read from plan configuration
-        return {
-            "provider": "openai",  # Default provider
-            "model": "gpt-4"       # Default model
-        }
+        # Try to get from plan configuration first
+        if hasattr(self, 'plan') and hasattr(self.plan, 'config'):
+            llm_config = self.plan.config.get('llm', {})
+            if llm_config:
+                return llm_config
+        
+        # Fall back to settings defaults
+        try:
+            from maposcal.settings import DEFAULT_LLM_CONFIGS
+            return DEFAULT_LLM_CONFIGS.get("generate", {
+                "provider": "openai",
+                "model": "gpt-4o-mini"  # Use the updated default
+            })
+        except ImportError:
+            # Final fallback
+            return {
+                "provider": "openai",
+                "model": "gpt-4o-mini"
+            }
     
     def _map_workload_controls_fallback(self, workload_name: str, namespace: str, 
                                        resource_types: List[str], images: List[Dict[str, Any]]) -> Dict[str, Any]:
@@ -1235,9 +1384,8 @@ class ExecutionEngine:
                     "workload_count": 0
                 }
             
-            # For now, we'll create basic control implementations based on workload characteristics
-            # In a full implementation, this would integrate with actual control mapping results
-            control_mappings = {}
+            # Use the stored control mapping results from the control_mapping step
+            control_mappings = self.control_mapping_results
             
             # Create OSCAL Component Definition
             component_def = create_component_definition_from_execution_results(

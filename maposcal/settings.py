@@ -28,7 +28,7 @@ DEFAULT_LLM_CONFIGS = {
     },
     "generate": {
         "provider": "openai",
-        "model": "gpt-4.1",  # High quality for OSCAL generation
+        "model": "gpt-5",  
         "temperature": 0.4,  # Moderate temperature for creative but structured generation
     },
     "evaluate": {

@@ -783,3 +783,180 @@ def build_k8s_control_mapping_prompt(
             confidence_score=confidence_score
         )
     )
+
+# ---------------------------------------------------------------------------
+# 7. KUBERNETES RICH CONTROL MAPPING (OSCAL COMPLIANT)
+# ---------------------------------------------------------------------------
+
+K8S_RICH_CONTROL_MAPPING_SYSTEM = """
+You are a compliance automation assistant that writes OSCAL component definitions for Kubernetes workloads.
+Your task is to analyze Kubernetes manifests and generate detailed OSCAL control implementations
+that match the quality and detail of source code analysis.
+"""
+
+K8S_RICH_CONTROL_MAPPING_INSTRUCTIONS = dedent(
+    """
+You are a security compliance expert analyzing a Kubernetes workload's implementation of a specific security control.
+
+For the control {control_id}: Name: {control_name}, Description: {control_description}, based on the provided Kubernetes manifest content and workload context, determine:
+
+- `control-status` must be one of:  
+    • "applicable and inherently satisfied"  
+    • "applicable but only satisfied through configuration"  
+    • "applicable but partially satisfied"  
+    • "applicable and not satisfied"  
+    • "not applicable"
+    
+    - ✅ If the control is applicable and inherently satisfied — explain how within the JSON control-explanation field.
+    - ✅ If the control is applicable but only satisfied through configuration — explain your reasoning within the JSON control-explanation field and provide the configuration details within the JSON control-configuration field.
+    - ⚠️ If the control is applicable but represents a gap — clearly describe the gap within the JSON control-explanation field.
+    - 🚫 If the control is not applicable to the workload — provide a brief explanation in the control-explanation field.
+
+Do NOT wrap JSON in markdown fences.
+Do NOT include comments inside JSON.
+
+Use this structure and format for the JSON output:
+{{
+  "uuid": "{main_uuid}",
+  "control-id": "{control_id}",
+  "props": [
+    {{
+      "name": "control-status",
+      "value": "applicable and inherently satisfied|applicable but only satisfied through configuration|applicable but partially satisfied|applicable and not satisfied|not applicable",
+      "ns": "urn:maposcal:control-status-reference"
+    }},
+    {{
+      "name": "control-name",
+      "value": "{control_name}",
+      "ns": "urn:maposcal:control-name-reference"
+    }},
+    {{
+      "name": "control-description",
+      "value": "{control_description}",
+      "ns": "urn:maposcal:control-description-reference"
+    }},
+    {{
+      "name": "control-explanation",
+      "value": "Detailed explanation of how the control is implemented or why it is not applicable",
+      "ns": "urn:maposcal:explanation-reference"
+    }},
+    {{
+      "name": "control-configuration",
+      "value": [
+        {{
+          "file_path": "deployment.yaml",
+          "key_path": "spec.template.spec.securityContext.runAsNonRoot",
+          "line_number": 42
+        }}
+      ],
+      "ns": "urn:maposcal:configuration-reference"
+    }}
+  ],
+  "annotations": [
+    {{
+      "name": "source-code-reference",
+      "value": ["deployment.yaml", "service.yaml", "configmap.yaml"],
+      "ns": "urn:maposcal:source-code-reference"
+    }}
+  ],
+  "statements": [
+    {{
+      "statement-id": "{control_id}_smt.a",
+      "uuid": "{statement_uuid}",
+      "description": "Detailed description of how the control statement is implemented"
+    }}
+  ]
+}}
+
+Return only valid, minified JSON.
+"""
+)
+
+K8S_RICH_CONTROL_MAPPING_PROMPT_HEADER = (
+    "{system}\n\n{instructions}\n\n"
+    "Control ID requested: **{control_id}**\n\n"
+    "**WORKLOAD SUMMARY:**\n"
+    "{workload_context}\n\n"
+    "**RELEVANT HINTS:**\n"
+    "{hints_context}\n\n"
+    "**KEY MANIFEST SECTIONS:**\n"
+)
+
+K8S_RICH_CONTROL_MAPPING_PROMPT_FOOTER = "\n---\nGenerate the JSON now:"
+
+
+def build_k8s_rich_control_mapping_prompt(
+    control_id: str,
+    control_name: str,
+    control_description: str,
+    workload_context: str,
+    hints_context: str,
+    manifest_content: str,
+    main_uuid: str,
+    statement_uuid: str,
+) -> str:
+    """
+    Build a rich prompt for generating OSCAL-compliant Kubernetes control implementations.
+
+    Args:
+        control_id: The control identifier (e.g., "AC-1")
+        control_name: Human-readable name of the control
+        control_description: Detailed description of the control
+        workload_context: Comprehensive workload context and analysis
+        hints_context: Control hints context for better analysis
+        manifest_content: Full manifest content for analysis
+        main_uuid: UUID for the main control
+        statement_uuid: UUID for the control statement
+
+    Returns:
+        str: Formatted prompt for LLM
+    """
+    instructions = K8S_RICH_CONTROL_MAPPING_INSTRUCTIONS.format(
+        control_id=control_id,
+        control_name=control_name,
+        control_description=control_description,
+        main_uuid=main_uuid,
+        statement_uuid=statement_uuid,
+    )
+
+    header = K8S_RICH_CONTROL_MAPPING_PROMPT_HEADER.format(
+        system=K8S_RICH_CONTROL_MAPPING_SYSTEM,
+        instructions=instructions,
+        control_id=control_id,
+        workload_context=workload_context,
+        hints_context=hints_context,
+    )
+
+    # Extract only key manifest sections for analysis (security-relevant parts)
+    key_sections = _extract_key_manifest_sections(manifest_content)
+    
+    body = f"```yaml\n{key_sections}\n```\n"
+    
+    return header + body + K8S_RICH_CONTROL_MAPPING_PROMPT_FOOTER
+
+
+def _extract_key_manifest_sections(manifest_content: str) -> str:
+    """Extract only security-relevant sections from manifest to reduce prompt length."""
+    lines = manifest_content.split('\n')
+    key_sections = []
+    
+    # Look for security-relevant lines
+    security_keywords = [
+        'securityContext', 'security', 'auth', 'rbac', 'network', 'secret', 
+        'configmap', 'serviceaccount', 'role', 'clusterrole', 'ingress', 
+        'networkpolicy', 'podsecuritypolicy', 'limitrange', 'resourcequota'
+    ]
+    
+    for line in lines:
+        line_lower = line.lower()
+        if any(keyword in line_lower for keyword in security_keywords):
+            key_sections.append(line)
+    
+    # If no security sections found, include first 20 lines as context
+    if not key_sections:
+        key_sections = lines[:20]
+    
+    # Limit total length to prevent token overflow
+    result = '\n'.join(key_sections[:50])  # Max 50 lines
+    
+    return result

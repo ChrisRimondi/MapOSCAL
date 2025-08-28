@@ -143,13 +143,47 @@ class OSCALCapability:
 
 
 @dataclass
+class OSCALProperty:
+    """OSCAL Property for key-value metadata."""
+    
+    name: str
+    value: str
+    
+    def to_dict(self) -> Dict[str, Any]:
+        """Convert to dictionary for OSCAL serialization."""
+        return {
+            "name": self.name,
+            "value": self.value
+        }
+
+
+@dataclass
+class OSCALImplementedRequirement:
+    """OSCAL Implemented Requirement within a control implementation."""
+    
+    uuid: str = field(default_factory=lambda: str(uuid.uuid4()))
+    description: str = ""
+    props: List[OSCALProperty] = field(default_factory=list)
+    
+    def to_dict(self) -> Dict[str, Any]:
+        """Convert to dictionary for OSCAL serialization."""
+        return {
+            "uuid": self.uuid,
+            "description": self.description,
+            "props": [prop.to_dict() for prop in self.props]
+        }
+
+
+@dataclass
 class OSCALControlImplementation:
-    """OSCAL Control Implementation (placeholder for future RAG flow)."""
+    """OSCAL Control Implementation for a specific control."""
     
     uuid: str = field(default_factory=lambda: str(uuid.uuid4()))
     control_id: str = ""
     description: str = ""
-    implemented_requirements: List[Dict[str, Any]] = field(default_factory=list)
+    
+    # Implemented requirements (placeholder for future RAG flow)
+    implemented_requirements: List[OSCALImplementedRequirement] = field(default_factory=list)
     
     def to_dict(self) -> Dict[str, Any]:
         """Convert to dictionary for OSCAL serialization."""
@@ -157,7 +191,7 @@ class OSCALControlImplementation:
             "uuid": self.uuid,
             "control-id": self.control_id,
             "description": self.description,
-            "implemented-requirements": self.implemented_requirements
+            "implemented-requirements": [req.to_dict() for req in self.implemented_requirements]
         }
 
 
@@ -284,34 +318,80 @@ def create_component_definition_from_execution_results(
     for workload in workloads:
         component = create_component_from_workload(workload)
         
-        # Add basic control implementations based on workload characteristics
-        # This is a simplified approach - in a full implementation, this would use actual control mapping results
+        # Use rich control implementations from control mapping results if available
         workload_name = workload.get("name")
         
-        # Create basic control implementations based on resource types
-        resource_types = workload.get("resource_types", [])
-        if "Deployment" in resource_types:
-            # Add access control implementation
-            ac_impl = OSCALControlImplementation(
-                control_id="AC-6",
-                description="Least Privilege - Deployment uses container security features"
-            )
-            component.control_implementations.append(ac_impl)
+        if control_mappings and workload_name in control_mappings:
+            # Get the rich control implementations for this workload
+            workload_controls = control_mappings[workload_name]
+            control_implementations = workload_controls.get("control_implementations", {})
             
-            # Add system protection implementation
-            sc_impl = OSCALControlImplementation(
-                control_id="SC-2",
-                description="Application Partitioning - Container isolation provides boundary protection"
-            )
-            component.control_implementations.append(sc_impl)
-        
-        if "Job" in resource_types:
-            # Add audit implementation
-            au_impl = OSCALControlImplementation(
-                control_id="AU-3",
-                description="Content of Audit Records - Job execution provides audit trail"
-            )
-            component.control_implementations.append(au_impl)
+            # Add each control implementation
+            for control_id, implementation in control_implementations.items():
+                if implementation and isinstance(implementation, dict):
+                    # Check if this is a rich OSCAL implementation or basic implementation
+                    if "uuid" in implementation and "control-id" in implementation:
+                        # This is already a rich OSCAL implementation from the LLM
+                        control_impl = OSCALControlImplementation(
+                            control_id=implementation.get("control-id", control_id),
+                            description=implementation.get("description", f"Control {control_id} implementation")
+                        )
+                        
+                        # Copy over the rich implementation details
+                        control_impl.uuid = implementation.get("uuid", str(uuid.uuid4()))
+                        
+                        # Add implemented requirements if available
+                        if "implemented_requirements" in implementation:
+                            for req in implementation["implemented_requirements"]:
+                                if isinstance(req, dict):
+                                    implemented_req = OSCALImplementedRequirement(
+                                        uuid=str(uuid.uuid4()),
+                                        description=req.get("description", ""),
+                                        props=[
+                                            OSCALProperty(name="status", value=req.get("status", "implemented")),
+                                            OSCALProperty(name="evidence", value=req.get("evidence", ""))
+                                        ]
+                                    )
+                                    control_impl.implemented_requirements.append(implemented_req)
+                    else:
+                        # This is a basic implementation, create OSCAL structure
+                        control_impl = OSCALControlImplementation(
+                            control_id=control_id,
+                            description=implementation.get("implementation_details", f"Control {control_id} implementation")
+                        )
+                        
+                        # Add basic implementation details as properties
+                        if "status" in implementation:
+                            control_impl.props.append(OSCALProperty(name="status", value=implementation["status"]))
+                        if "compliance_level" in implementation:
+                            control_impl.props.append(OSCALProperty(name="compliance_level", value=implementation["compliance_level"]))
+                    
+                    component.control_implementations.append(control_impl)
+        else:
+            # Fallback to basic control implementations based on resource types
+            resource_types = workload.get("resource_types", [])
+            if "Deployment" in resource_types:
+                # Add access control implementation
+                ac_impl = OSCALControlImplementation(
+                    control_id="AC-6",
+                    description="Least Privilege - Deployment uses container security features"
+                )
+                component.control_implementations.append(ac_impl)
+                
+                # Add system protection implementation
+                sc_impl = OSCALControlImplementation(
+                    control_id="SC-2",
+                    description="Application Partitioning - Container isolation provides boundary protection"
+                )
+                component.control_implementations.append(sc_impl)
+            
+            if "Job" in resource_types:
+                # Add audit implementation
+                au_impl = OSCALControlImplementation(
+                    control_id="AU-3",
+                    description="Content of Audit Records - Job execution provides audit trail"
+                )
+                component.control_implementations.append(au_impl)
         
         component_def.add_component(component)
     
