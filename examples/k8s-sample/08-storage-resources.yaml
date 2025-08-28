@@ -1,0 +1,144 @@
+apiVersion: storage.k8s.io/v1
+kind: StorageClass
+metadata:
+  name: fast-ssd
+  labels:
+    storage-type: fast
+    tier: production
+provisioner: kubernetes.io/aws-ebs
+parameters:
+  type: gp3
+  iops: "3000"
+  throughput: "125"
+  encrypted: "true"
+volumeBindingMode: WaitForFirstConsumer
+allowVolumeExpansion: true
+---
+apiVersion: storage.k8s.io/v1
+kind: StorageClass
+metadata:
+  name: slow-hdd
+  labels:
+    storage-type: slow
+    tier: development
+provisioner: kubernetes.io/aws-ebs
+parameters:
+  type: gp2
+  encrypted: "true"
+volumeBindingMode: Immediate
+allowVolumeExpansion: false
+---
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: webapp-data-pv
+  labels:
+    app: webapp
+    component: frontend
+    tier: web
+spec:
+  capacity:
+    storage: 1Gi
+  accessModes:
+    - ReadWriteOnce
+  persistentVolumeReclaimPolicy: Retain
+  storageClassName: fast-ssd
+  claimRef:
+    apiVersion: v1
+    kind: PersistentVolumeClaim
+    name: webapp-data-pvc
+    namespace: maposcal-demo
+  awsElasticBlockStore:
+    volumeID: vol-12345678
+    fsType: ext4
+---
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: postgres-data-pv-0
+  labels:
+    app: database
+    component: postgres
+    tier: data
+spec:
+  capacity:
+    storage: 10Gi
+  accessModes:
+    - ReadWriteOnce
+  persistentVolumeReclaimPolicy: Retain
+  storageClassName: fast-ssd
+  claimRef:
+    apiVersion: v1
+    kind: PersistentVolumeClaim
+    name: postgres-data-postgres-db-0
+    namespace: maposcal-demo
+  awsElasticBlockStore:
+    volumeID: vol-87654321
+    fsType: ext4
+---
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: postgres-data-pv-1
+  labels:
+    app: database
+    component: postgres
+    tier: data
+spec:
+  capacity:
+    storage: 10Gi
+  accessModes:
+    - ReadWriteOnce
+  persistentVolumeReclaimPolicy: Retain
+  storageClassName: fast-ssd
+  claimRef:
+    apiVersion: v1
+    kind: PersistentVolumeClaim
+    name: postgres-data-postgres-db-1
+    namespace: maposcal-demo
+  awsElasticBlockStore:
+    volumeID: vol-11223344
+    fsType: ext4
+---
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: postgres-data-pv-2
+  labels:
+    app: database
+    component: postgres
+    tier: data
+spec:
+  capacity:
+    storage: 10Gi
+  accessModes:
+    - ReadWriteOnce
+  persistentVolumeReclaimPolicy: Retain
+  storageClassName: fast-ssd
+  claimRef:
+    apiVersion: v1
+    kind: PersistentVolumeClaim
+    name: postgres-data-postgres-db-2
+    namespace: maposcal-demo
+  awsElasticBlockStore:
+    volumeID: vol-55667788
+    fsType: ext4
+---
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: shared-storage-pv
+  labels:
+    app: shared
+    component: storage
+    tier: shared
+spec:
+  capacity:
+    storage: 5Gi
+  accessModes:
+    - ReadWriteMany
+  persistentVolumeReclaimPolicy: Retain
+  storageClassName: slow-hdd
+  nfs:
+    server: nfs.example.com
+    path: /shared

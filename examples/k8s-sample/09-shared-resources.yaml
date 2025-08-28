@@ -1,0 +1,224 @@
+# Shared ConfigMap used by multiple workloads
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: shared-config
+  namespace: maposcal-demo
+  labels:
+    app: shared
+    component: config
+    tier: shared
+data:
+  environment: "development"
+  region: "us-west-2"
+  log-level: "info"
+  metrics-enabled: "true"
+  tracing-enabled: "false"
+  feature-flags: |
+    {
+      "new-ui": true,
+      "dark-mode": false,
+      "beta-features": true
+    }
+---
+# Shared Secret used by multiple workloads
+apiVersion: v1
+kind: Secret
+metadata:
+  name: shared-secrets
+  namespace: maposcal-demo
+  labels:
+    app: shared
+    component: secrets
+    tier: shared
+type: Opaque
+data:
+  api-endpoint: aHR0cHM6Ly9hcGkuZXhhbXBsZS5jb20=  # https://api.example.com
+  external-api-key: c2hhcmVkLWFwaS1rZXk=  # shared-api-key
+  monitoring-endpoint: aHR0cHM6Ly9tb25pdG9yaW5nLmV4YW1wbGUuY29t  # https://monitoring.example.com
+---
+# Shared Service that can route to multiple workloads
+apiVersion: v1
+kind: Service
+metadata:
+  name: shared-service
+  namespace: maposcal-demo
+  labels:
+    app: shared
+    component: service
+    tier: shared
+spec:
+  type: ClusterIP
+  ports:
+  - port: 8080
+    targetPort: 80
+    protocol: TCP
+    name: http
+  selector:
+    app: shared
+    component: service
+    tier: shared
+---
+# Shared Ingress that routes to multiple services
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: shared-ingress
+  namespace: maposcal-demo
+  annotations:
+    nginx.ingress.kubernetes.io/rewrite-target: /
+    nginx.ingress.kubernetes.io/ssl-redirect: "false"
+spec:
+  rules:
+  - host: shared.example.com
+    http:
+      paths:
+      - path: /webapp
+        pathType: Prefix
+        backend:
+          service:
+            name: webapp-service
+            port:
+              number: 80
+      - path: /api
+        pathType: Prefix
+        backend:
+          service:
+            name: shared-service
+            port:
+              number: 8080
+---
+# Shared NetworkPolicy that applies to multiple workloads
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: shared-network-policy
+  namespace: maposcal-demo
+  labels:
+    app: shared
+    component: network-policy
+    tier: shared
+spec:
+  podSelector:
+    matchLabels:
+      app: shared
+      component: service
+      tier: shared
+  policyTypes:
+  - Ingress
+  - Egress
+  ingress:
+  - from:
+    - namespaceSelector:
+        matchLabels:
+          name: maposcal-demo
+    ports:
+    - protocol: TCP
+      port: 8080
+  egress:
+  - to:
+    - namespaceSelector:
+        matchLabels:
+          name: kube-system
+    ports:
+    - protocol: UDP
+      port: 53
+---
+# Shared ServiceAccount that can be used by multiple workloads
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: shared-sa
+  namespace: maposcal-demo
+  labels:
+    app: shared
+    component: service-account
+    tier: shared
+automountServiceAccountToken: true
+---
+# Shared Role that provides common permissions
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: shared-role
+  namespace: maposcal-demo
+  labels:
+    app: shared
+    component: role
+    tier: shared
+rules:
+- apiGroups: [""]
+  resources: ["pods", "services", "configmaps", "secrets"]
+  verbs: ["get", "list", "watch"]
+- apiGroups: [""]
+  resources: ["pods/log"]
+  verbs: ["get", "list"]
+- apiGroups: [""]
+  resources: ["events"]
+  verbs: ["get", "list", "watch"]
+---
+# Shared RoleBinding that grants shared role to multiple SAs
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: shared-role-binding
+  namespace: maposcal-demo
+  labels:
+    app: shared
+    component: role-binding
+    tier: shared
+subjects:
+- kind: ServiceAccount
+  name: shared-sa
+  namespace: maposcal-demo
+- kind: ServiceAccount
+  name: webapp-sa
+  namespace: maposcal-demo
+- kind: ServiceAccount
+  name: postgres-sa
+  namespace: maposcal-demo
+roleRef:
+  kind: Role
+  name: shared-role
+  apiGroup: rbac.authorization.k8s.io
+---
+# Shared ClusterRole for cross-namespace access
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: shared-cluster-role
+  labels:
+    app: shared
+    component: cluster-role
+    tier: shared
+rules:
+- apiGroups: [""]
+  resources: ["nodes", "namespaces"]
+  verbs: ["get", "list", "watch"]
+- apiGroups: [""]
+  resources: ["events"]
+  verbs: ["get", "list", "watch"]
+- apiGroups: ["metrics.k8s.io"]
+  resources: ["pods", "nodes"]
+  verbs: ["get", "list", "watch"]
+---
+# Shared ClusterRoleBinding for cross-namespace access
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: shared-cluster-role-binding
+  labels:
+    app: shared
+    component: cluster-role-binding
+    tier: shared
+subjects:
+- kind: ServiceAccount
+  name: shared-sa
+  namespace: maposcal-demo
+- kind: ServiceAccount
+  name: monitoring-sa
+  namespace: monitoring
+roleRef:
+  kind: ClusterRole
+  name: shared-cluster-role
+  apiGroup: rbac.authorization.k8s.io

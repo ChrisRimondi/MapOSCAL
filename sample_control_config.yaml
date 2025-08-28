@@ -31,6 +31,7 @@ dockerfile:
 # Configure Kubernetes manifest analysis for OSCAL component generation
 k8s:
   k8s_paths:  # List of directories containing K8s resource YAML files
+    - "examples/k8s-sample"  # Sample K8s resources for testing
     - "/path/to/your/k8s/manifests"
     - "/path/to/your/helm/charts"
     - "/path/to/your/operators"

@@ -1,0 +1,172 @@
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: database-backup
+  namespace: maposcal-demo
+  labels:
+    app: backup
+    component: database-backup
+    tier: maintenance
+spec:
+  schedule: "0 2 * * *"  # Daily at 2 AM
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 1
+  jobTemplate:
+    spec:
+      template:
+        metadata:
+          labels:
+            app: backup
+            component: database-backup
+            tier: maintenance
+        spec:
+          serviceAccountName: backup-sa
+          restartPolicy: OnFailure
+          containers:
+          - name: backup
+            image: postgres:13-alpine
+            command:
+            - /bin/bash
+            - -c
+            - |
+              set -e
+              echo "Starting database backup at $(date)"
+              
+              # Create backup directory
+              mkdir -p /backup
+              
+              # Perform backup
+              pg_dump -h $POSTGRES_HOST -U $POSTGRES_USER -d $POSTGRES_DB > /backup/backup-$(date +%Y%m%d-%H%M%S).sql
+              
+              # Compress backup
+              gzip /backup/*.sql
+              
+              # Upload to S3 (if configured)
+              if [ -n "$S3_BUCKET" ]; then
+                aws s3 cp /backup/*.gz s3://$S3_BUCKET/database-backups/
+              fi
+              
+              echo "Backup completed successfully at $(date)"
+            env:
+            - name: POSTGRES_HOST
+              value: "postgres-service.maposcal-demo.svc.cluster.local"
+            - name: POSTGRES_USER
+              valueFrom:
+                secretKeyRef:
+                  name: backup-secrets
+                  key: username
+            - name: POSTGRES_DB
+              value: "webapp"
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: backup-secrets
+                  key: password
+            - name: S3_BUCKET
+              valueFrom:
+                configMapKeyRef:
+                  name: backup-config
+                  key: s3_bucket
+            - name: AWS_ACCESS_KEY_ID
+              valueFrom:
+                secretKeyRef:
+                  name: backup-secrets
+                  key: aws_access_key_id
+            - name: AWS_SECRET_ACCESS_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: backup-secrets
+                  key: aws_secret_access_key
+            - name: AWS_DEFAULT_REGION
+              valueFrom:
+                configMapKeyRef:
+                  name: backup-config
+                  key: aws_region
+            volumeMounts:
+            - name: backup-config
+              mountPath: /etc/backup
+            - name: backup-data
+              mountPath: /backup
+            resources:
+              requests:
+                memory: "128Mi"
+                cpu: "100m"
+              limits:
+                memory: "256Mi"
+                cpu: "200m"
+          volumes:
+          - name: backup-config
+            configMap:
+              name: backup-config
+          - name: backup-data
+            emptyDir: {}
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: backup-config
+  namespace: maposcal-demo
+  labels:
+    app: backup
+    component: database-backup
+    tier: maintenance
+data:
+  s3_bucket: "maposcal-backups"
+  aws_region: "us-west-2"
+  backup_retention_days: "30"
+  backup_schedule: "0 2 * * *"
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: backup-secrets
+  namespace: maposcal-demo
+  labels:
+    app: backup
+    component: database-backup
+    tier: maintenance
+type: Opaque
+data:
+  username: cG9zdGdyZXM=  # postgres
+  password: cGFzc3dvcmQxMjM=  # password123
+  aws_access_key_id: QUtJQVNBTUVBQ0NFU1NLRVlJRA==  # AKIASAMEACCESSKEYID
+  aws_secret_access_key: c2FtZXNlY3JldGFjY2Vzc2tleQ==  # samesecretaccesskey
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: backup-sa
+  namespace: maposcal-demo
+  labels:
+    app: backup
+    component: database-backup
+    tier: maintenance
+automountServiceAccountToken: true
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: backup-role
+  namespace: maposcal-demo
+rules:
+- apiGroups: [""]
+  resources: ["pods", "services", "configmaps", "secrets"]
+  verbs: ["get", "list", "watch"]
+- apiGroups: [""]
+  resources: ["pods/log"]
+  verbs: ["get", "list"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: backup-role-binding
+  namespace: maposcal-demo
+subjects:
+- kind: ServiceAccount
+  name: backup-sa
+  namespace: maposcal-demo
+roleRef:
+  kind: Role
+  name: backup-role
+  apiGroup: rbac.authorization.k8s.io
