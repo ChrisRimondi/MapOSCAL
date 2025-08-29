@@ -33,20 +33,38 @@ class TestK8sAnalyzerIntegration:
         assert 'vectors_created' in results
         assert 'metadata_entries' in results
         
-        # Check that we have exactly one workload
-        assert len(results['workloads']) == 1
+        # Check that we have the expected workloads (controller + service sub-workload)
+        assert len(results['workloads']) == 2
         
-        # Get the workload
-        workload_id = 'test-ns/Deployment/test-deployment'
-        assert workload_id in results['workloads']
+        # Get the controller workload
+        controller_workload_id = 'test-ns/Deployment/test-deployment'
+        assert controller_workload_id in results['workloads']
         
-        workload = results['workloads'][workload_id]
+        # Get the service sub-workload
+        service_workload_id = 'test-ns/Service/test-service'
+        assert service_workload_id in results['workloads']
         
-        # Check workload basics
-        assert workload['namespace'] == 'test-ns'
-        assert workload['seed']['kind'] == 'Deployment'
-        assert workload['seed']['name'] == 'test-deployment'
-        assert workload['selectors'] == {'app': 'test', 'tier': 'web'}
+        # Check controller workload basics
+        controller_workload = results['workloads'][controller_workload_id]
+        assert controller_workload['namespace'] == 'test-ns'
+        assert controller_workload['controller']['kind'] == 'Deployment'
+        assert controller_workload['controller']['name'] == 'test-deployment'
+        assert controller_workload['selectors'] == {'app': 'test', 'tier': 'web'}
+        assert controller_workload['workload_type'] == 'controller'
+        
+        # Check service sub-workload basics
+        service_workload = results['workloads'][service_workload_id]
+        assert service_workload['namespace'] == 'test-ns'
+        assert service_workload['controller']['kind'] == 'Service'
+        assert service_workload['controller']['name'] == 'test-service'
+        assert service_workload['workload_type'] == 'service'
+        assert service_workload['parent_workload'] == controller_workload_id
+        
+        # Verify the workload hierarchy
+        assert service_workload_id in controller_workload['sub_workloads']
+        
+        # Use controller workload for further checks
+        workload = controller_workload
         
         # Check that all resources are attached
         assert len(workload['services']) == 1
@@ -106,7 +124,8 @@ class TestK8sAnalyzerIntegration:
         
         # Check that analysis completed successfully
         assert 'workloads' in results
-        assert len(results['workloads']) == 1
+        # New controller-based approach creates controller + service workloads
+        assert len(results['workloads']) == 2
         
         # Check that output files were created
         output_dir = Path(temp_k8s_dir).parent
@@ -176,21 +195,36 @@ class TestWorkloadGrouper:
         
         workloads = grouper.group_resources(sample_resources)
         
-        # Should have one workload
-        assert len(workloads) == 1
+        # New controller-based approach creates controller + service workloads
+        assert len(workloads) == 2
         
-        workload_id = 'test-ns/Deployment/test-deployment'
-        assert workload_id in workloads
+        # Check controller workload
+        controller_workload_id = 'test-ns/Deployment/test-deployment'
+        assert controller_workload_id in workloads
         
-        workload = workloads[workload_id]
+        controller_workload = workloads[controller_workload_id]
+        assert controller_workload['namespace'] == 'test-ns'
+        assert controller_workload['controller']['kind'] == 'Deployment'
+        assert controller_workload['controller']['name'] == 'test-deployment'
+        assert controller_workload['selectors'] == {'app': 'test', 'tier': 'web'}
+        assert controller_workload['workload_type'] == 'controller'
         
-        # Check basic workload structure
-        assert workload['namespace'] == 'test-ns'
-        assert workload['seed']['kind'] == 'Deployment'
-        assert workload['seed']['name'] == 'test-deployment'
-        assert workload['selectors'] == {'app': 'test', 'tier': 'web'}
+        # Check service sub-workload
+        service_workload_id = 'test-ns/Service/test-service'
+        assert service_workload_id in workloads
         
-        # Check that resources were attached
+        service_workload = workloads[service_workload_id]
+        assert service_workload['namespace'] == 'test-ns'
+        assert service_workload['controller']['kind'] == 'Service'
+        assert service_workload['controller']['name'] == 'test-service'
+        assert service_workload['workload_type'] == 'service'
+        assert service_workload['parent_workload'] == controller_workload_id
+        
+        # Verify the workload hierarchy
+        assert service_workload_id in controller_workload['sub_workloads']
+        
+        # Check that resources are attached to controller workload
+        workload = controller_workload
         assert len(workload['services']) == 1
         assert workload['services'][0]['name'] == 'test-service'
         

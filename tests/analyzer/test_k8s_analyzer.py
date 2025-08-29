@@ -223,16 +223,19 @@ class TestWorkloadGrouper:
         
         workloads = grouper.group_resources(resources)
         
-        assert len(workloads) == 1
-        workload_id = 'test-ns/Deployment/test-deployment'
-        assert workload_id in workloads
+        # New controller-based approach creates controller + service workloads
+        assert len(workloads) == 2
         
-        workload = workloads[workload_id]
-        assert workload['namespace'] == 'test-ns'
-        assert workload['seed']['kind'] == 'Deployment'
-        assert workload['seed']['name'] == 'test-deployment'
-        assert len(workload['services']) == 1
-        assert workload['services'][0]['name'] == 'test-service'
+        # Check controller workload
+        controller_workload_id = 'test-ns/Deployment/test-deployment'
+        assert controller_workload_id in workloads
+        
+        controller_workload = workloads[controller_workload_id]
+        assert controller_workload['namespace'] == 'test-ns'
+        assert controller_workload['controller']['kind'] == 'Deployment'
+        assert controller_workload['controller']['name'] == 'test-deployment'
+        assert len(controller_workload['services']) == 1
+        assert controller_workload['services'][0]['name'] == 'test-service'
     
     def test_attach_services_selector_matching(self):
         """Test service attachment based on selector matching."""
@@ -266,7 +269,7 @@ class TestWorkloadGrouper:
         grouper = WorkloadGrouper()
         
         workload = {
-            'seed': {'kind': 'Deployment', 'name': 'test-deployment'},
+            'controller': {'kind': 'Deployment', 'name': 'test-deployment'},
             'namespace': 'test-ns',
             'configMaps': [],
             'secrets': []
@@ -310,7 +313,7 @@ class TestWorkloadGrouper:
         grouper = WorkloadGrouper()
         
         workload = {
-            'seed': {'kind': 'Deployment', 'name': 'test-deployment'},
+            'controller': {'kind': 'Deployment', 'name': 'test-deployment'},
             'namespace': 'test-ns',
             'configMaps': [],
             'secrets': []
@@ -373,7 +376,7 @@ class TestWorkloadGrouper:
         grouper = WorkloadGrouper()
         
         workload = {
-            'seed': {'kind': 'Deployment', 'name': 'test-deployment'},
+            'controller': {'kind': 'Deployment', 'name': 'test-deployment'},
             'namespace': 'test-ns',
             'serviceAccount': None
         }
@@ -558,6 +561,7 @@ class TestStorageResolver:
         
         workload = {
             'namespace': 'test-ns',
+            'controller': {'kind': 'Deployment', 'name': 'test-deployment'},
             'pods': {
                 'materialized': False,
                 'template_labels': {}
@@ -578,8 +582,8 @@ class TestStorageResolver:
             }
         }
         
-        # Mock the _find_seed_resource method
-        with patch.object(resolver, '_find_seed_resource', return_value=seed_resource):
+        # Mock the _find_controller_resource method
+        with patch.object(resolver, '_find_controller_resource', return_value=seed_resource):
             storage = resolver.resolve_workload_storage(workload, resources)
             
             assert len(storage['pvcs']) == 1
@@ -637,7 +641,7 @@ class TestResilienceResolver:
         }
         
         workload = {
-            'seed': {
+            'controller': {
                 'kind': 'Deployment',
                 'name': 'test-deployment'
             }
@@ -857,19 +861,21 @@ data:
             results = analyzer.analyze()
             
             assert 'workloads' in results
-            assert len(results['workloads']) == 1
+            # New controller-based approach creates controller + service workloads
+            assert len(results['workloads']) == 2
             
-            workload_id = 'test-ns/Deployment/test-deployment'
-            assert workload_id in results['workloads']
+            # Check controller workload
+            controller_workload_id = 'test-ns/Deployment/test-deployment'
+            assert controller_workload_id in results['workloads']
             
-            workload = results['workloads'][workload_id]
-            assert workload['namespace'] == 'test-ns'
-            assert workload['seed']['kind'] == 'Deployment'
-            assert workload['seed']['name'] == 'test-deployment'
-            assert len(workload['services']) == 1
-            assert workload['serviceAccount']['name'] == 'test-sa'
-            assert len(workload['configMaps']) == 1
-            assert workload['configMaps'][0]['name'] == 'test-config'
+            controller_workload = results['workloads'][controller_workload_id]
+            assert controller_workload['namespace'] == 'test-ns'
+            assert controller_workload['controller']['kind'] == 'Deployment'
+            assert controller_workload['controller']['name'] == 'test-deployment'
+            assert len(controller_workload['services']) == 1
+            assert controller_workload['serviceAccount']['name'] == 'test-sa'
+            assert len(controller_workload['configMaps']) == 1
+            assert controller_workload['configMaps'][0]['name'] == 'test-config'
     
     def test_analyze_multiple_workloads(self):
         """Test analysis with multiple workload types."""
@@ -959,7 +965,7 @@ spec:
             assert len(results['workloads']) == 4
             
             # Check all workload types are present
-            workload_types = {w['seed']['kind'] for w in results['workloads'].values()}
+            workload_types = {w['controller']['kind'] for w in results['workloads'].values()}
             assert 'Deployment' in workload_types
             assert 'StatefulSet' in workload_types
             assert 'Job' in workload_types
@@ -1030,6 +1036,18 @@ spec:
     name: test-pvc
     namespace: test-ns
 ---
+apiVersion: v1
+kind: Service
+metadata:
+  name: test-service
+  namespace: test-ns
+spec:
+  selector:
+    app: test
+  ports:
+  - port: 80
+    targetPort: 80
+---
 apiVersion: storage.k8s.io/v1
 kind: StorageClass
 metadata:
@@ -1047,8 +1065,12 @@ parameters:
             
             results = analyzer.analyze()
             
-            assert len(results['workloads']) == 1
-            workload = list(results['workloads'].values())[0]
+            # New controller-based approach creates controller + service workloads
+            assert len(results['workloads']) == 2
+            # Get the controller workload (first one)
+            controller_workloads = [w for w in results['workloads'].values() if w['workload_type'] == 'controller']
+            assert len(controller_workloads) == 1
+            workload = controller_workloads[0]
             
             # Check storage resolution
             # Note: Storage resolution may need additional logic

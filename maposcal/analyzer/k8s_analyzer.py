@@ -221,10 +221,10 @@ class StorageResolver:
                 if pod_resource:
                     referenced_pvcs.update(self._extract_pvc_references(pod_resource))
         else:
-            # Use seed pod template
-            seed_resource = self._find_seed_resource(workload, resources)
-            if seed_resource:
-                referenced_pvcs.update(self._extract_pvc_references(seed_resource))
+            # Use controller pod template
+            controller_resource = self._find_controller_resource(workload, resources)
+            if controller_resource:
+                referenced_pvcs.update(self._extract_pvc_references(controller_resource))
         
         # Attach referenced PVCs
         for pvc_key in referenced_pvcs:
@@ -274,10 +274,19 @@ class StorageResolver:
         return None
     
     def _find_seed_resource(self, workload: Dict[str, Any], resources: List[Dict[str, Any]]) -> Optional[Dict[str, Any]]:
-        """Find the seed resource for a workload."""
+        """Find the seed resource for a workload (legacy method for backward compatibility)."""
         for resource in resources:
-            if (resource['kind'] == workload['seed']['kind'] and 
-                resource['name'] == workload['seed']['name'] and 
+            if (resource['kind'] == workload.get('seed', {}).get('kind') and
+                resource['name'] == workload.get('seed', {}).get('name') and
+                resource['namespace'] == workload['namespace']):
+                return resource
+        return None
+    
+    def _find_controller_resource(self, workload: Dict[str, Any], resources: List[Dict[str, Any]]) -> Optional[Dict[str, Any]]:
+        """Find the controller resource for a workload."""
+        for resource in resources:
+            if (resource['kind'] == workload['controller']['kind'] and
+                resource['name'] == workload['controller']['name'] and
                 resource['namespace'] == workload['namespace']):
                 return resource
         return None
@@ -390,8 +399,8 @@ class ResilienceResolver:
     def _hpa_matches_workload(self, hpa: Dict[str, Any], workload: Dict[str, Any]) -> bool:
         """Check if HPA targets this workload."""
         target_ref = hpa.get('raw_resource', {}).get('spec', {}).get('scaleTargetRef', {})
-        return (target_ref.get('kind') == workload['seed']['kind'] and 
-                target_ref.get('name') == workload['seed']['name'])
+        return (target_ref.get('kind') == workload['controller']['kind'] and 
+                target_ref.get('name') == workload['controller']['name'])
     
     def _pdb_matches_workload(self, pdb: Dict[str, Any], workload: Dict[str, Any]) -> bool:
         """Check if PDB applies to this workload."""
@@ -483,7 +492,7 @@ class RBACResolver:
         # Gather ServiceAccounts used by the workload
         service_accounts = set()
         
-        # Check seed pod template
+        # Check controller pod template
         if workload.get('pods', {}).get('template_labels'):
             sa_name = workload.get('pods', {}).get('template_labels', {}).get('serviceAccountName', 'default')
             if sa_name != 'default':
@@ -895,16 +904,27 @@ class K8sResourceParser:
 
 class WorkloadGrouper:
     """
-    Groups K8s resources into logical workloads based on the specified logic.
+    Groups K8s resources into logical workloads using a controller-based approach.
+    
+    The new approach works by:
+    1. Treating each controller (Deployment, StatefulSet, DaemonSet, Job, CronJob, Pod) as the root of a workload
+    2. Expanding to include all directly owned resources (ReplicaSets, Pods, Jobs)
+    3. Refining by Services: if a controller exposes multiple Services, each Service becomes a sub-workload
+    4. Further refining by Ingress: if a Service is fronted by multiple Ingresses/hostnames, split per external interface
+    
+    This creates clear, deterministic groupings that mirror how operators think about workloads.
     """
     
     def __init__(self):
         self.workloads = {}
         self.shared_resources = set()
+        self.controller_workloads = {}  # controller_key -> workload_id
+        self.service_workloads = {}     # service_key -> [workload_ids]
+        self.ingress_workloads = {}     # ingress_key -> [workload_ids]
     
     def group_resources(self, resources: List[Dict[str, Any]]) -> Dict[str, Any]:
         """
-        Group resources into workloads following the specified logic.
+        Group resources into workloads using the new controller-based approach.
         
         Args:
             resources: List of parsed K8s resources
@@ -922,45 +942,100 @@ class WorkloadGrouper:
         for namespace, namespace_resources in resources_by_namespace.items():
             self._process_namespace(namespace, namespace_resources)
         
-        # Step 3: Mark shared resources
+        # Step 3: Refine workloads by Services
+        self._refine_by_services(resources)
+        
+        # Step 4: Refine workloads by Ingress
+        self._refine_by_ingress(resources)
+        
+        # Step 5: Mark shared resources
         self._mark_shared_resources()
         
         return self.workloads
     
     def _process_namespace(self, namespace: str, resources: List[Dict[str, Any]]):
         """
-        Process resources within a namespace to create workloads.
+        Process resources within a namespace to create initial controller-based workloads.
         
         Args:
             namespace: Namespace name
             resources: Resources in the namespace
         """
-        # Step 3: Find workload seeds
-        workload_seeds = []
+        # Find controller seeds (Deployment, StatefulSet, DaemonSet, Job, CronJob, Pod)
+        controllers = []
         other_resources = []
         
         for resource in resources:
             if resource['kind'] in {'Deployment', 'StatefulSet', 'DaemonSet', 'Job', 'CronJob', 'Pod'}:
-                workload_seeds.append(resource)
+                controllers.append(resource)
             else:
                 other_resources.append(resource)
         
-        # Step 4-8: Create workloads and attach resources
-        for seed in workload_seeds:
-            workload_id = f"{namespace}/{seed['kind']}/{seed['name']}"
-            workload = self._create_workload(seed, workload_id)
+        # Create initial workloads for each controller
+        for controller in controllers:
+            workload_id = f"{namespace}/{controller['kind']}/{controller['name']}"
+            workload = self._create_controller_workload(controller, workload_id)
+            
+            # Attach directly owned resources (ReplicaSets, Pods, Jobs)
+            self._attach_owned_resources(workload, resources)
             
             # Attach related resources
             self._attach_services(workload, other_resources)
             self._attach_ingress(workload, other_resources)
-            self._attach_config_and_secrets(workload, resources)  # Use full resources list
-            self._attach_service_account(workload, resources)     # Use full resources list
+            self._attach_config_and_secrets(workload, resources)
+            self._attach_service_account(workload, resources)
             
+            # Store the workload
             self.workloads[workload_id] = workload
+            
+            # Track controller -> workload mapping
+            controller_key = (namespace, controller['kind'], controller['name'])
+            self.controller_workloads[controller_key] = workload_id
+    
+    def _create_controller_workload(self, controller: Dict[str, Any], workload_id: str) -> Dict[str, Any]:
+        """
+        Create a new controller-based workload.
+        
+        Args:
+            controller: Controller resource (Deployment, StatefulSet, etc.)
+            workload_id: Unique workload identifier
+            
+        Returns:
+            New workload dictionary
+        """
+        workload = {
+            'id': workload_id,
+            'namespace': controller['namespace'],
+            'controller': {
+                'kind': controller['kind'],
+                'name': controller['name']
+            },
+            'selectors': controller.get('pod_template', {}).get('labels', {}),
+            'services': [],
+            'ingress': [],
+            'configMaps': [],
+            'secrets': [],
+            'serviceAccount': None,
+            'sharedRefs': [],
+            # Enhanced fields
+            'pods': {'materialized': False, 'items': [], 'template_labels': controller.get('pod_template', {}).get('labels', {})},
+            'replicaSets': [],
+            'jobs': [],
+            'storage': {'pvcs': [], 'pvs': [], 'storageClasses': []},
+            'resilience': {'hpas': [], 'pdbs': [], 'networkPolicies': []},
+            'rbac': {'serviceAccounts': [], 'roleBindings': [], 'roles': [], 'clusterRoleBindings': [], 'clusterRoles': [], 'effectiveRules': {}},
+            'notes': {'conflicts': [], 'orphans': [], 'crossNamespace': []},
+            # New fields for workload refinement
+            'sub_workloads': [],  # Service-based sub-workloads
+            'parent_workload': None,  # Parent workload if this is a sub-workload
+            'workload_type': 'controller'  # controller, service, or ingress
+        }
+        
+        return workload
     
     def _create_workload(self, seed: Dict[str, Any], workload_id: str) -> Dict[str, Any]:
         """
-        Create a new workload from a seed resource.
+        Create a new workload from a seed resource (legacy method for backward compatibility).
         
         Args:
             seed: Workload seed resource
@@ -1048,19 +1123,19 @@ class WorkloadGrouper:
             workload: Workload to attach configs to
             resources: Available resources to check
         """
-        # Find the seed resource for this workload
-        seed_resource = None
+        # Find the controller resource for this workload
+        controller_resource = None
         for resource in resources:
-            if (resource['kind'] == workload['seed']['kind'] and
-                resource['name'] == workload['seed']['name'] and
+            if (resource['kind'] == workload['controller']['kind'] and
+                resource['name'] == workload['controller']['name'] and
                 resource['namespace'] == workload['namespace']):
-                seed_resource = resource
+                controller_resource = resource
                 break
         
-        if not seed_resource:
+        if not controller_resource:
             return
         
-        pod_template = seed_resource.get('pod_template', {})
+        pod_template = controller_resource.get('pod_template', {})
         
         # Extract referenced ConfigMaps and Secrets
         referenced_configs = set()
@@ -1107,6 +1182,354 @@ class WorkloadGrouper:
                     'type': resource.get('raw_resource', {}).get('type', 'Opaque')
                 })
     
+    def _attach_owned_resources(self, workload: Dict[str, Any], resources: List[Dict[str, Any]]):
+        """
+        Attach resources directly owned by the controller.
+        
+        Args:
+            workload: Workload to attach owned resources to
+            resources: Available resources to check
+        """
+        controller = workload['controller']
+        namespace = workload['namespace']
+        
+        # Find ReplicaSets owned by this controller
+        if controller['kind'] == 'Deployment':
+            for resource in resources:
+                if (resource['kind'] == 'ReplicaSet' and 
+                    resource['namespace'] == namespace):
+                    # Check if this ReplicaSet is owned by our Deployment
+                    owner_refs = resource.get('raw_resource', {}).get('metadata', {}).get('ownerReferences', [])
+                    for owner_ref in owner_refs:
+                        if (owner_ref.get('kind') == 'Deployment' and 
+                            owner_ref.get('name') == controller['name']):
+                            workload['replicaSets'].append(resource['name'])
+                            
+                            # Find Pods owned by this ReplicaSet
+                            for pod_resource in resources:
+                                if (pod_resource['kind'] == 'Pod' and 
+                                    pod_resource['namespace'] == namespace):
+                                    pod_owner_refs = pod_resource.get('raw_resource', {}).get('metadata', {}).get('ownerReferences', [])
+                                    for pod_owner_ref in pod_owner_refs:
+                                        if (pod_owner_ref.get('kind') == 'ReplicaSet' and 
+                                            pod_owner_ref.get('name') == resource['name']):
+                                            workload['pods']['items'].append(pod_resource['name'])
+                                            workload['pods']['materialized'] = True
+                            break
+        
+        # Find Pods owned by StatefulSet, DaemonSet, Job
+        elif controller['kind'] in {'StatefulSet', 'DaemonSet', 'Job'}:
+            for resource in resources:
+                if (resource['kind'] == 'Pod' and 
+                    resource['namespace'] == namespace):
+                    owner_refs = resource.get('raw_resource', {}).get('metadata', {}).get('ownerReferences', [])
+                    for owner_ref in owner_refs:
+                        if (owner_ref.get('kind') == controller['kind'] and 
+                            owner_ref.get('name') == controller['name']):
+                            workload['pods']['items'].append(resource['name'])
+                            workload['pods']['materialized'] = True
+                            break
+        
+        # Find Jobs owned by CronJob
+        elif controller['kind'] == 'CronJob':
+            for resource in resources:
+                if (resource['kind'] == 'Job' and 
+                    resource['namespace'] == namespace):
+                    owner_refs = resource.get('raw_resource', {}).get('metadata', {}).get('ownerReferences', [])
+                    for owner_ref in owner_refs:
+                        if (owner_ref.get('kind') == 'CronJob' and 
+                            owner_ref.get('name') == controller['name']):
+                            workload['jobs'].append(resource['name'])
+                            
+                            # Find Pods owned by this Job
+                            for pod_resource in resources:
+                                if (pod_resource['kind'] == 'Pod' and 
+                                    pod_resource['namespace'] == namespace):
+                                    pod_owner_refs = pod_resource.get('raw_resource', {}).get('metadata', {}).get('ownerReferences', [])
+                                    for pod_owner_ref in pod_owner_refs:
+                                        if (pod_owner_ref.get('kind') == 'Job' and 
+                                            pod_owner_ref.get('name') == resource['name']):
+                                            workload['pods']['items'].append(pod_resource['name'])
+                                            workload['pods']['materialized'] = True
+                            break
+        
+        # For Pod controllers, the pod is already included
+        elif controller['kind'] == 'Pod':
+            workload['pods']['items'].append(controller['name'])
+            workload['pods']['materialized'] = True
+    
+    def _refine_by_services(self, resources: List[Dict[str, Any]]):
+        """
+        Refine workloads by Services. If a controller exposes multiple Services,
+        create sub-workloads for each Service.
+        """
+        for resource in resources:
+            if resource['kind'] == 'Service':
+                namespace = resource['namespace']
+                service_name = resource['name']
+                service_key = (namespace, service_name)
+                
+                # Find which controller(s) this service targets
+                service_selectors = resource.get('selectors', {})
+                matching_controllers = []
+                
+                for controller_key, workload_id in self.controller_workloads.items():
+                    if controller_key[0] == namespace:  # Same namespace
+                        workload = self.workloads[workload_id]
+                        workload_selectors = workload['selectors']
+                        
+                        # Check if service selectors match workload selectors
+                        if self._selectors_match(service_selectors, workload_selectors):
+                            matching_controllers.append((controller_key, workload_id))
+                
+                # If service targets multiple controllers, create shared service workload
+                if len(matching_controllers) > 1:
+                    self._create_shared_service_workload(resource, matching_controllers)
+                # If service targets single controller, create sub-workload
+                elif len(matching_controllers) == 1:
+                    self._create_service_sub_workload(resource, matching_controllers[0])
+    
+    def _refine_by_ingress(self, resources: List[Dict[str, Any]]):
+        """
+        Refine workloads by Ingress. If a Service is fronted by multiple Ingresses
+        or hostnames, create sub-workloads for each external interface.
+        """
+        for resource in resources:
+            if resource['kind'] == 'Ingress':
+                namespace = resource['namespace']
+                ingress_name = resource['name']
+                ingress_key = (namespace, ingress_name)
+                
+                # Find which services this ingress targets
+                backend_services = resource.get('backend_services', [])
+                matching_services = []
+                
+                for service_key, workload_ids in self.service_workloads.items():
+                    if service_key[0] == namespace:  # Same namespace
+                        for workload_id in workload_ids:
+                            workload = self.workloads[workload_id]
+                            if workload['workload_type'] == 'service':
+                                service_name = workload['controller']['name']
+                                if service_name in backend_services:
+                                    matching_services.append((service_key, workload_id))
+                
+                # If ingress targets multiple services, create shared ingress workload
+                if len(matching_services) > 1:
+                    self._create_shared_ingress_workload(resource, matching_services)
+                # If ingress targets single service, create sub-workload
+                elif len(matching_services) == 1:
+                    self._create_ingress_sub_workload(resource, matching_services[0])
+    
+    def _create_service_sub_workload(self, service: Dict[str, Any], controller_info: Tuple):
+        """
+        Create a sub-workload for a service.
+        
+        Args:
+            service: Service resource
+            controller_info: (controller_key, workload_id) tuple
+        """
+        controller_key, parent_workload_id = controller_info
+        namespace = service['namespace']
+        service_name = service['name']
+        
+        # Create service sub-workload
+        workload_id = f"{namespace}/Service/{service_name}"
+        workload = {
+            'id': workload_id,
+            'namespace': namespace,
+            'controller': {
+                'kind': 'Service',
+                'name': service_name
+            },
+            'selectors': service.get('selectors', {}),
+            'services': [service],
+            'ingress': [],
+            'configMaps': [],
+            'secrets': [],
+            'serviceAccount': None,
+            'sharedRefs': [],
+            'pods': {'materialized': False, 'items': [], 'template_labels': {}},
+            'replicaSets': [],
+            'jobs': [],
+            'storage': {'pvcs': [], 'pvs': [], 'storageClasses': []},
+            'resilience': {'hpas': [], 'pdbs': [], 'networkPolicies': []},
+            'rbac': {'serviceAccounts': [], 'roleBindings': [], 'roles': [], 'clusterRoleBindings': [], 'clusterRoles': [], 'effectiveRules': {}},
+            'notes': {'conflicts': [], 'orphans': [], 'crossNamespace': []},
+            'sub_workloads': [],
+            'parent_workload': parent_workload_id,
+            'workload_type': 'service'
+        }
+        
+        # Copy relevant resources from parent workload
+        parent_workload = self.workloads[parent_workload_id]
+        workload['pods'] = parent_workload['pods'].copy()
+        workload['configMaps'] = parent_workload['configMaps'].copy()
+        workload['secrets'] = parent_workload['secrets'].copy()
+        workload['serviceAccount'] = parent_workload['serviceAccount']
+        
+        # Store the workload
+        self.workloads[workload_id] = workload
+        
+        # Track service -> workload mapping
+        service_key = (namespace, service_name)
+        if service_key not in self.service_workloads:
+            self.service_workloads[service_key] = []
+        self.service_workloads[service_key].append(workload_id)
+        
+        # Add to parent workload's sub-workloads
+        parent_workload['sub_workloads'].append(workload_id)
+    
+    def _create_shared_service_workload(self, service: Dict[str, Any], controller_infos: List[Tuple]):
+        """
+        Create a shared service workload when a service targets multiple controllers.
+        
+        Args:
+            service: Service resource
+            controller_infos: List of (controller_key, workload_id) tuples
+        """
+        namespace = service['namespace']
+        service_name = service['name']
+        
+        # Create shared service workload
+        workload_id = f"{namespace}/Service/{service_name}-shared"
+        workload = {
+            'id': workload_id,
+            'namespace': namespace,
+            'controller': {
+                'kind': 'Service',
+                'name': f"{service_name}-shared"
+            },
+            'selectors': service.get('selectors', {}),
+            'services': [service],
+            'ingress': [],
+            'configMaps': [],
+            'secrets': [],
+            'serviceAccount': None,
+            'sharedRefs': [],
+            'pods': {'materialized': False, 'items': [], 'template_labels': {}},
+            'replicaSets': [],
+            'jobs': [],
+            'storage': {'pvcs': [], 'pvs': [], 'storageClasses': []},
+            'resilience': {'hpas': [], 'pdbs': [], 'networkPolicies': []},
+            'rbac': {'serviceAccounts': [], 'roleBindings': [], 'roles': [], 'clusterRoleBindings': [], 'clusterRoles': [], 'effectiveRules': {}},
+            'notes': {'conflicts': [], 'orphans': [], 'crossNamespace': []},
+            'sub_workloads': [],
+            'parent_workload': None,
+            'workload_type': 'service',
+            'shared': True
+        }
+        
+        # Store the workload
+        self.workloads[workload_id] = workload
+        
+        # Track service -> workload mapping
+        service_key = (namespace, service_name)
+        if service_key not in self.service_workloads:
+            self.service_workloads[service_key] = []
+        self.service_workloads[service_key].append(workload_id)
+    
+    def _create_ingress_sub_workload(self, ingress: Dict[str, Any], service_info: Tuple):
+        """
+        Create a sub-workload for an ingress.
+        
+        Args:
+            ingress: Ingress resource
+            service_info: (service_key, workload_id) tuple
+        """
+        service_key, parent_workload_id = service_info
+        namespace = ingress['namespace']
+        ingress_name = ingress['name']
+        
+        # Create ingress sub-workload
+        workload_id = f"{namespace}/Ingress/{ingress_name}"
+        workload = {
+            'id': workload_id,
+            'namespace': namespace,
+            'controller': {
+                'kind': 'Ingress',
+                'name': ingress_name
+            },
+            'selectors': {},
+            'services': [],
+            'ingress': [ingress],
+            'configMaps': [],
+            'secrets': [],
+            'serviceAccount': None,
+            'sharedRefs': [],
+            'pods': {'materialized': False, 'items': [], 'template_labels': {}},
+            'replicaSets': [],
+            'jobs': [],
+            'storage': {'pvcs': [], 'pvs': [], 'storageClasses': []},
+            'resilience': {'hpas': [], 'pdbs': [], 'networkPolicies': []},
+            'rbac': {'serviceAccounts': [], 'roleBindings': [], 'roles': [], 'clusterRoleBindings': [], 'clusterRoles': [], 'effectiveRules': {}},
+            'notes': {'conflicts': [], 'orphans': [], 'crossNamespace': []},
+            'sub_workloads': [],
+            'parent_workload': parent_workload_id,
+            'workload_type': 'ingress'
+        }
+        
+        # Store the workload
+        self.workloads[workload_id] = workload
+        
+        # Track ingress -> workload mapping
+        ingress_key = (namespace, ingress_name)
+        if ingress_key not in self.ingress_workloads:
+            self.ingress_workloads[ingress_key] = []
+        self.ingress_workloads[ingress_key].append(workload_id)
+        
+        # Add to parent workload's sub-workloads
+        parent_workload = self.workloads[parent_workload_id]
+        parent_workload['sub_workloads'].append(workload_id)
+    
+    def _create_shared_ingress_workload(self, ingress: Dict[str, Any], service_infos: List[Tuple]):
+        """
+        Create a shared ingress workload when an ingress targets multiple services.
+        
+        Args:
+            ingress: Ingress resource
+            service_infos: List of (service_key, workload_id) tuples
+        """
+        namespace = ingress['namespace']
+        ingress_name = ingress['name']
+        
+        # Create shared ingress workload
+        workload_id = f"{namespace}/Ingress/{ingress_name}-shared"
+        workload = {
+            'id': workload_id,
+            'namespace': namespace,
+            'controller': {
+                'kind': 'Ingress',
+                'name': f"{ingress_name}-shared"
+            },
+            'selectors': {},
+            'services': [],
+            'ingress': [ingress],
+            'configMaps': [],
+            'secrets': [],
+            'serviceAccount': None,
+            'sharedRefs': [],
+            'pods': {'materialized': False, 'items': [], 'template_labels': {}},
+            'replicaSets': [],
+            'jobs': [],
+            'storage': {'pvcs': [], 'pvs': [], 'storageClasses': []},
+            'resilience': {'hpas': [], 'pdbs': [], 'networkPolicies': []},
+            'rbac': {'serviceAccounts': [], 'roleBindings': [], 'roles': [], 'clusterRoleBindings': [], 'clusterRoles': [], 'effectiveRules': {}},
+            'notes': {'conflicts': [], 'orphans': [], 'crossNamespace': []},
+            'sub_workloads': [],
+            'parent_workload': None,
+            'workload_type': 'ingress',
+            'shared': True
+        }
+        
+        # Store the workload
+        self.workloads[workload_id] = workload
+        
+        # Track ingress -> workload mapping
+        ingress_key = (namespace, ingress_name)
+        if ingress_key not in self.ingress_workloads:
+            self.ingress_workloads[ingress_key] = []
+        self.ingress_workloads[ingress_key].append(workload_id)
+    
     def _attach_service_account(self, workload: Dict[str, Any], resources: List[Dict[str, Any]]):
         """
         Attach ServiceAccount if specified in the workload.
@@ -1115,18 +1538,18 @@ class WorkloadGrouper:
             workload: Workload to attach service account to
             resources: Available resources to check
         """
-        # Find the seed resource for this workload
-        seed_resource = None
+        # Find the controller resource for this workload
+        controller_resource = None
         for resource in resources:
-            if (resource['kind'] == workload['seed']['kind'] and
-                resource['name'] == workload['seed']['name'] and
+            if (resource['kind'] == workload['controller']['kind'] and
+                resource['name'] == workload['controller']['name'] and
                 resource['namespace'] == workload['namespace']):
-                seed_resource = resource
+                controller_resource = resource
                 break
         
-        if seed_resource:
+        if controller_resource:
             # Get service account name from pod template
-            service_account_name = seed_resource.get('pod_template', {}).get('serviceAccountName')
+            service_account_name = controller_resource.get('pod_template', {}).get('serviceAccountName')
             
             if service_account_name:
                 for resource in resources:
@@ -1298,25 +1721,25 @@ class K8sAnalyzer:
             resources: List of parsed K8s resources
         """
         for workload_id, workload in self.workloads.items():
-            # Find the seed resource for this workload
-            seed_resource = None
+            # Find the controller resource for this workload
+            controller_resource = None
             for resource in resources:
-                if (resource['kind'] == workload['seed']['kind'] and 
-                    resource['name'] == workload['seed']['name'] and 
+                if (resource['kind'] == workload['controller']['kind'] and 
+                    resource['name'] == workload['controller']['name'] and 
                     resource['namespace'] == workload['namespace']):
-                    seed_resource = resource
+                    controller_resource = resource
                     break
             
-            if seed_resource:
+            if controller_resource:
                 # Expand owner references
-                children = self.owner_resolver.expand_workload_children(seed_resource)
+                children = self.owner_resolver.expand_workload_children(controller_resource)
                 workload['pods'] = children['pods']
                 workload['replicaSets'] = children['replicaSets']
                 workload['jobs'] = children['jobs']
                 
                 # Ensure ServiceAccount information is available for RBAC resolution
-                if not workload.get('serviceAccount') and seed_resource.get('pod_template', {}).get('serviceAccountName'):
-                    service_account_name = seed_resource['pod_template']['serviceAccountName']
+                if not workload.get('serviceAccount') and controller_resource.get('pod_template', {}).get('serviceAccountName'):
+                    service_account_name = controller_resource['pod_template']['serviceAccountName']
                     for resource in resources:
                         if (resource['kind'] == 'ServiceAccount' and 
                             resource['name'] == service_account_name and
@@ -1409,10 +1832,19 @@ class K8sAnalyzer:
         lines = [
             f"Workload: {workload_id}",
             f"Namespace: {workload['namespace']}",
-            f"Seed: {workload['seed']['kind']} {workload['seed']['name']}",
+            f"Controller: {workload['controller']['kind']} {workload['controller']['name']}",
+            f"Type: {workload.get('workload_type', 'unknown')}",
             f"Selectors: {workload['selectors']}",
             ""
         ]
+        
+        if workload.get('parent_workload'):
+            lines.append(f"Parent: {workload['parent_workload']}")
+            lines.append("")
+        
+        if workload.get('sub_workloads'):
+            lines.append(f"Sub-workloads: {', '.join(workload['sub_workloads'])}")
+            lines.append("")
         
         if workload['services']:
             lines.append("Services:")
