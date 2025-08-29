@@ -12,6 +12,7 @@ from typing import List, Dict, Any, Optional, Set, Tuple
 import yaml
 import json
 import hashlib
+import datetime
 from collections import defaultdict
 
 from maposcal.embeddings import local_embedder, faiss_index, meta_store
@@ -1656,6 +1657,10 @@ class K8sAnalyzer:
         
         # Ensure output directory exists
         self.output_dir.mkdir(exist_ok=True)
+        
+        # Control mapping components
+        self.profile_control_extractor = None
+        self.llm_handler = None
     
     def analyze(self) -> Dict[str, Any]:
         """
@@ -1817,6 +1822,348 @@ class K8sAnalyzer:
             
             # Store vectors for metadata
             self.vectors = embeddings.tolist()
+    
+    def map_controls_to_workloads(self, profile_path: str) -> Dict[str, Any]:
+        """
+        Map NIST 800-53 controls to K8s workloads using the specified OSCAL profile.
+        
+        Args:
+            profile_path: Path to the OSCAL profile JSON file
+            
+        Returns:
+            Dictionary containing OSCAL component definition with workload mappings
+        """
+        logger.info("Starting control mapping for K8s workloads")
+        
+        try:
+            # Initialize control mapping components
+            self._initialize_control_mapping(profile_path)
+            
+            # Filter to only controller workloads (exclude sub-workloads)
+            controller_workloads = self._get_controller_workloads()
+            logger.info(f"Mapping controls for {len(controller_workloads)} controller workloads")
+            
+            # Generate OSCAL component definition
+            component_definition = self._generate_oscal_component_definition(controller_workloads)
+            
+            # Save the OSCAL output
+            self._save_oscal_output(component_definition)
+            
+            logger.info("Control mapping completed successfully")
+            return component_definition
+            
+        except Exception as e:
+            logger.error(f"Error during control mapping: {e}")
+            raise
+    
+    def _initialize_control_mapping(self, profile_path: str):
+        """Initialize control mapping components."""
+        from maposcal.generator.profile_control_extractor import ProfileControlExtractor
+        from maposcal.llm.llm_handler import LLMHandler
+        
+        # Get catalog path from configuration
+        # We need to pass this from the CLI, but for now use a default
+        catalog_path = "examples/NIST_SP-800-53_rev5_catalog.json"
+        
+        # Load profile and extract controls
+        self.profile_control_extractor = ProfileControlExtractor(catalog_path, profile_path)
+        controls = self._extract_all_controls()
+        
+        # Initialize LLM handler with K8s-specific configuration
+        if self.llm_config:
+            self.llm_handler = LLMHandler(
+                provider=self.llm_config["provider"],
+                model=self.llm_config["model"]
+            )
+            if "temperature" in self.llm_config:
+                self.llm_handler.default_temperature = self.llm_config["temperature"]
+        else:
+            self.llm_handler = LLMHandler(command="k8s_process")
+        
+        logger.info(f"Initialized control mapping with {len(controls)} controls")
+    
+    def _extract_all_controls(self) -> List[Dict[str, Any]]:
+        """Extract all controls from the profile."""
+        controls = []
+        
+        # Get all control IDs from the profile
+        profile_imports = self.profile_control_extractor.profile.get("profile", {}).get("imports", [])
+        
+        for profile_import in profile_imports:
+            # Extract control IDs from include-controls
+            include_controls = profile_import.get("include-controls", [])
+            for include_control in include_controls:
+                with_ids = include_control.get("with-ids", [])
+                for control_id in with_ids:
+                    # Get control details from the catalog
+                    control_details = self.profile_control_extractor.extract_control_parameters(control_id)
+                    if control_details:
+                        controls.append(control_details)
+        
+        return controls
+    
+    def _get_controller_workloads(self) -> Dict[str, Dict[str, Any]]:
+        """Filter workloads to only controller types (exclude sub-workloads)."""
+        controller_workloads = {}
+        
+        for workload_id, workload in self.workloads.items():
+            # Only include workloads with workload_type == 'controller'
+            if workload.get('workload_type') == 'controller':
+                controller_workloads[workload_id] = workload
+        
+        return controller_workloads
+    
+    def _generate_oscal_component_definition(self, controller_workloads: Dict[str, Dict[str, Any]]) -> Dict[str, Any]:
+        """Generate OSCAL component definition with one component per controller workload."""
+        components = []
+        
+        for workload_id, workload in controller_workloads.items():
+            try:
+                component = self._create_workload_component(workload_id, workload)
+                components.append(component)
+                logger.info(f"Created component for workload: {workload_id}")
+                
+            except Exception as e:
+                logger.error(f"Failed to create component for workload {workload_id}: {e}")
+                # Continue with other workloads instead of failing completely
+                continue
+        
+        # Create the component definition structure
+        component_definition = {
+            "component-definition": {
+                "metadata": self._generate_oscal_metadata(),
+                "components": components
+            }
+        }
+        
+        return component_definition
+    
+    def _create_workload_component(self, workload_id: str, workload: Dict[str, Any]) -> Dict[str, Any]:
+        """Create an OSCAL component for a single workload."""
+        # Map controls to this workload
+        implemented_requirements = self._map_controls_to_workload(workload_id, workload)
+        
+        # Create the component structure
+        component = {
+            "id": workload_id,
+            "type": "application",
+            "title": f"K8s Workload: {workload['controller']['name']}",
+            "description": f"Kubernetes {workload['controller']['kind']} workload in namespace {workload['namespace']}",
+            "implemented-requirements": implemented_requirements,
+            "props": [
+                {
+                    "name": "workload-type",
+                    "value": workload['controller']['kind'],
+                    "ns": "urn:maposcal:k8s-workload-type"
+                },
+                {
+                    "name": "namespace",
+                    "value": workload['namespace'],
+                    "ns": "urn:maposcal:k8s-namespace"
+                }
+            ]
+        }
+        
+        return component
+    
+    def _map_controls_to_workload(self, workload_id: str, workload: Dict[str, Any]) -> List[Dict[str, Any]]:
+        """Map all controls to a single workload using the K8s-specific prompts."""
+        from maposcal.llm.prompt_templates import k8s_system_prompt, k8s_evaluate_prompt
+        
+        implemented_requirements = []
+        
+        # Get all controls from the profile
+        controls = self._extract_all_controls()
+        
+        for control in controls:
+            try:
+                # Build the K8s-specific prompt
+                prompt = self._build_k8s_control_prompt(workload, control)
+                
+                # Send to LLM with retry logic
+                response = self._send_to_llm_with_retry(prompt, max_retries=3)
+                
+                # Parse the response into implemented requirements
+                control_mapping = self._parse_control_response(response, control)
+                if control_mapping:
+                    implemented_requirements.append(control_mapping)
+                
+            except Exception as e:
+                logger.error(f"Failed to map control {control.get('id', 'unknown')} to workload {workload_id}: {e}")
+                # Continue with other controls instead of failing completely
+                continue
+        
+        return implemented_requirements
+    
+    def _build_k8s_control_prompt(self, workload: Dict[str, Any], control: Dict[str, Any]) -> str:
+        """Build the K8s-specific control mapping prompt."""
+        from maposcal.llm.prompt_templates import k8s_system_prompt, k8s_evaluate_prompt
+        
+        # Format the workload as JSON
+        workload_json = json.dumps(workload, indent=2)
+        
+        # Format the control information - the prompt template expects this exact format
+        control_dict = f"Control ID: {control.get('id', 'N/A')}\nControl Name: {control.get('title', 'N/A')}\nControl Description: {control.get('description', 'N/A')}"
+        
+        # Build the complete prompt
+        prompt = f"{k8s_system_prompt}\n\n{k8s_evaluate_prompt.format(workload_json=workload_json, control_dict=control_dict)}"
+        
+        # Debug: log prompt length and first/last few characters
+        logger.info(f"Prompt length: {len(prompt)} characters")
+        logger.info(f"Prompt starts with: {prompt[:200]}...")
+        logger.info(f"Prompt ends with: ...{prompt[-200:]}")
+        
+        # Debug: count tokens if LLM handler supports it
+        try:
+            token_count = self.llm_handler.count_tokens(prompt)
+            logger.info(f"Prompt token count: {token_count}")
+        except Exception as e:
+            logger.info(f"Could not count tokens: {e}")
+        
+        return prompt
+    
+    def _send_to_llm_with_retry(self, prompt: str, max_retries: int = 3) -> str:
+        """Send prompt to LLM with retry logic."""
+        last_error = None
+        
+        for attempt in range(max_retries):
+            try:
+                # Let the model use its default token limits
+                logger.info(f"Attempt {attempt + 1}: Sending prompt with default token limits")
+                response = self.llm_handler.query(prompt)
+                logger.info(f"Response length: {len(response)} characters")
+                logger.info(f"Response preview: {response[:500]}...")
+                return response
+                
+            except Exception as e:
+                last_error = e
+                logger.warning(f"LLM request failed (attempt {attempt + 1}/{max_retries}): {e}")
+                
+                if attempt < max_retries - 1:
+                    # Wait before retrying (exponential backoff)
+                    import time
+                    time.sleep(2 ** attempt)
+        
+        # All retries failed
+        raise Exception(f"LLM request failed after {max_retries} attempts. Last error: {last_error}")
+    
+    def _parse_control_response(self, response: str, control: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+        """Parse the LLM response into an OSCAL implemented requirement."""
+        try:
+            # Debug: log the raw response for troubleshooting
+            logger.info(f"Raw LLM response for control {control.get('id')}: {repr(response)}")
+            
+            # Extract JSON from the response - the prompt template expects a list of dicts
+            import re
+            
+            # First try to find a list of objects: [{...}, {...}]
+            list_match = re.search(r'\[.*\]', response, re.DOTALL)
+            if list_match:
+                try:
+                    control_list = json.loads(list_match.group())
+                    if isinstance(control_list, list) and len(control_list) > 0:
+                        # Take the first control mapping
+                        control_data = control_list[0]
+                    else:
+                        logger.warning(f"Empty or invalid control list in LLM response for control {control.get('id')}")
+                        return None
+                except json.JSONDecodeError:
+                    logger.warning(f"Failed to parse control list JSON for control {control.get('id')}")
+                    return None
+            else:
+                # Fallback: try to find a single object {...}
+                json_match = re.search(r'\{.*\}', response, re.DOTALL)
+                if not json_match:
+                    logger.warning(f"No JSON found in LLM response for control {control.get('id')}")
+                    logger.debug(f"Response content: {response}")
+                    return None
+                
+                try:
+                    control_data = json.loads(json_match.group())
+                except json.JSONDecodeError:
+                    logger.warning(f"Failed to parse control JSON for control {control.get('id')}")
+                    logger.debug(f"Extracted JSON text: {json_match.group()}")
+                    return None
+            
+            # Validate that we have the required fields
+            if not isinstance(control_data, dict):
+                logger.warning(f"Control data is not a dictionary for control {control.get('id')}")
+                return None
+            
+            required_fields = ['control-status', 'control-explanation', 'statement-description']
+            if not all(field in control_data for field in required_fields):
+                logger.warning(f"Missing required fields in control response for control {control.get('id')}")
+                logger.debug(f"Available fields: {list(control_data.keys())}")
+                return None
+            
+            # Create the implemented requirement structure
+            implemented_requirement = {
+                "uuid": self._generate_uuid(),
+                "control-id": control.get('id'),
+                "props": [
+                    {
+                        "name": "control-status",
+                        "value": control_data.get('control-status', 'not applicable'),
+                        "ns": "urn:maposcal:control-status-reference"
+                    },
+                    {
+                        "name": "control-explanation",
+                        "value": control_data.get('control-explanation', ''),
+                        "ns": "urn:maposcal:explanation-reference"
+                    }
+                ],
+                "statements": [
+                    {
+                        "statement-id": f"{control.get('id')}_smt.a",
+                        "uuid": self._generate_uuid(),
+                        "description": control_data.get('statement-description', '')
+                    }
+                ]
+            }
+            
+            return implemented_requirement
+            
+        except Exception as e:
+            logger.error(f"Failed to parse control response: {e}")
+            logger.debug(f"Response that caused error: {repr(response)}")
+            return None
+    
+    def _generate_oscal_metadata(self) -> Dict[str, Any]:
+        """Generate OSCAL metadata for the component definition."""
+        from maposcal.utils.metadata import generate_metadata
+        
+        if self.llm_config:
+            from maposcal import settings
+            provider_config = settings.LLM_PROVIDERS[self.llm_config["provider"]]
+            metadata = generate_metadata(
+                model=self.llm_config["model"],
+                provider=self.llm_config["provider"],
+                base_url=provider_config["base_url"],
+                command="k8s_process",
+            )
+        else:
+            metadata = {
+                "title": "K8s Workload Control Mapping",
+                "last-modified": datetime.datetime.now().isoformat(),
+                "version": "1.0.0",
+                "oscal-version": "1.0.4"
+            }
+        
+        return metadata
+    
+    def _save_oscal_output(self, component_definition: Dict[str, Any]):
+        """Save the OSCAL component definition to the output directory."""
+        oscal_path = self.output_dir / "k8s_oscal_component_definition.json"
+        
+        with open(oscal_path, 'w') as f:
+            json.dump(component_definition, f, indent=2)
+        
+        logger.info(f"OSCAL component definition saved to {oscal_path}")
+    
+    def _generate_uuid(self) -> str:
+        """Generate a UUID for OSCAL elements."""
+        import uuid
+        return str(uuid.uuid4())
     
     def _workload_to_text(self, workload_id: str, workload: Dict[str, Any]) -> str:
         """

@@ -60,6 +60,7 @@ class ProfileControlExtractor:
         output = {
             "id": control_id,
             "title": control.get("title"),
+            "description": control.get("description", ""),
             "statement": self._extract_statement_prose(control),
             "params": [],
         }

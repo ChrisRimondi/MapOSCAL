@@ -869,6 +869,22 @@ def k8s_process(config: str = typer.Argument(None, help="Path to the configurati
         
         typer.echo(f"\n📁 Analysis results saved to: {output_dir}")
         
+        # Phase 2: Control Mapping
+        profile_path = config_data.get("profile_path")
+        if profile_path:
+            typer.echo("\n🔄 Starting control mapping phase...")
+            try:
+                oscal_results = k8s_analyzer.map_controls_to_workloads(profile_path)
+                typer.echo("✅ Control mapping completed successfully!")
+                typer.echo(f"🏗️  Generated OSCAL component definition with {len(oscal_results['component-definition']['components'])} components")
+                typer.echo(f"📁 OSCAL output saved to: {output_dir}/k8s_oscal_component_definition.json")
+            except Exception as e:
+                typer.echo(f"❌ Control mapping failed: {e}")
+                raise typer.Exit(1)
+        else:
+            typer.echo("\n⚠️  No profile_path configured - skipping control mapping phase")
+            typer.echo("   Add profile_path to your configuration to enable control mapping")
+        
     except Exception as e:
         typer.echo(f"❌ K8s analysis failed: {e}")
         raise typer.Exit(code=1)
