@@ -953,8 +953,8 @@ class WorkloadGrouper:
             # Attach related resources
             self._attach_services(workload, other_resources)
             self._attach_ingress(workload, other_resources)
-            self._attach_config_and_secrets(workload, other_resources)
-            self._attach_service_account(workload, other_resources)
+            self._attach_config_and_secrets(workload, resources)  # Use full resources list
+            self._attach_service_account(workload, resources)     # Use full resources list
             
             self.workloads[workload_id] = workload
     
@@ -1048,15 +1048,19 @@ class WorkloadGrouper:
             workload: Workload to attach configs to
             resources: Available resources to check
         """
-        pod_template = None
+        # Find the seed resource for this workload
+        seed_resource = None
         for resource in resources:
-            if (resource['kind'] in {'Deployment', 'StatefulSet', 'DaemonSet', 'Job', 'CronJob', 'Pod'} and
-                resource['name'] == workload['seed']['name']):
-                pod_template = resource.get('pod_template', {})
+            if (resource['kind'] == workload['seed']['kind'] and
+                resource['name'] == workload['seed']['name'] and
+                resource['namespace'] == workload['namespace']):
+                seed_resource = resource
                 break
         
-        if not pod_template:
+        if not seed_resource:
             return
+        
+        pod_template = seed_resource.get('pod_template', {})
         
         # Extract referenced ConfigMaps and Secrets
         referenced_configs = set()
@@ -1087,13 +1091,17 @@ class WorkloadGrouper:
         
         # Attach referenced resources
         for resource in resources:
-            if resource['kind'] == 'ConfigMap' and resource['name'] in referenced_configs:
+            if (resource['kind'] == 'ConfigMap' and 
+                resource['name'] in referenced_configs and
+                resource['namespace'] == workload['namespace']):
                 workload['configMaps'].append({
                     'name': resource['name'],
                     'data_keys': list(resource.get('raw_resource', {}).get('data', {}).keys())
                 })
             
-            elif resource['kind'] == 'Secret' and resource['name'] in referenced_secrets:
+            elif (resource['kind'] == 'Secret' and 
+                  resource['name'] in referenced_secrets and
+                  resource['namespace'] == workload['namespace']):
                 workload['secrets'].append({
                     'name': resource['name'],
                     'type': resource.get('raw_resource', {}).get('type', 'Opaque')
@@ -1107,22 +1115,29 @@ class WorkloadGrouper:
             workload: Workload to attach service account to
             resources: Available resources to check
         """
-        service_account_name = None
+        # Find the seed resource for this workload
+        seed_resource = None
         for resource in resources:
-            if (resource['kind'] in {'Deployment', 'StatefulSet', 'DaemonSet', 'Job', 'CronJob', 'Pod'} and
-                resource['name'] == workload['seed']['name']):
-                service_account_name = resource.get('service_account')
+            if (resource['kind'] == workload['seed']['kind'] and
+                resource['name'] == workload['seed']['name'] and
+                resource['namespace'] == workload['namespace']):
+                seed_resource = resource
                 break
         
-        if service_account_name:
-            for resource in resources:
-                if (resource['kind'] == 'ServiceAccount' and 
-                    resource['name'] == service_account_name):
-                    workload['serviceAccount'] = {
-                        'name': resource['name'],
-                        'automountServiceAccountToken': resource.get('raw_resource', {}).get('automountServiceAccountToken', True)
-                    }
-                    break
+        if seed_resource:
+            # Get service account name from pod template
+            service_account_name = seed_resource.get('pod_template', {}).get('serviceAccountName')
+            
+            if service_account_name:
+                for resource in resources:
+                    if (resource['kind'] == 'ServiceAccount' and 
+                        resource['name'] == service_account_name and
+                        resource['namespace'] == workload['namespace']):
+                        workload['serviceAccount'] = {
+                            'name': resource['name'],
+                            'automountServiceAccountToken': resource.get('raw_resource', {}).get('automountServiceAccountToken', True)
+                        }
+                        break
     
     def _selectors_match(self, service_selectors: Dict[str, str], workload_selectors: Dict[str, str]) -> bool:
         """
@@ -1298,6 +1313,19 @@ class K8sAnalyzer:
                 workload['pods'] = children['pods']
                 workload['replicaSets'] = children['replicaSets']
                 workload['jobs'] = children['jobs']
+                
+                # Ensure ServiceAccount information is available for RBAC resolution
+                if not workload.get('serviceAccount') and seed_resource.get('pod_template', {}).get('serviceAccountName'):
+                    service_account_name = seed_resource['pod_template']['serviceAccountName']
+                    for resource in resources:
+                        if (resource['kind'] == 'ServiceAccount' and 
+                            resource['name'] == service_account_name and
+                            resource['namespace'] == workload['namespace']):
+                            workload['serviceAccount'] = {
+                                'name': resource['name'],
+                                'automountServiceAccountToken': resource.get('raw_resource', {}).get('automountServiceAccountToken', True)
+                            }
+                            break
                 
                 # Resolve storage
                 workload['storage'] = self.storage_resolver.resolve_workload_storage(workload, resources)
