@@ -493,7 +493,15 @@ Workload JSON:
 
 Task:
 Using the rubric, evaluate this workload against the NIST 800-53 controls below.
+
 {control_dict}
+
+Please analyze the workload configuration and determine how well it satisfies the control requirements based on the Kubernetes resources present (ServiceAccounts, Roles, RoleBindings, Secrets, ConfigMaps, etc.).
+
+Return your response as a list of JSON dicts with exactly these three fields:
+1. **control-status**: Choose from "applicable and inherently satisfied", "applicable but partially satisfied", "applicable and not satisfied", or "not applicable"
+2. **control-explanation**: Detailed explanation of implementation status
+3. **statement-description**: How the control statement is implemented
 
 """
 

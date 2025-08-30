@@ -455,20 +455,29 @@ class RBACResolver:
         Args:
             resources: List of parsed K8s resources
         """
+        logger.info("Building RBAC indices...")
+        
         for resource in resources:
             if resource['kind'] == 'ServiceAccount':
                 key = (resource['namespace'], resource['name'])
                 self.sa_by_name[key] = resource
+                logger.debug(f"Indexed ServiceAccount: {key}")
             elif resource['kind'] == 'Role':
                 key = (resource['namespace'], resource['name'])
                 self.role_by_name[key] = resource
+                logger.debug(f"Indexed Role: {key}")
             elif resource['kind'] == 'ClusterRole':
                 self.cluster_role_by_name[resource['name']] = resource
+                logger.debug(f"Indexed ClusterRole: {resource['name']}")
             elif resource['kind'] == 'RoleBinding':
                 key = (resource['namespace'], resource['name'])
                 self.role_binding_by_name[key] = resource
+                logger.debug(f"Indexed RoleBinding: {key}")
             elif resource['kind'] == 'ClusterRoleBinding':
                 self.cluster_role_binding_by_name[resource['name']] = resource
+                logger.debug(f"Indexed ClusterRoleBinding: {resource['name']}")
+        
+        logger.info(f"RBAC indices built: {len(self.sa_by_name)} ServiceAccounts, {len(self.role_by_name)} Roles, {len(self.cluster_role_by_name)} ClusterRoles, {len(self.role_binding_by_name)} RoleBindings, {len(self.cluster_role_binding_by_name)} ClusterRoleBindings")
     
     def resolve_workload_rbac(self, workload: Dict[str, Any], resources: List[Dict[str, Any]]) -> Dict[str, Any]:
         """
@@ -493,29 +502,43 @@ class RBACResolver:
         # Gather ServiceAccounts used by the workload
         service_accounts = set()
         
-        # Check controller pod template
-        if workload.get('pods', {}).get('template_labels'):
-            sa_name = workload.get('pods', {}).get('template_labels', {}).get('serviceAccountName', 'default')
+        # First check if the workload already has a serviceAccount field populated
+        if workload.get('serviceAccount'):
+            sa_name = workload['serviceAccount']['name']
             if sa_name != 'default':
                 service_accounts.add((workload['namespace'], sa_name))
             else:
                 service_accounts.add((workload['namespace'], 'default'))
-        
-        # Check materialized pods
-        if workload.get('pods', {}).get('materialized', False):
-            for pod_name in workload['pods']['items']:
-                pod_resource = self._find_pod_resource(pod_name, workload['namespace'], resources)
-                if pod_resource:
-                    sa_name = pod_resource.get('raw_resource', {}).get('spec', {}).get('serviceAccountName', 'default')
-                    if sa_name != 'default':
-                        service_accounts.add((workload['namespace'], sa_name))
-                    else:
-                        service_accounts.add((workload['namespace'], 'default'))
+        else:
+            # Fallback: Check controller pod template
+            if workload.get('pods', {}).get('template_labels'):
+                # This is a fallback - the workload should already have serviceAccount populated
+                logger.warning(f"Workload {workload['id']} missing serviceAccount field, using fallback detection")
+                sa_name = workload.get('pods', {}).get('template_labels', {}).get('serviceAccountName', 'default')
+                if sa_name != 'default':
+                    service_accounts.add((workload['namespace'], sa_name))
+                else:
+                    service_accounts.add((workload['namespace'], 'default'))
+            
+            # Check materialized pods as additional fallback
+            if workload.get('pods', {}).get('materialized', False):
+                for pod_name in workload['pods']['items']:
+                    pod_resource = self._find_pod_resource(pod_name, workload['namespace'], resources)
+                    if pod_resource:
+                        sa_name = pod_resource.get('raw_resource', {}).get('spec', {}).get('serviceAccountName', 'default')
+                        if sa_name != 'default':
+                            service_accounts.add((workload['namespace'], sa_name))
+                        else:
+                            service_accounts.add((workload['namespace'], 'default'))
         
         # Resolve RBAC for each ServiceAccount
+        logger.debug(f"Resolving RBAC for workload {workload['id']} with service accounts: {service_accounts}")
+        
         for sa_key in service_accounts:
             if sa_key in self.sa_by_name:
                 sa = self.sa_by_name[sa_key]
+                logger.debug(f"Found ServiceAccount {sa['name']} for workload {workload['id']}")
+                
                 rbac['serviceAccounts'].append({
                     'name': sa['name'],
                     'automountServiceAccountToken': sa.get('raw_resource', {}).get('automountServiceAccountToken', True)
@@ -526,6 +549,10 @@ class RBACResolver:
                 
                 # Find ClusterRoleBindings that grant to this SA
                 self._resolve_cluster_role_bindings(sa_key, rbac)
+            else:
+                logger.warning(f"ServiceAccount {sa_key} not found in RBAC indices for workload {workload['id']}")
+        
+        logger.debug(f"RBAC resolution complete for workload {workload['id']}: {len(rbac['serviceAccounts'])} SAs, {len(rbac['roles'])} roles, {len(rbac['clusterRoles'])} cluster roles")
         
         # Compute effective rules summary
         rbac['effectiveRules'] = self._compute_effective_rules(rbac)
@@ -535,10 +562,12 @@ class RBACResolver:
     def _resolve_role_bindings(self, sa_key: Tuple[str, str], rbac: Dict[str, Any]):
         """Resolve RoleBindings for a ServiceAccount."""
         namespace, sa_name = sa_key
+        logger.debug(f"Resolving RoleBindings for ServiceAccount {sa_name} in namespace {namespace}")
         
         for rb_key, rb in self.role_binding_by_name.items():
             if rb_key[0] == namespace:  # Same namespace
                 if self._binding_includes_sa(rb, sa_name, namespace):
+                    logger.debug(f"Found RoleBinding {rb['name']} for ServiceAccount {sa_name}")
                     rbac['roleBindings'].append({
                         'name': rb['name'],
                         'roleRef': rb.get('raw_resource', {}).get('roleRef', {})
@@ -550,17 +579,26 @@ class RBACResolver:
                         role_key = (namespace, role_ref['name'])
                         if role_key in self.role_by_name:
                             role = self.role_by_name[role_key]
+                            logger.debug(f"Attached Role {role['name']} with {len(role.get('raw_resource', {}).get('rules', []))} rules")
                             rbac['roles'].append({
                                 'name': role['name'],
                                 'rules': role.get('raw_resource', {}).get('rules', [])
                             })
+                        else:
+                            logger.warning(f"Role {role_ref['name']} referenced by RoleBinding {rb['name']} not found in indices")
+                else:
+                    logger.debug(f"RoleBinding {rb['name']} does not include ServiceAccount {sa_name}")
+            else:
+                logger.debug(f"RoleBinding {rb['name']} is in different namespace {rb_key[0]}, skipping")
     
     def _resolve_cluster_role_bindings(self, sa_key: Tuple[str, str], rbac: Dict[str, Any]):
         """Resolve ClusterRoleBindings for a ServiceAccount."""
         namespace, sa_name = sa_key
+        logger.debug(f"Resolving ClusterRoleBindings for ServiceAccount {sa_name} in namespace {namespace}")
         
         for crb_name, crb in self.cluster_role_binding_by_name.items():
             if self._binding_includes_sa(crb, sa_name, namespace):
+                logger.debug(f"Found ClusterRoleBinding {crb_name} for ServiceAccount {sa_name}")
                 rbac['clusterRoleBindings'].append({
                     'name': crb_name,
                     'roleRef': crb.get('raw_resource', {}).get('roleRef', {})
@@ -571,19 +609,32 @@ class RBACResolver:
                 if role_ref.get('kind') == 'ClusterRole':
                     if role_ref['name'] in self.cluster_role_by_name:
                         cr = self.cluster_role_by_name[role_ref['name']]
+                        logger.debug(f"Attached ClusterRole {cr['name']} with {len(cr.get('raw_resource', {}).get('rules', []))} rules")
                         rbac['clusterRoles'].append({
                             'name': cr['name'],
                             'rules': cr.get('raw_resource', {}).get('rules', [])
                         })
+                    else:
+                        logger.warning(f"ClusterRole {role_ref['name']} referenced by ClusterRoleBinding {crb_name} not found in indices")
+                else:
+                    logger.debug(f"ClusterRoleBinding {crb_name} references non-ClusterRole: {role_ref.get('kind')}")
+            else:
+                logger.debug(f"ClusterRoleBinding {crb_name} does not include ServiceAccount {sa_name}")
     
     def _binding_includes_sa(self, binding: Dict[str, Any], sa_name: str, sa_namespace: str) -> bool:
         """Check if a binding includes the specified ServiceAccount."""
         subjects = binding.get('raw_resource', {}).get('subjects', [])
+        logger.debug(f"Checking binding {binding.get('name', 'unknown')} subjects: {subjects}")
+        
         for subject in subjects:
+            logger.debug(f"Subject: kind={subject.get('kind')}, name={subject.get('name')}, namespace={subject.get('namespace')}")
             if (subject.get('kind') == 'ServiceAccount' and 
                 subject.get('name') == sa_name and 
                 subject.get('namespace') == sa_namespace):
+                logger.debug(f"Found matching ServiceAccount in binding {binding.get('name', 'unknown')}")
                 return True
+        
+        logger.debug(f"ServiceAccount {sa_name} not found in binding {binding.get('name', 'unknown')}")
         return False
     
     def _find_pod_resource(self, pod_name: str, namespace: str, resources: List[Dict[str, Any]]) -> Optional[Dict[str, Any]]:
@@ -1539,6 +1590,8 @@ class WorkloadGrouper:
             workload: Workload to attach service account to
             resources: Available resources to check
         """
+        logger.debug(f"Attaching ServiceAccount to workload {workload['id']}")
+        
         # Find the controller resource for this workload
         controller_resource = None
         for resource in resources:
@@ -1549,10 +1602,14 @@ class WorkloadGrouper:
                 break
         
         if controller_resource:
+            logger.debug(f"Found controller resource for {workload['id']}: {controller_resource['kind']} {controller_resource['name']}")
+            
             # Get service account name from pod template
             service_account_name = controller_resource.get('pod_template', {}).get('serviceAccountName')
+            logger.debug(f"ServiceAccount name from pod template: {service_account_name}")
             
             if service_account_name:
+                logger.debug(f"Looking for ServiceAccount {service_account_name} in namespace {workload['namespace']}")
                 for resource in resources:
                     if (resource['kind'] == 'ServiceAccount' and 
                         resource['name'] == service_account_name and
@@ -1561,7 +1618,14 @@ class WorkloadGrouper:
                             'name': resource['name'],
                             'automountServiceAccountToken': resource.get('raw_resource', {}).get('automountServiceAccountToken', True)
                         }
+                        logger.debug(f"Successfully attached ServiceAccount {service_account_name} to workload {workload['id']}")
                         break
+                else:
+                    logger.warning(f"ServiceAccount {service_account_name} not found in resources for workload {workload['id']}")
+            else:
+                logger.debug(f"No ServiceAccount specified in pod template for workload {workload['id']}")
+        else:
+            logger.warning(f"Could not find controller resource for workload {workload['id']}")
     
     def _selectors_match(self, service_selectors: Dict[str, str], workload_selectors: Dict[str, str]) -> bool:
         """
@@ -1725,7 +1789,11 @@ class K8sAnalyzer:
         Args:
             resources: List of parsed K8s resources
         """
+        logger.info("Enhancing workloads with expanded resources...")
+        
         for workload_id, workload in self.workloads.items():
+            logger.debug(f"Enhancing workload: {workload_id}")
+            
             # Find the controller resource for this workload
             controller_resource = None
             for resource in resources:
@@ -1736,6 +1804,8 @@ class K8sAnalyzer:
                     break
             
             if controller_resource:
+                logger.debug(f"Found controller resource for {workload_id}: {controller_resource['kind']} {controller_resource['name']}")
+                
                 # Expand owner references
                 children = self.owner_resolver.expand_workload_children(controller_resource)
                 workload['pods'] = children['pods']
@@ -1745,6 +1815,7 @@ class K8sAnalyzer:
                 # Ensure ServiceAccount information is available for RBAC resolution
                 if not workload.get('serviceAccount') and controller_resource.get('pod_template', {}).get('serviceAccountName'):
                     service_account_name = controller_resource['pod_template']['serviceAccountName']
+                    logger.debug(f"Looking for ServiceAccount {service_account_name} for workload {workload_id}")
                     for resource in resources:
                         if (resource['kind'] == 'ServiceAccount' and 
                             resource['name'] == service_account_name and
@@ -1753,7 +1824,10 @@ class K8sAnalyzer:
                                 'name': resource['name'],
                                 'automountServiceAccountToken': resource.get('raw_resource', {}).get('automountServiceAccountToken', True)
                             }
+                            logger.debug(f"Found and attached ServiceAccount {service_account_name} to workload {workload_id}")
                             break
+                else:
+                    logger.debug(f"Workload {workload_id} already has ServiceAccount: {workload.get('serviceAccount')}")
                 
                 # Resolve storage
                 workload['storage'] = self.storage_resolver.resolve_workload_storage(workload, resources)
@@ -1762,7 +1836,13 @@ class K8sAnalyzer:
                 workload['resilience'] = self.resilience_resolver.resolve_workload_resilience(workload, resources)
                 
                 # Resolve RBAC
+                logger.debug(f"Resolving RBAC for workload {workload_id} with ServiceAccount: {workload.get('serviceAccount')}")
                 workload['rbac'] = self.rbac_resolver.resolve_workload_rbac(workload, resources)
+                logger.debug(f"RBAC resolution complete for {workload_id}: {len(workload['rbac'].get('serviceAccounts', []))} SAs, {len(workload['rbac'].get('roles', []))} roles")
+            else:
+                logger.warning(f"Could not find controller resource for workload {workload_id}")
+        
+        logger.info("Workload enhancement completed")
     
     def _find_resource_files(self) -> List[str]:
         """
@@ -2107,6 +2187,20 @@ class K8sAnalyzer:
                 "uuid": self._generate_uuid(),
                 "control-id": control.get('id'),
                 "props": [
+                    {
+                        "name": "control-name",
+                        "value": control.get('title', 'N/A'),
+                        "ns": "urn:maposcal:control-name-reference"
+                    },
+                    {
+                        "name": "control-description",
+                        "value": (
+                            control.get("statement", [""])[0]
+                            if isinstance(control.get("statement"), list)
+                            else control.get("statement", "")
+                        ),
+                        "ns": "urn:maposcal:control-description-reference"
+                    },
                     {
                         "name": "control-status",
                         "value": control_data.get('control-status', 'not applicable'),

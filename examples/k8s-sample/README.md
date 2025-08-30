@@ -135,6 +135,17 @@ The sample resources cover:
 - Cross-namespace RBAC bindings
 - Shared selectors across workloads
 
+### 10. Additional RBAC (`10-additional-rbac.yaml`)
+**Components**:
+- Cluster-wide read permissions for administrative tasks
+- Security auditor role for compliance monitoring
+- Enhanced RBAC for cross-namespace operations
+
+**Security Features**:
+- Least-privilege access control
+- Cluster-wide monitoring capabilities
+- Compliance and audit support
+
 ## Testing MapOSCAL K8s Analyzer
 
 ### Basic Analysis
@@ -209,6 +220,30 @@ The enhanced analyzer should demonstrate:
 5. **Shared Resource Detection**: Resources used by multiple workloads
 6. **Conflict Detection**: Selector overlaps, orphaned resources
 7. **Cross-Namespace Handling**: Cluster-scoped resources and bindings
+
+## RBAC Improvements for AC-3 and AC-6 Compliance
+
+The Kubernetes sample files have been enhanced with comprehensive RBAC configurations to address NIST 800-53 controls AC-3 (Access Enforcement) and AC-6 (Least Privilege):
+
+### AC-3 (Access Enforcement) - Satisfied Through:
+- **ServiceAccount Identity**: Each workload has a dedicated ServiceAccount
+- **Role-Based Access Control**: Namespace-scoped Roles with specific permissions
+- **Cluster-Wide Permissions**: ClusterRoles for monitoring and administrative tasks
+- **Explicit Permission Binding**: RoleBindings and ClusterRoleBindings for access enforcement
+
+### AC-6 (Least Privilege) - Satisfied Through:
+- **Minimal Required Permissions**: Each Role contains only necessary permissions
+- **Resource-Specific Access**: Permissions limited to specific API groups and resources
+- **Verb Restrictions**: Limited to required actions (get, list, watch, patch, update)
+- **Namespace Isolation**: Most permissions restricted to workload namespace
+
+### Enhanced RBAC Features:
+1. **Workload-Specific Roles**: Customized permissions for each workload type
+2. **Event Logging**: Permission to create and patch events for audit trails
+3. **Status Updates**: Ability to update pod status for health monitoring
+4. **Cross-Resource Access**: Permissions for related resources (PVCs, endpoints)
+5. **Batch Operations**: Support for Job and CronJob management
+6. **Monitoring Capabilities**: Cluster-wide read access for observability
 
 ## Notes
 
