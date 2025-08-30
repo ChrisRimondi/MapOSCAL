@@ -959,7 +959,7 @@ class WorkloadGrouper:
     Groups K8s resources into logical workloads using a controller-based approach.
     
     The new approach works by:
-    1. Treating each controller (Deployment, StatefulSet, DaemonSet, Job, CronJob, Pod) as the root of a workload
+    1. Treating each controller (Deployment, StatefulSet, DaemonSet, Job, CronJob, Pod, ReplicationController) as the root of a workload
     2. Expanding to include all directly owned resources (ReplicaSets, Pods, Jobs)
     3. Refining by Services: if a controller exposes multiple Services, each Service becomes a sub-workload
     4. Further refining by Ingress: if a Service is fronted by multiple Ingresses/hostnames, split per external interface
@@ -1013,12 +1013,12 @@ class WorkloadGrouper:
             namespace: Namespace name
             resources: Resources in the namespace
         """
-        # Find controller seeds (Deployment, StatefulSet, DaemonSet, Job, CronJob, Pod)
+        # Find controller seeds (Deployment, StatefulSet, DaemonSet, Job, CronJob, Pod, ReplicationController)
         controllers = []
         other_resources = []
         
         for resource in resources:
-            if resource['kind'] in {'Deployment', 'StatefulSet', 'DaemonSet', 'Job', 'CronJob', 'Pod'}:
+            if resource['kind'] in {'Deployment', 'StatefulSet', 'DaemonSet', 'Job', 'CronJob', 'Pod', 'ReplicationController'}:
                 controllers.append(resource)
             else:
                 other_resources.append(resource)
@@ -1269,8 +1269,8 @@ class WorkloadGrouper:
                                             workload['pods']['materialized'] = True
                             break
         
-        # Find Pods owned by StatefulSet, DaemonSet, Job
-        elif controller['kind'] in {'StatefulSet', 'DaemonSet', 'Job'}:
+        # Find Pods owned by StatefulSet, DaemonSet, Job, ReplicationController
+        elif controller['kind'] in {'StatefulSet', 'DaemonSet', 'Job', 'ReplicationController'}:
             for resource in resources:
                 if (resource['kind'] == 'Pod' and 
                     resource['namespace'] == namespace):
