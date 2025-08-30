@@ -57,14 +57,11 @@ class ProfileControlExtractor:
         if not control:
             return None
 
-        output = {
-            "id": control_id,
-            "title": control.get("title"),
-            "description": control.get("description", ""),
-            "statement": self._extract_statement_prose(control),
-            "params": [],
-        }
-
+        # Extract statement prose first
+        statement_prose = self._extract_statement_prose(control)
+        
+        # Process parameters and collect resolved values for substitution
+        params_output = []
         for param in control.get("params", []):
             param_id = param["id"]
             tailored = self.profile_params.get(param_id)
@@ -91,7 +88,7 @@ class ProfileControlExtractor:
             if "prose" in param:
                 prose_list.append(param["prose"])
 
-            output["params"].append(
+            params_output.append(
                 {
                     "id": param_id,
                     "label": param.get("label", ""),
@@ -100,7 +97,48 @@ class ProfileControlExtractor:
                 }
             )
 
+        # Perform parameter substitution in statement prose
+        substituted_statements = []
+        for statement in statement_prose:
+            substituted_statement = self._substitute_parameters(statement, params_output)
+            substituted_statements.append(substituted_statement)
+
+        output = {
+            "id": control_id,
+            "title": control.get("title"),
+            "description": control.get("description", ""),
+            "statement": substituted_statements,
+            "params": params_output,
+        }
+
         return output
+
+    def _substitute_parameters(self, statement_text: str, params: list) -> str:
+        """Substitute parameter placeholders in statement text with resolved values."""
+        import re
+        
+        # Pattern to match {{ insert: param, param_id }} placeholders
+        param_pattern = r'\{\{\s*insert:\s*param,\s*([^}]+)\s*\}\}'
+        
+        def replace_param(match):
+            param_id = match.group(1).strip()
+            
+            # Find the parameter in our params list
+            for param in params:
+                if param["id"] == param_id:
+                    # Use resolved values if available, otherwise fall back to prose
+                    if param["resolved-values"]:
+                        return param["resolved-values"][0]  # Use first resolved value
+                    elif param["prose"]:
+                        return param["prose"][0]  # Use first prose value
+                    else:
+                        return f"[{param_id}]"  # Fallback if no values found
+            
+            return f"[{param_id}]"  # Fallback if parameter not found
+        
+        # Replace all parameter placeholders
+        substituted_text = re.sub(param_pattern, replace_param, statement_text)
+        return substituted_text
 
 
 if __name__ == "__main__":

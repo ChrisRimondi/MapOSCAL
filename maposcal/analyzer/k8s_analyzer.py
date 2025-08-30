@@ -2003,7 +2003,13 @@ class K8sAnalyzer:
         workload_json = json.dumps(workload, indent=2)
         
         # Format the control information - the prompt template expects this exact format
-        control_dict = f"Control ID: {control.get('id', 'N/A')}\nControl Name: {control.get('title', 'N/A')}\nControl Description: {control.get('description', 'N/A')}"
+        # Extract control description from statement field (like control_mapper does)
+        control_description = (
+            control.get("statement", [""])[0]
+            if isinstance(control.get("statement"), list)
+            else control.get("statement", "")
+        )
+        control_dict = f"Control ID: {control.get('id', 'N/A')}\nControl Name: {control.get('title', 'N/A')}\nControl Description: {control_description}"
         
         # Build the complete prompt
         prompt = f"{k8s_system_prompt}\n\n{k8s_evaluate_prompt.format(workload_json=workload_json, control_dict=control_dict)}"
