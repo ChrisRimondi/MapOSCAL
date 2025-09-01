@@ -11,7 +11,7 @@ This document describes the successful integration of the [compliance-trestle](h
 1. **Full Python API Integration** - Option 1 implementation as requested
 2. **Dependency Management** - Added `compliance-trestle>=3.9.0` to `pyproject.toml`
 3. **Core Integration Module** - `maposcal/generator/trestle_integration.py`
-4. **CLI Integration** - Updated `generate()` and `run_all()` commands
+4. **CLI Integration** - Updated `generate()`, `run_all()`, and `k8s_process()` commands
 5. **Backward Compatibility** - Legacy format support with fallback
 6. **Comprehensive Testing** - Full test suite with 100% pass rate
 7. **Error Handling** - Graceful fallback if trestle unavailable
@@ -57,7 +57,11 @@ Serializes to proper OSCAL JSON with correct wrapping.
 
 ### Updated Commands
 
-Both `maposcal generate` and `maposcal run-all` now:
+All OSCAL-generating commands now use compliance-trestle integration:
+
+- **`maposcal generate`** - Generate OSCAL components from source code analysis
+- **`maposcal run-all`** - Complete workflow including generate step
+- **`maposcal k8s-process`** - Process Kubernetes manifests for OSCAL generation
 
 1. **Generate with Trestle** - Create OSCAL using compliance-trestle models
 2. **Validate Structure** - Run trestle validation checks
@@ -69,11 +73,18 @@ Both `maposcal generate` and `maposcal run-all` now:
 ### Sample Output
 
 ```bash
+# Generate command
 $ maposcal generate config.yaml
 ✅ OSCAL structure validation passed
 ✅ Generated OSCAL component (compliance-trestle) written to .oscalgen/implemented_requirements.json
 📄 Legacy format written to .oscalgen/implemented_requirements_legacy.json
 Successfully processed 3 out of 3 controls
+
+# K8s-process command
+$ maposcal k8s-process config.yaml
+✅ OSCAL structure validation passed
+✅ Generated OSCAL component (compliance-trestle) written to .oscalgen/k8s_oscal_component_definition.json
+📄 Legacy format written to .oscalgen/k8s_oscal_component_definition_legacy.json
 ```
 
 ## Testing
