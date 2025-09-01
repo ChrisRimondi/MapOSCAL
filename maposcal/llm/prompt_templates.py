@@ -501,8 +501,7 @@ Please analyze the workload configuration and determine how well it satisfies th
 Return your response as a list of JSON dicts with exactly these three fields:
 1. **control-status**: Choose from "applicable and inherently satisfied", "applicable but partially satisfied", "applicable and not satisfied", or "not applicable"
 2. **control-explanation**: Detailed explanation of implementation status
-3. **statement-description**: How the control statement is implemented
-
+3. **statement-description**: How the control statement is implemented. Write the implementation statement as one short paragraph in plain language. Use specific protocols, tools or configs if they are present. Do not be vague. Make sure it is aligned with the control's intent. 
 """
 
 def build_control_prompt(
