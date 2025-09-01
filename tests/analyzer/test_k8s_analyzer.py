@@ -376,6 +376,7 @@ class TestWorkloadGrouper:
         grouper = WorkloadGrouper()
         
         workload = {
+            'id': 'test-deployment',
             'controller': {'kind': 'Deployment', 'name': 'test-deployment'},
             'namespace': 'test-ns',
             'serviceAccount': None
@@ -729,6 +730,7 @@ class TestRBACResolver:
         resolver.build_rbac_indices(resources)
         
         workload = {
+            'id': 'test-workload',
             'namespace': 'test-ns',
             'pods': {
                 'template_labels': {

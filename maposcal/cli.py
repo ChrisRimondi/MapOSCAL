@@ -106,8 +106,12 @@ def main(
     """
     if version:
         typer.echo("MapOSCAL - Generate OSCAL components from code repositories")
-        # You can add actual version info here when available
-        typer.echo("Version: Development")
+        try:
+            import importlib.metadata
+            version_info = importlib.metadata.version("maposcal")
+            typer.echo(f"Version: {version_info}")
+        except ImportError:
+            typer.echo("Version: 0.5.0-alpha")
         raise typer.Exit()
     if ctx.invoked_subcommand is None:
         typer.echo(ctx.get_help())
