@@ -932,6 +932,7 @@ def k8s_process(config: str = typer.Argument(None, help="Path to the configurati
                 typer.echo("✅ Control mapping completed successfully!")
                 typer.echo(f"🏗️  Generated OSCAL component definition with {len(oscal_results['component-definition']['components'])} components")
                 typer.echo(f"📁 OSCAL output saved to: {output_dir}/k8s_oscal_component_definition.json")
+                typer.echo(f"📄 Legacy format saved to: {output_dir}/k8s_oscal_component_definition_legacy.json")
             except Exception as e:
                 typer.echo(f"❌ Control mapping failed: {e}")
                 raise typer.Exit(1)

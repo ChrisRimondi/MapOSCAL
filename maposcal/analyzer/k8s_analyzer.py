@@ -2255,15 +2255,102 @@ class K8sAnalyzer:
         """Save the OSCAL component definition to the output directory."""
         oscal_path = self.output_dir / "k8s_oscal_component_definition.json"
         
-        with open(oscal_path, 'w') as f:
-            json.dump(component_definition, f, indent=2)
+        # Try to use compliance-trestle integration for better OSCAL compliance
+        try:
+            from maposcal.generator.trestle_integration import (
+                create_oscal_component_from_maposcal_output,
+                serialize_oscal_component,
+                validate_oscal_structure
+            )
+            
+            # Convert the K8s component definition to MapOSCAL format
+            # The K8s analyzer creates a different structure, so we need to adapt it
+            maposcal_format = self._convert_k8s_to_maposcal_format(component_definition)
+            
+            # Create compliance-trestle OSCAL component
+            comp_def = create_oscal_component_from_maposcal_output(maposcal_format)
+            
+            # Validate the OSCAL structure
+            if validate_oscal_structure(comp_def):
+                logger.info("✅ OSCAL structure validation passed")
+            else:
+                logger.warning("⚠️  OSCAL structure validation warnings")
+            
+            # Serialize to JSON using compliance-trestle
+            json_output = serialize_oscal_component(comp_def, pretty=True)
+            
+            # Write the compliance-trestle generated OSCAL component
+            with open(oscal_path, 'w') as f:
+                f.write(json_output)
+            
+            # Also write the legacy format for backward compatibility
+            legacy_path = self.output_dir / "k8s_oscal_component_definition_legacy.json"
+            with open(legacy_path, 'w') as f:
+                json.dump(component_definition, f, indent=2)
+            
+            logger.info(f"✅ Generated OSCAL component (compliance-trestle) written to {oscal_path}")
+            logger.info(f"📄 Legacy format written to {legacy_path}")
+            
+        except ImportError:
+            logger.warning("⚠️  Compliance-trestle not available, using legacy generation")
+            # Fallback to legacy generation
+            with open(oscal_path, 'w') as f:
+                json.dump(component_definition, f, indent=2)
+            logger.info(f"OSCAL component definition saved to {oscal_path}")
+            
+        except Exception as e:
+            logger.error(f"❌ Error with compliance-trestle integration: {e}")
+            logger.info("Falling back to legacy generation...")
+            # Fallback to legacy generation
+            with open(oscal_path, 'w') as f:
+                json.dump(component_definition, f, indent=2)
+            logger.info(f"OSCAL component definition saved to {oscal_path}")
+    
+    def _convert_k8s_to_maposcal_format(self, component_definition: Dict[str, Any]) -> Dict[str, Any]:
+        """Convert K8s component definition format to MapOSCAL format for trestle integration."""
+        implemented_requirements = []
         
-        logger.info(f"OSCAL component definition saved to {oscal_path}")
+        # Extract components from the K8s format
+        components = component_definition.get("component-definition", {}).get("components", [])
+        
+        for component in components:
+            # Extract implemented requirements from each component
+            component_impl_reqs = component.get("implemented-requirements", [])
+            
+            # Ensure all UUIDs are valid for compliance-trestle
+            for impl_req in component_impl_reqs:
+                # Fix the main requirement UUID
+                if 'uuid' in impl_req:
+                    impl_req['uuid'] = self._ensure_valid_uuid(impl_req['uuid'])
+                
+                # Fix statement UUIDs
+                if 'statements' in impl_req:
+                    for statement in impl_req['statements']:
+                        if 'uuid' in statement:
+                            statement['uuid'] = self._ensure_valid_uuid(statement['uuid'])
+            
+            implemented_requirements.extend(component_impl_reqs)
+        
+        # Return in MapOSCAL format
+        return {
+            "implemented_requirements": implemented_requirements
+        }
     
     def _generate_uuid(self) -> str:
         """Generate a UUID for OSCAL elements."""
         import uuid
         return str(uuid.uuid4())
+    
+    def _ensure_valid_uuid(self, uuid_str: str) -> str:
+        """Ensure a UUID string is in valid UUID v4 format for compliance-trestle."""
+        import uuid
+        try:
+            # Try to parse and validate the UUID
+            parsed_uuid = uuid.UUID(uuid_str)
+            return str(parsed_uuid)
+        except (ValueError, AttributeError):
+            # If invalid, generate a new UUID v4
+            return str(uuid.uuid4())
     
     def _workload_to_text(self, workload_id: str, workload: Dict[str, Any]) -> str:
         """
