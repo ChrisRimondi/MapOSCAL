@@ -1,7 +1,7 @@
 # MapOSCAL
 
 ## TL;DR
-MapOSCAL automatically analyzes your codebase and generates NIST OSCAL compliance documentation using AI-powered discovery. It scans your repository for security controls, maps them to compliance frameworks like NIST SP 800-53, and produces validated OSCAL component definitions. This CLI tool saves security teams weeks of manual documentation work by automating the tedious parts while maintaining accuracy through multi-layer validation.
+MapOSCAL automatically analyzes your source code or Kubernetes resources and generates NIST OSCAL compliance documentation using AI-powered discovery. It scans your repository for security controls, maps them to compliance frameworks like NIST SP 800-53, and produces validated OSCAL component definitions. This CLI tool saves security teams weeks of manual documentation work by automating the tedious parts while maintaining accuracy through multi-layer validation.
 
 ## Overview
 
