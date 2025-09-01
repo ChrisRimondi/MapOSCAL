@@ -10,9 +10,9 @@ categories: updates
 
 # **Kubernetes Analysis in MapOSCAL v0.5.0**
 
-We’ve just released [MapOSCAL v0.5.0](https://github.com/ChrisRimondi/MapOSCAL/releases/tag/v0.5.0), and this release takes a big step forward: **Kubernetes analysis**. While earlier versions of MapOSCAL focused on individual services or files, this update lets us reason about workloads at the cluster level and represent them as OSCAL components.
+We’ve just released [MapOSCAL v0.5.0](https://github.com/ChrisRimondi/MapOSCAL/releases/tag/v0.5.0), and this release takes a big step forward: **Kubernetes analysis**. While earlier versions of MapOSCAL focused on application source code, this update lets us reason about workloads at the cluster level and represent them as OSCAL components.
 
-## Why Kubernetes Analysis Matters
+### Why Kubernetes Analysis Matters
 
 Modern applications are rarely just one binary or container. They run as **collections of pods, deployments, and services**, stitched together into an ecosystem. From a compliance perspective, this creates a challenge:
 
@@ -22,7 +22,7 @@ Modern applications are rarely just one binary or container. They run as **colle
 
 MapOSCAL’s new analysis routines help bring that structure into focus.
 
-## Workload Groupings: Our Approach
+### Workload Groupings: Our Approach
 
 When we looked at Kubernetes, we saw three natural groupings that repeat across deployments:
 
@@ -38,7 +38,7 @@ For example:
 * A **Postgres StatefulSet** is its own component with AU or SC family controls.
 * The **application Deployment** inherits certain platform guarantees while remaining accountable for its own logic-level controls.
 
-## How This Manifests in OSCAL
+### How This Manifests in OSCAL
 
 The output of this grouping strategy is visible in the **OSCAL component definitions** MapOSCAL generates. Each grouping maps into one or more `component` entries with clear boundaries:
 
@@ -52,7 +52,7 @@ This layered representation is powerful:
 * It makes it easier to trace “who satisfies what” when auditors or assessors look at a system.
 * It sets the stage for combining Kubernetes analysis with cloud infrastructure analysis in future versions of MapOSCAL.
 
-## In Action: Kubernetes Sample
+### In Action: Kubernetes Sample
 
 To see this in practice, we ran MapOSCAL against a [Kubernetes sample workload](https://github.com/ChrisRimondi/MapOSCAL/tree/main/examples/k8s-sample).
 
@@ -66,13 +66,6 @@ A few highlights from the output:
 
 The result is an OSCAL component definition where each workload element has a **clear compliance boundary**, rather than being mashed into a single flat structure. This makes it much easier to align Kubernetes workloads with frameworks like NIST 800-53, FedRAMP, or DORA RTS.
 
-## Where We’re Headed
-
-The Kubernetes analysis in v0.5.0 is just the start. Upcoming work will:
-
-* Incorporate **network policies** and **RBAC roles** as compliance-relevant artifacts.
-* Add options for **selective execution**, so users can choose which repositories or workloads to analyze when building a full OSCAL definition.
-* Explore integration with **threat modeling frameworks** to extend compliance evidence into risk reasoning.
 
 ---
 
