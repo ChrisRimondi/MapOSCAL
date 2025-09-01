@@ -63,7 +63,7 @@ NEW in v0.4.0 - MapOSCAL now provides comprehensive container security analysis:
 
 ### Kubernetes Support & Analysis
 
-**NEW in v0.5.0-alpha** - MapOSCAL now provides comprehensive Kubernetes manifest analysis:
+**NEW in v0.5.0** - MapOSCAL now provides comprehensive Kubernetes manifest analysis:
 
 - **K8s Control Mapping**: Automatic NIST 800-53 control identification from Kubernetes resources
 - **Resource Analysis**: Analyzes Deployments, Services, ConfigMaps, Secrets, RBAC, and more
@@ -75,7 +75,7 @@ NEW in v0.4.0 - MapOSCAL now provides comprehensive container security analysis:
 
 ### Compliance-Trestle Integration
 
-**NEW in v0.5.0-alpha** - MapOSCAL now uses industry-standard compliance-trestle for OSCAL generation:
+**NEW in v0.5.0** - MapOSCAL now uses industry-standard compliance-trestle for OSCAL generation:
 
 - **Standards Compliance**: 100% OSCAL 1.1.3 compliance across all commands
 - **Type Safety**: Strong typing and validation for all OSCAL elements
@@ -115,7 +115,7 @@ The industry is currently struggling to have a clean, clear, and actionable way 
 
 MapOSCAL has undergone significant improvements to enhance usability, accuracy, and maintainability:
 
-### v0.5.0-alpha Major Features
+### v0.5.0 Major Features
 - **Kubernetes Support**: New `k8s-process` command for comprehensive Kubernetes manifest analysis
 - **Compliance-Trestle Integration**: Standards-compliant OSCAL generation with enterprise-grade validation
 - **Enhanced OSCAL**: All commands now generate 100% OSCAL 1.1.3 compliant component definitions

@@ -111,7 +111,7 @@ def main(
             version_info = importlib.metadata.version("maposcal")
             typer.echo(f"Version: {version_info}")
         except ImportError:
-            typer.echo("Version: 0.5.0-alpha")
+            typer.echo("Version: 0.5.0")
         raise typer.Exit()
     if ctx.invoked_subcommand is None:
         typer.echo(ctx.get_help())
