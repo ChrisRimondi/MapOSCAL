@@ -1,15 +1,12 @@
 ---
 layout: post
-title: "Downshifting Compliance"
+title: "MapOSCAL Kubernetes Support"
 date: 2025-09-01 10:00:00 -0600
 description: "MapOSCAL Kubernetes Support"
 tags: [Platform Engineering, OSCAL, Open Source, Compliance, Cybersecurity, JSON, DevTools, automation, DevOps, SRE, Kubernetes, K8s]
 categories: updates
 ---
 
-Here’s a draft blog post you could publish to highlight the **Kubernetes analysis** work in MapOSCAL v0.5.0. I went beyond a changelog and framed it around the design thinking behind the workload grouping and how it plays out in OSCAL component definitions.
-
----
 
 # **Kubernetes Analysis in MapOSCAL v0.5.0**
 
@@ -55,6 +52,20 @@ This layered representation is powerful:
 * It makes it easier to trace “who satisfies what” when auditors or assessors look at a system.
 * It sets the stage for combining Kubernetes analysis with cloud infrastructure analysis in future versions of MapOSCAL.
 
+## In Action: Kubernetes Sample
+
+To see this in practice, we ran MapOSCAL against a [Kubernetes sample workload](https://github.com/ChrisRimondi/MapOSCAL/tree/main/examples/k8s-sample).
+
+The analysis produced a full [OSCAL component definition output](https://github.com/ChrisRimondi/maposcal_analyzed_services/tree/main/k8s-test) that illustrates how MapOSCAL groups workloads into meaningful compliance artifacts.
+
+A few highlights from the output:
+
+* **`nginx-deployment`** → Identified as an **application component**, with Dockerfile facts captured and control mappings noted.
+* **`mysql` StatefulSet** → Classified as a **support service**, showing control responsibilities tied to data storage and integrity.
+* **Kubernetes service resources** → Captured as **platform-level components**, recording their role in transport and inter-service communication.
+
+The result is an OSCAL component definition where each workload element has a **clear compliance boundary**, rather than being mashed into a single flat structure. This makes it much easier to align Kubernetes workloads with frameworks like NIST 800-53, FedRAMP, or DORA RTS.
+
 ## Where We’re Headed
 
 The Kubernetes analysis in v0.5.0 is just the start. Upcoming work will:
@@ -69,8 +80,6 @@ The Kubernetes analysis in v0.5.0 is just the start. Upcoming work will:
 Grab the [v0.5.0 release](https://github.com/ChrisRimondi/MapOSCAL/releases/tag/v0.5.0), point MapOSCAL at a Kubernetes workload, and see how it groups components into OSCAL.
 
 This release represents a big step toward making **compliance evidence as code** not only possible, but practical, in Kubernetes environments.
-
-
 
 ---
 
