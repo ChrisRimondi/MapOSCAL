@@ -1,6 +1,6 @@
 # MapOSCAL v0.5.0-alpha Release Notes
 
-**Release Date**: January 27, 2025  
+**Release Date**: September 2, 2025  
 **Previous Version**: [v0.4.0](https://github.com/ChrisRimondi/MapOSCAL/releases/tag/v0.4.0)
 
 ---
