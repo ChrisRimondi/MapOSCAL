@@ -53,10 +53,35 @@ def convert_implemented_requirement(req_dict: Dict[str, Any]) -> ImplementedRequ
         # Convert properties
         props = []
         for prop_dict in req_dict.get('props', []):
+            # Handle namespace validation for compliance-trestle
+            ns = prop_dict.get('ns', 'https://maposcal.org/ns/default')
+            
+            # Convert URN namespaces to HTTPS URLs for compliance-trestle
+            if ns.startswith('urn:maposcal:'):
+                ns = ns.replace('urn:maposcal:', 'https://maposcal.org/ns/')
+            elif ns.startswith('urn:'):
+                # For other URNs, convert to a valid HTTPS URL
+                ns = ns.replace('urn:', 'https://maposcal.org/urn/')
+            
+            # Clean the value to ensure it meets compliance-trestle validation requirements
+            # The regex pattern requires: ^\S(.*\S)?$ (starts and ends with non-whitespace)
+            value = prop_dict['value']
+            if isinstance(value, str):
+                # Remove all types of whitespace characters (spaces, tabs, newlines, etc.)
+                value = ' '.join(value.split())  # This normalizes all whitespace to single spaces
+                if not value:  # If empty after cleaning, use a placeholder
+                    value = "No value provided"
+            elif isinstance(value, list):
+                # Handle list values (like configuration arrays)
+                value = str(value)  # Convert to string representation
+            else:
+                # Handle other types (numbers, booleans, etc.)
+                value = str(value)
+            
             prop = Property(
                 name=prop_dict['name'],
-                value=prop_dict['value'],
-                ns=prop_dict.get('ns', 'https://maposcal.org/ns/default')
+                value=value,
+                ns=ns
             )
             props.append(prop)
         

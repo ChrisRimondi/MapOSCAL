@@ -663,35 +663,35 @@ def generate(
                 if detail["suggestion"]:
                     typer.echo(f"    Suggestion: {detail['suggestion']}")
 
-            # Generate OSCAL component using compliance-trestle
-        from maposcal.generator.trestle_integration import (
-            create_oscal_component_from_maposcal_output,
-            serialize_oscal_component,
-            validate_oscal_structure
-        )
-        
-        # Create compliance-trestle OSCAL component
-        output_data = {"implemented_requirements": implemented_requirements}
-        comp_def = create_oscal_component_from_maposcal_output(output_data)
-        
-        # Validate the OSCAL structure
-        if validate_oscal_structure(comp_def):
-            typer.echo("✅ OSCAL structure validation passed")
-        else:
-            typer.echo("⚠️  OSCAL structure validation warnings")
-        
-        # Serialize to JSON using compliance-trestle
-        json_output = serialize_oscal_component(comp_def, pretty=True)
-        
-        # Write the compliance-trestle generated OSCAL component
-        output_path = os.path.join(output_dir, "implemented_requirements.json")
-        with open(output_path, "w") as f:
-            f.write(json_output)
-        
-        typer.echo(f"✅ Generated OSCAL component written to {output_path}")
-        typer.echo(
-            f"Successfully processed {len(implemented_requirements)} out of {len(controls_dict)} controls"
-        )
+    # Generate OSCAL component using compliance-trestle
+    from maposcal.generator.trestle_integration import (
+        create_oscal_component_from_maposcal_output,
+        serialize_oscal_component,
+        validate_oscal_structure
+    )
+    
+    # Create compliance-trestle OSCAL component
+    output_data = {"implemented_requirements": implemented_requirements}
+    comp_def = create_oscal_component_from_maposcal_output(output_data)
+    
+    # Validate the OSCAL structure
+    if validate_oscal_structure(comp_def):
+        typer.echo("✅ OSCAL structure validation passed")
+    else:
+        typer.echo("⚠️  OSCAL structure validation warnings")
+    
+    # Serialize to JSON using compliance-trestle
+    json_output = serialize_oscal_component(comp_def, pretty=True)
+    
+    # Write the compliance-trestle generated OSCAL component
+    output_path = os.path.join(output_dir, "implemented_requirements.json")
+    with open(output_path, "w") as f:
+        f.write(json_output)
+    
+    typer.echo(f"✅ Generated OSCAL component written to {output_path}")
+    typer.echo(
+        f"Successfully processed {len(implemented_requirements)} out of {len(controls_dict)} controls"
+    )
 
 
 @app.command()
