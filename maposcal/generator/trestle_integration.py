@@ -54,14 +54,14 @@ def convert_implemented_requirement(req_dict: Dict[str, Any]) -> ImplementedRequ
         props = []
         for prop_dict in req_dict.get('props', []):
             # Handle namespace validation for compliance-trestle
-            ns = prop_dict.get('ns', 'https://maposcal.org/ns/default')
+            ns = prop_dict.get('ns', 'https://compliance.engineering/ns/default')
             
             # Convert URN namespaces to HTTPS URLs for compliance-trestle
             if ns.startswith('urn:maposcal:'):
-                ns = ns.replace('urn:maposcal:', 'https://maposcal.org/ns/')
+                ns = ns.replace('urn:maposcal:', 'https://compliance.engineering/ns/')
             elif ns.startswith('urn:'):
                 # For other URNs, convert to a valid HTTPS URL
-                ns = ns.replace('urn:', 'https://maposcal.org/urn/')
+                ns = ns.replace('urn:', 'https://compliance.engineering/urn/')
             
             # Clean the value to ensure it meets compliance-trestle validation requirements
             # The regex pattern requires: ^\S(.*\S)?$ (starts and ends with non-whitespace)
