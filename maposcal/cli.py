@@ -98,6 +98,7 @@ def main(
     • summarize: Generate security overview for improved control mapping  
     • generate: Create validated OSCAL components with comprehensive validation
     • evaluate: Assess the quality of generated components
+    • k8s-process: Process Kubernetes resource YAML files for OSCAL generation
     • run-all: Execute the complete workflow (analyze → summarize → generate → evaluate)
     • metadata: Extract and display metadata from MapOSCAL output files
     
@@ -105,8 +106,12 @@ def main(
     """
     if version:
         typer.echo("MapOSCAL - Generate OSCAL components from code repositories")
-        # You can add actual version info here when available
-        typer.echo("Version: Development")
+        try:
+            import importlib.metadata
+            version_info = importlib.metadata.version("maposcal")
+            typer.echo(f"Version: {version_info}")
+        except ImportError:
+            typer.echo("Version: 0.5.0")
         raise typer.Exit()
     if ctx.invoked_subcommand is None:
         typer.echo(ctx.get_help())
@@ -662,13 +667,32 @@ def generate(
                 if detail["suggestion"]:
                     typer.echo(f"    Suggestion: {detail['suggestion']}")
 
-    # Write all implemented requirements to a single JSON file
+    # Generate OSCAL component using compliance-trestle
+    from maposcal.generator.trestle_integration import (
+        create_oscal_component_from_maposcal_output,
+        serialize_oscal_component,
+        validate_oscal_structure
+    )
+    
+    # Create compliance-trestle OSCAL component
     output_data = {"implemented_requirements": implemented_requirements}
-    output_data_with_metadata = inject_metadata_into_json(output_data, metadata)
+    comp_def = create_oscal_component_from_maposcal_output(output_data)
+    
+    # Validate the OSCAL structure
+    if validate_oscal_structure(comp_def):
+        typer.echo("✅ OSCAL structure validation passed")
+    else:
+        typer.echo("⚠️  OSCAL structure validation warnings")
+    
+    # Serialize to JSON using compliance-trestle
+    json_output = serialize_oscal_component(comp_def, pretty=True)
+    
+    # Write the compliance-trestle generated OSCAL component
     output_path = os.path.join(output_dir, "implemented_requirements.json")
     with open(output_path, "w") as f:
-        json.dump(output_data_with_metadata, f, indent=2)
-    typer.echo(f"Generated OSCAL component written to {output_path}")
+        f.write(json_output)
+    
+    typer.echo(f"✅ Generated OSCAL component written to {output_path}")
     typer.echo(
         f"Successfully processed {len(implemented_requirements)} out of {len(controls_dict)} controls"
     )
@@ -795,6 +819,98 @@ def evaluate(config: str = typer.Argument(..., help="Path to the configuration f
     typer.echo(f"   Total controls evaluated: {len(evaluation_results)}")
     typer.echo(f"   Successful evaluations: {len(valid_evaluations)}")
     typer.echo(f"   Average total score: {avg_score:.1f}/8.0")
+
+
+@app.command()
+def k8s_process(config: str = typer.Argument(None, help="Path to the configuration file.")):
+    """
+    Process Kubernetes resource YAML files and generate initial OSCAL component definitions.
+    
+    Analyzes Kubernetes manifests to extract resource metadata, deployment
+    configurations, and security-relevant information. Generates initial OSCAL component
+    structures based on the K8s resource properties.
+    
+    The analysis results are stored in the specified output directory and serve
+    as the foundation for further OSCAL generation and validation.
+    """
+    config_data = load_config(config)
+    output_dir = config_data.get("output_dir", ".oscalgen")
+    
+    # Get K8s-specific configuration
+    k8s_paths = config_data.get("k8s", {}).get("k8s_paths", [])
+    
+    if not k8s_paths:
+        typer.echo("K8s paths not specified in configuration. Please add 'k8s_paths' to the 'k8s' section.")
+        raise typer.Exit(code=1)
+    
+    # Validate that all specified paths exist
+    for k8s_path in k8s_paths:
+        if not os.path.exists(k8s_path):
+            typer.echo(f"K8s directory not found: {k8s_path}")
+            raise typer.Exit(code=1)
+    
+    # Get LLM configuration from config
+    llm_config = get_llm_config(config_data, "k8s_process")
+    
+    typer.echo(f"Processing K8s resources from {len(k8s_paths)} directories:")
+    for k8s_path in k8s_paths:
+        typer.echo(f"  - {k8s_path}")
+    typer.echo(f"Output directory: {output_dir}")
+    
+    # Import and run K8s analyzer
+    from maposcal.analyzer.k8s_analyzer import K8sAnalyzer
+    
+    try:
+        # Initialize and run K8s analyzer
+        k8s_analyzer = K8sAnalyzer(
+            k8s_paths=k8s_paths,
+            output_dir=output_dir,
+            llm_config=llm_config
+        )
+        
+        # Run the analysis
+        results = k8s_analyzer.analyze()
+        
+        typer.echo(f"✅ K8s analysis completed successfully!")
+        typer.echo(f"📊 Created {results['vectors_created']} vectors")
+        typer.echo(f"📊 Generated {results['metadata_entries']} metadata entries")
+        typer.echo(f"🏗️  Identified {len(results['workloads'])} workload groupings")
+        
+        # Show workload summary
+        if results['workloads']:
+            typer.echo("\n📋 Workload Summary:")
+            for workload_id, workload in results['workloads'].items():
+                services_count = len(workload['services'])
+                ingress_count = len(workload['ingress'])
+                configs_count = len(workload['configMaps'])
+                secrets_count = len(workload['secrets'])
+                shared_count = len(workload['sharedRefs'])
+                
+                typer.echo(f"  • {workload_id}: {services_count} services, {ingress_count} ingress, {configs_count} configs, {secrets_count} secrets")
+                if shared_count > 0:
+                    typer.echo(f"    (shares {shared_count} resources)")
+        
+        typer.echo(f"\n📁 Analysis results saved to: {output_dir}")
+        
+        # Phase 2: Control Mapping
+        profile_path = config_data.get("profile_path")
+        if profile_path:
+            typer.echo("\n🔄 Starting control mapping phase...")
+            try:
+                oscal_results = k8s_analyzer.map_controls_to_workloads(profile_path)
+                typer.echo("✅ Control mapping completed successfully!")
+                typer.echo(f"🏗️  Generated OSCAL component definition with {len(oscal_results['component-definition']['components'])} components")
+                typer.echo(f"📁 OSCAL output saved to: {output_dir}/k8s_oscal_component_definition.json")
+            except Exception as e:
+                typer.echo(f"❌ Control mapping failed: {e}")
+                raise typer.Exit(1)
+        else:
+            typer.echo("\n⚠️  No profile_path configured - skipping control mapping phase")
+            typer.echo("   Add profile_path to your configuration to enable control mapping")
+        
+    except Exception as e:
+        typer.echo(f"❌ K8s analysis failed: {e}")
+        raise typer.Exit(code=1)
 
 
 @app.command()
@@ -1167,14 +1283,32 @@ def run_all(config: str = typer.Argument(None, help="Path to the configuration f
                 json.dump(unvalidated_data_with_metadata, f, indent=2)
             typer.echo(f"Unvalidated requirements written to {unvalidated_path}")
 
-        # Write implemented requirements
+        # Generate OSCAL component using compliance-trestle
+        from maposcal.generator.trestle_integration import (
+            create_oscal_component_from_maposcal_output,
+            serialize_oscal_component,
+            validate_oscal_structure
+        )
+        
+        # Create compliance-trestle OSCAL component
         output_data = {"implemented_requirements": implemented_requirements}
-        output_data_with_metadata = inject_metadata_into_json(output_data, metadata)
+        comp_def = create_oscal_component_from_maposcal_output(output_data)
+        
+        # Validate the OSCAL structure
+        if validate_oscal_structure(comp_def):
+            typer.echo("✅ OSCAL structure validation passed")
+        else:
+            typer.echo("⚠️  OSCAL structure validation warnings")
+        
+        # Serialize to JSON using compliance-trestle
+        json_output = serialize_oscal_component(comp_def, pretty=True)
+        
+        # Write the compliance-trestle generated OSCAL component
         output_path = os.path.join(output_dir, "implemented_requirements.json")
         with open(output_path, "w") as f:
-            json.dump(output_data_with_metadata, f, indent=2)
-
-        typer.echo(f"✅ Generated OSCAL components written to {output_path}")
+            f.write(json_output)
+        
+        typer.echo(f"✅ Generated OSCAL component written to {output_path}")
         typer.echo(
             f"✅ Successfully processed {len(implemented_requirements)} out of {len(controls_dict)} controls"
         )

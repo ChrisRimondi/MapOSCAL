@@ -1,0 +1,206 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: data-migration-v2
+  namespace: maposcal-demo
+  labels:
+    app: migration
+    component: data-migration
+    tier: maintenance
+    version: v2.0.0
+spec:
+  backoffLimit: 3
+  template:
+    metadata:
+      labels:
+        app: migration
+        component: data-migration
+        tier: maintenance
+        version: v2.0.0
+    spec:
+      serviceAccountName: migration-sa
+      restartPolicy: Never
+      containers:
+      - name: migration
+        image: postgres:13-alpine
+        command:
+        - /bin/bash
+        - -c
+        - |
+          set -e
+          echo "Starting data migration v2.0.0 at $(date)"
+          
+          # Wait for database to be ready
+          until pg_isready -h $POSTGRES_HOST -U $POSTGRES_USER -d $POSTGRES_DB; do
+            echo "Waiting for database..."
+            sleep 2
+          done
+          
+          # Run migration scripts
+          echo "Running migration scripts..."
+          
+          # Create new tables
+          psql -h $POSTGRES_HOST -U $POSTGRES_USER -d $POSTGRES_DB -f /migrations/001_create_new_tables.sql
+          
+          # Migrate existing data
+          psql -h $POSTGRES_HOST -U $POSTGRES_USER -d $POSTGRES_DB -f /migrations/002_migrate_data.sql
+          
+          # Update schema version
+          psql -h $POSTGRES_HOST -U $POSTGRES_USER -d $POSTGRES_DB -c "INSERT INTO schema_versions (version, applied_at) VALUES ('2.0.0', NOW());"
+          
+          echo "Data migration completed successfully at $(date)"
+        env:
+        - name: POSTGRES_HOST
+          value: "postgres-service.maposcal-demo.svc.cluster.local"
+        - name: POSTGRES_USER
+          valueFrom:
+            secretKeyRef:
+              name: migration-secrets
+              key: username
+        - name: POSTGRES_DB
+          value: "webapp"
+        - name: POSTGRES_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: migration-secrets
+              key: password
+        volumeMounts:
+        - name: migration-scripts
+          mountPath: /migrations
+        - name: migration-config
+          mountPath: /etc/migration
+        resources:
+          requests:
+            memory: "256Mi"
+            cpu: "200m"
+          limits:
+            memory: "512Mi"
+            cpu: "500m"
+      volumes:
+      - name: migration-scripts
+        configMap:
+          name: migration-scripts
+      - name: migration-config
+        configMap:
+          name: migration-config
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: migration-scripts
+  namespace: maposcal-demo
+  labels:
+    app: migration
+    component: data-migration
+    tier: maintenance
+data:
+  "001_create_new_tables.sql": |
+    -- Create new tables for v2.0.0
+    CREATE TABLE IF NOT EXISTS schema_versions (
+      id SERIAL PRIMARY KEY,
+      version VARCHAR(20) NOT NULL,
+      applied_at TIMESTAMP NOT NULL,
+      description TEXT
+    );
+    
+    CREATE TABLE IF NOT EXISTS user_preferences (
+      id SERIAL PRIMARY KEY,
+      user_id INTEGER NOT NULL,
+      preference_key VARCHAR(100) NOT NULL,
+      preference_value TEXT,
+      created_at TIMESTAMP DEFAULT NOW(),
+      updated_at TIMESTAMP DEFAULT NOW(),
+      UNIQUE(user_id, preference_key)
+    );
+    
+    CREATE INDEX idx_user_preferences_user_id ON user_preferences(user_id);
+    
+  "002_migrate_data.sql": |
+    -- Migrate existing data to new schema
+    INSERT INTO schema_versions (version, applied_at, description)
+    VALUES ('2.0.0', NOW(), 'Initial migration to v2.0.0 schema');
+    
+    -- Add any data migration logic here
+    -- This is a placeholder for actual migration logic
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: migration-config
+  namespace: maposcal-demo
+  labels:
+    app: migration
+    component: data-migration
+    tier: maintenance
+data:
+  migration.yml: |
+    version: "2.0.0"
+    database:
+      host: "postgres-service.maposcal-demo.svc.cluster.local"
+      port: 5432
+      name: "webapp"
+    migration:
+      timeout: 3600
+      retry_attempts: 3
+      rollback_on_failure: true
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: migration-secrets
+  namespace: maposcal-demo
+  labels:
+    app: migration
+    component: data-migration
+    tier: maintenance
+type: Opaque
+data:
+  username: cG9zdGdyZXM=  # postgres
+  password: cGFzc3dvcmQxMjM=  # password123
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: migration-sa
+  namespace: maposcal-demo
+  labels:
+    app: migration
+    component: data-migration
+    tier: maintenance
+automountServiceAccountToken: true
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: migration-role
+  namespace: maposcal-demo
+rules:
+- apiGroups: [""]
+  resources: ["pods", "services", "configmaps", "secrets"]
+  verbs: ["get", "list", "watch"]
+- apiGroups: [""]
+  resources: ["pods/log"]
+  verbs: ["get", "list"]
+- apiGroups: [""]
+  resources: ["pods/status"]
+  verbs: ["get", "patch", "update"]
+- apiGroups: ["batch"]
+  resources: ["jobs"]
+  verbs: ["get", "list", "watch", "patch", "update"]
+- apiGroups: [""]
+  resources: ["events"]
+  verbs: ["create", "patch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: migration-role-binding
+  namespace: maposcal-demo
+subjects:
+- kind: ServiceAccount
+  name: migration-sa
+  namespace: maposcal-demo
+roleRef:
+  kind: Role
+  name: migration-role
+  apiGroup: rbac.authorization.k8s.io

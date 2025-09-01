@@ -1,0 +1,308 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: webapp-frontend
+  namespace: maposcal-demo
+  labels:
+    app: webapp
+    component: frontend
+    tier: web
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: webapp
+      component: frontend
+      tier: web
+  template:
+    metadata:
+      labels:
+        app: webapp
+        component: frontend
+        tier: web
+        version: v1.0.0
+    spec:
+      serviceAccountName: webapp-sa
+      containers:
+      - name: nginx
+        image: nginx:1.21-alpine
+        ports:
+        - containerPort: 80
+        env:
+        - name: NGINX_HOST
+          value: "webapp.example.com"
+        - name: NGINX_PORT
+          value: "80"
+        envFrom:
+        - configMapRef:
+            name: webapp-config
+        - secretRef:
+            name: webapp-secrets
+        volumeMounts:
+        - name: nginx-config
+          mountPath: /etc/nginx/conf.d
+        - name: webapp-data
+          mountPath: /var/www/html
+        resources:
+          requests:
+            memory: "64Mi"
+            cpu: "250m"
+          limits:
+            memory: "128Mi"
+            cpu: "500m"
+      volumes:
+      - name: nginx-config
+        configMap:
+          name: nginx-config
+      - name: webapp-data
+        persistentVolumeClaim:
+          claimName: webapp-data-pvc
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: webapp-service
+  namespace: maposcal-demo
+  labels:
+    app: webapp
+    component: frontend
+spec:
+  type: ClusterIP
+  ports:
+  - port: 80
+    targetPort: 80
+    protocol: TCP
+    name: http
+  selector:
+    app: webapp
+    component: frontend
+    tier: web
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: webapp-ingress
+  namespace: maposcal-demo
+  annotations:
+    nginx.ingress.kubernetes.io/rewrite-target: /
+    nginx.ingress.kubernetes.io/ssl-redirect: "false"
+spec:
+  rules:
+  - host: webapp.example.com
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: webapp-service
+            port:
+              number: 80
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: nginx-config
+  namespace: maposcal-demo
+  labels:
+    app: webapp
+    component: frontend
+data:
+  default.conf: |
+    server {
+        listen 80;
+        server_name webapp.example.com;
+        root /var/www/html;
+        index index.html;
+        
+        location / {
+            try_files $uri $uri/ /index.html;
+        }
+        
+        location /health {
+            access_log off;
+            return 200 "healthy\n";
+            add_header Content-Type text/plain;
+        }
+    }
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: webapp-config
+  namespace: maposcal-demo
+  labels:
+    app: webapp
+    component: frontend
+data:
+  nginx.conf: |
+    server {
+        listen 80;
+        server_name webapp.example.com;
+        root /var/www/html;
+        index index.html;
+        
+        location / {
+            try_files $uri $uri/ /index.html;
+        }
+    }
+  app.config: |
+    {
+      "apiEndpoint": "https://api.example.com",
+      "debug": true,
+      "logLevel": "info"
+    }
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: webapp-secrets
+  namespace: maposcal-demo
+  labels:
+    app: webapp
+    component: frontend
+type: Opaque
+data:
+  api-key: d2ViYXBwLWFwaS1rZXk=  # base64 encoded
+  database-url: cG9zdGdyZXM6Ly9kYi5leGFtcGxlLmNvbTo1NDMyL3dlYmFwcA==
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: webapp-data-pvc
+  namespace: maposcal-demo
+  labels:
+    app: webapp
+    component: frontend
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 1Gi
+  storageClassName: fast-ssd
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: webapp-sa
+  namespace: maposcal-demo
+  labels:
+    app: webapp
+    component: frontend
+automountServiceAccountToken: true
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: webapp-role
+  namespace: maposcal-demo
+rules:
+- apiGroups: [""]
+  resources: ["pods", "services", "configmaps", "secrets"]
+  verbs: ["get", "list", "watch"]
+- apiGroups: [""]
+  resources: ["pods/log"]
+  verbs: ["get", "list"]
+- apiGroups: [""]
+  resources: ["pods/status"]
+  verbs: ["get", "patch", "update"]
+- apiGroups: [""]
+  resources: ["events"]
+  verbs: ["create", "patch"]
+- apiGroups: ["autoscaling"]
+  resources: ["horizontalpodautoscalers"]
+  verbs: ["get", "list", "watch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: webapp-role-binding
+  namespace: maposcal-demo
+subjects:
+- kind: ServiceAccount
+  name: webapp-sa
+  namespace: maposcal-demo
+roleRef:
+  kind: Role
+  name: webapp-role
+  apiGroup: rbac.authorization.k8s.io
+---
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: webapp-hpa
+  namespace: maposcal-demo
+  labels:
+    app: webapp
+    component: frontend
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: webapp-frontend
+  minReplicas: 2
+  maxReplicas: 10
+  metrics:
+  - type: Resource
+    resource:
+      name: cpu
+      target:
+        type: Utilization
+        averageUtilization: 70
+  - type: Resource
+    resource:
+      name: memory
+      target:
+        type: Utilization
+        averageUtilization: 80
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: webapp-pdb
+  namespace: maposcal-demo
+  labels:
+    app: webapp
+    component: frontend
+spec:
+  minAvailable: 2
+  selector:
+    matchLabels:
+      app: webapp
+      component: frontend
+      tier: web
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: webapp-network-policy
+  namespace: maposcal-demo
+  labels:
+    app: webapp
+    component: frontend
+spec:
+  podSelector:
+    matchLabels:
+      app: webapp
+      component: frontend
+      tier: web
+  policyTypes:
+  - Ingress
+  - Egress
+  ingress:
+  - from:
+    - namespaceSelector:
+        matchLabels:
+          name: ingress-nginx
+    ports:
+    - protocol: TCP
+      port: 80
+  egress:
+  - to:
+    - namespaceSelector:
+        matchLabels:
+          name: kube-system
+    ports:
+    - protocol: UDP
+      port: 53

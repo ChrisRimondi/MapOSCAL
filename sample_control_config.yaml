@@ -1,3 +1,5 @@
+
+
 # MapOSCAL Configuration File
 # This file configures the analysis and generation of OSCAL components
 
@@ -24,6 +26,13 @@ dockerfile:
   transport_security: true  # Whether Dockerfile handles TLS/transport security
   exclude_from_analysis: true  # Exclude from regular repository analysis
   entrypoint_analysis: true  # Analyze ENTRYPOINT scripts separately
+
+# Kubernetes resource analysis settings
+# Configure Kubernetes manifest analysis for OSCAL component generation
+k8s:
+  k8s_paths:  # List of directories containing K8s resource YAML files
+    - "examples/k8s-sample"  # Sample K8s resources for testing
+  # Additional K8s-specific settings can be added here as needed
 
 # LLM Configuration
 # You can specify different LLM providers and models for each command
@@ -53,6 +62,11 @@ llm:
     provider: "openai"
     model: "gpt-4"  # High quality for evaluation
     temperature: 0.0  # Very low temperature for deterministic evaluation
+    
+  k8s_process:
+    provider: "openai"
+    model: "gpt-4"  # High quality for Kubernetes resource analysis
+    temperature: 0.3  # Moderate temperature for structured K8s analysis
 
 # Example configurations for different providers:
 # 

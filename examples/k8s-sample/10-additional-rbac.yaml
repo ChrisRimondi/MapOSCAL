@@ -1,0 +1,99 @@
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: maposcal-reader-cluster-role
+  labels:
+    app: maposcal
+    component: rbac
+    tier: security
+rules:
+- apiGroups: [""]
+  resources: ["namespaces", "nodes", "persistentvolumes"]
+  verbs: ["get", "list", "watch"]
+- apiGroups: ["rbac.authorization.k8s.io"]
+  resources: ["clusterroles", "clusterrolebindings", "roles", "rolebindings"]
+  verbs: ["get", "list", "watch"]
+- apiGroups: ["storage.k8s.io"]
+  resources: ["storageclasses", "volumeattachments"]
+  verbs: ["get", "list", "watch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: maposcal-reader-cluster-role-binding
+  labels:
+    app: maposcal
+    component: rbac
+    tier: security
+subjects:
+- kind: ServiceAccount
+  name: maposcal-admin-sa
+  namespace: maposcal-demo
+roleRef:
+  kind: ClusterRole
+  name: maposcal-reader-cluster-role
+  apiGroup: rbac.authorization.k8s.io
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: maposcal-security-auditor-cluster-role
+  labels:
+    app: maposcal
+    component: rbac
+    tier: security
+rules:
+- apiGroups: [""]
+  resources: ["pods", "services", "configmaps", "secrets", "events"]
+  verbs: ["get", "list", "watch"]
+- apiGroups: ["apps"]
+  resources: ["deployments", "statefulsets", "daemonsets", "replicasets"]
+  verbs: ["get", "list", "watch"]
+- apiGroups: ["batch"]
+  resources: ["jobs", "cronjobs"]
+  verbs: ["get", "list", "watch"]
+- apiGroups: ["networking.k8s.io"]
+  resources: ["networkpolicies", "ingresses"]
+  verbs: ["get", "list", "watch"]
+- apiGroups: ["policy"]
+  resources: ["poddisruptionbudgets", "podsecuritypolicies"]
+  verbs: ["get", "list", "watch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: maposcal-security-auditor-cluster-role-binding
+  labels:
+    app: maposcal
+    component: rbac
+    tier: security
+subjects:
+- kind: ServiceAccount
+  name: security-auditor-sa
+  namespace: maposcal-demo
+roleRef:
+  kind: ClusterRole
+  name: maposcal-security-auditor-cluster-role
+  apiGroup: rbac.authorization.k8s.io
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: maposcal-admin-sa
+  namespace: maposcal-demo
+  labels:
+    app: maposcal
+    component: rbac
+    tier: security
+automountServiceAccountToken: false
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: security-auditor-sa
+  namespace: maposcal-demo
+  labels:
+    app: maposcal
+    component: rbac
+    tier: security
+automountServiceAccountToken: false

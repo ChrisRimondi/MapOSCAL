@@ -1,0 +1,167 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: utility-pod
+  namespace: maposcal-demo
+  labels:
+    app: utility
+    component: maintenance
+    tier: utility
+    version: v1.0.0
+spec:
+  serviceAccountName: utility-sa
+  restartPolicy: Never
+  containers:
+  - name: utility
+    image: alpine:3.16
+    command:
+    - /bin/sh
+    - -c
+    - |
+      echo "Utility pod started at $(date)"
+      
+      # Install required tools
+      apk add --no-cache curl jq postgresql-client
+      
+      # Check database connectivity
+      echo "Checking database connectivity..."
+      if pg_isready -h postgres-service.maposcal-demo.svc.cluster.local -U postgres -d webapp; then
+        echo "Database is ready"
+        
+        # Run some utility queries
+        echo "Running utility queries..."
+        psql -h postgres-service.maposcal-demo.svc.cluster.local -U postgres -d webapp -c "SELECT version();"
+        psql -h postgres-service.maposcal-demo.svc.cluster.local -U postgres -d webapp -c "SELECT current_database(), current_user;"
+        
+      else
+        echo "Database is not ready"
+        exit 1
+      fi
+      
+      # Check webapp service
+      echo "Checking webapp service..."
+      if curl -f http://webapp-service.maposcal-demo.svc.cluster.local:80/ > /dev/null 2>&1; then
+        echo "Webapp service is responding"
+      else
+        echo "Webapp service is not responding"
+      fi
+      
+      echo "Utility operations completed at $(date)"
+    env:
+    - name: POSTGRES_HOST
+      value: "postgres-service.maposcal-demo.svc.cluster.local"
+    - name: POSTGRES_USER
+      valueFrom:
+        secretKeyRef:
+          name: utility-secrets
+          key: username
+    - name: POSTGRES_DB
+      value: "webapp"
+    - name: POSTGRES_PASSWORD
+      valueFrom:
+        secretKeyRef:
+          name: utility-secrets
+          key: password
+    volumeMounts:
+    - name: utility-config
+      mountPath: /etc/utility
+    - name: utility-data
+      mountPath: /data
+    resources:
+      requests:
+        memory: "64Mi"
+        cpu: "100m"
+      limits:
+        memory: "128Mi"
+        cpu: "200m"
+  volumes:
+  - name: utility-config
+    configMap:
+      name: utility-config
+  - name: utility-data
+    emptyDir: {}
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: utility-config
+  namespace: maposcal-demo
+  labels:
+    app: utility
+    component: maintenance
+    tier: utility
+data:
+  utility.yml: |
+    utility:
+      name: "maintenance-utility"
+      version: "1.0.0"
+      timeout: 300
+      retry_attempts: 3
+    checks:
+      - name: "database-connectivity"
+        type: "postgres"
+        timeout: 30
+      - name: "webapp-service"
+        type: "http"
+        timeout: 10
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: utility-secrets
+  namespace: maposcal-demo
+  labels:
+    app: utility
+    component: maintenance
+    tier: utility
+type: Opaque
+data:
+  username: cG9zdGdyZXM=  # postgres
+  password: cGFzc3dvcmQxMjM=  # password123
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: utility-sa
+  namespace: maposcal-demo
+  labels:
+    app: utility
+    component: maintenance
+    tier: utility
+automountServiceAccountToken: true
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: utility-role
+  namespace: maposcal-demo
+rules:
+- apiGroups: [""]
+  resources: ["pods", "services", "configmaps", "secrets"]
+  verbs: ["get", "list", "watch"]
+- apiGroups: [""]
+  resources: ["pods/log"]
+  verbs: ["get", "list"]
+- apiGroups: [""]
+  resources: ["pods/status"]
+  verbs: ["get", "patch", "update"]
+- apiGroups: [""]
+  resources: ["events"]
+  verbs: ["create", "patch"]
+- apiGroups: [""]
+  resources: ["endpoints"]
+  verbs: ["get", "list", "watch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: utility-role-binding
+  namespace: maposcal-demo
+subjects:
+- kind: ServiceAccount
+  name: utility-sa
+  namespace: maposcal-demo
+roleRef:
+  kind: Role
+  name: utility-role
+  apiGroup: rbac.authorization.k8s.io

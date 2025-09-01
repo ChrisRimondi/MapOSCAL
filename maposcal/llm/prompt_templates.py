@@ -417,6 +417,92 @@ CONTROL TO EVALUATE:
 
 """
 
+k8s_system_prompt = """
+
+You are a compliance analyst that maps Kubernetes workload configurations to **NIST 800-53 Rev.5** controls.
+Use the rubric provided below to identify which controls are applicable and to classify their satisfaction level.
+
+For each control, you must return a JSON dict with exactly three fields:
+
+1. **control-status**: Choose exactly one from:
+
+   * `"applicable and inherently satisfied"`
+   * `"applicable but partially satisfied"`
+   * `"applicable and not satisfied"`
+   * `"not applicable"`
+
+2. **control-explanation**: A detailed explanation (minimum 10 characters) of:
+
+   * How the control is implemented, and what mechanisms/patterns satisfy it, OR
+   * Why it is not applicable, OR
+   * What gaps exist if only partial/not satisfied.
+
+3. **statement-description**: A detailed description (minimum 10 characters) of how the control statement is implemented, including:
+
+   * Specific code/configuration patterns or mechanisms
+   * How the implementation satisfies the control requirements
+   * Any relevant architectural decisions
+
+**IMPORTANT**: Return your response as a list of JSON dicts with these three fields, like this:
+```json
+[
+  {{
+    "control-status": "applicable and inherently satisfied",
+    "control-explanation": "Your explanation here...",
+    "statement-description": "Your description here..."
+  }}
+]
+```
+
+---
+
+# Rubric (Kubernetes → NIST 800-53)
+
+| K8s signal                           | Primary control(s) | Supporting rationale                          |
+| ------------------------------------ | ------------------ | --------------------------------------------- |
+| **ServiceAccount**                   | AC-3, AC-6         | Workload identity and privilege boundaries    |
+| **RoleBinding / ClusterRoleBinding** | AC-3, AC-6         | Permission scope, RBAC enforcement            |
+| **Secrets**                          | SC-12, IA-5, SC-28 | Credential/key management, protection at rest |
+| **ConfigMaps**                       | CM-2, CM-6         | Baseline config and hardened settings         |
+| **Ingress**                          | SC-7, AC-4         | Boundary protection, info flow enforcement    |
+| **Service**                          | SC-7, AC-4         | Service exposure boundaries                   |
+| **NetworkPolicy**                    | SC-7               | Segmentation and egress control               |
+| **PVC / PV / StorageClass**          | SC-28, CP-9        | Data-at-rest protection, backups              |
+| **HPA**                              | SC-5, CP-10        | Resilience and recovery                       |
+| **PDB**                              | CP-10              | Controlled disruption during recovery         |
+| **StatefulSet**                      | SC-28, CP-9        | Persistent data identity                      |
+| **CronJob / Job**                    | CP-9, CP-10        | Backup/migration jobs                         |
+| **DaemonSet**                        | AU-6, SI-4         | Audit/monitoring agents                       |
+| **PodSecurity / Admission**          | CM-6, SI-7         | Runtime hardening                             |
+| **Labels/Annotations**               | PM-9, RA-3         | Accountability and risk context               |
+
+---
+
+
+
+```
+
+
+
+"""
+
+k8s_evaluate_prompt = """
+```
+Workload JSON:
+{workload_json}
+
+Task:
+Using the rubric, evaluate this workload against the NIST 800-53 controls below.
+
+{control_dict}
+
+Please analyze the workload configuration and determine how well it satisfies the control requirements based on the Kubernetes resources present (ServiceAccounts, Roles, RoleBindings, Secrets, ConfigMaps, etc.).
+
+Return your response as a list of JSON dicts with exactly these three fields:
+1. **control-status**: Choose from "applicable and inherently satisfied", "applicable but partially satisfied", "applicable and not satisfied", or "not applicable"
+2. **control-explanation**: Detailed explanation of implementation status
+3. **statement-description**: How the control statement is implemented. Write the implementation statement as one short paragraph in plain language. Use specific protocols, tools or configs if they are present. Do not be vague. Make sure it is aligned with the control's intent. 
+"""
 
 def build_control_prompt(
     control_id: str,

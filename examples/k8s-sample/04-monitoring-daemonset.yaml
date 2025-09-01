@@ -1,0 +1,204 @@
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: node-exporter
+  namespace: monitoring
+  labels:
+    app: monitoring
+    component: node-exporter
+    tier: monitoring
+spec:
+  selector:
+    matchLabels:
+      app: monitoring
+      component: node-exporter
+      tier: monitoring
+  template:
+    metadata:
+      labels:
+        app: monitoring
+        component: node-exporter
+        tier: monitoring
+        version: v1.3.1
+    spec:
+      serviceAccountName: monitoring-sa
+      containers:
+      - name: node-exporter
+        image: prom/node-exporter:v1.3.1
+        ports:
+        - containerPort: 9100
+          name: metrics
+        args:
+        - --path.procfs=/host/proc
+        - --path.sysfs=/host/sys
+        - --path.rootfs=/host/root
+        - --web.listen-address=:9100
+        - --collector.filesystem.mount-points-exclude=^/(sys|proc|dev|host|etc)($$|/)
+        volumeMounts:
+        - name: proc
+          mountPath: /host/proc
+          readOnly: true
+        - name: sys
+          mountPath: /host/sys
+          readOnly: true
+        - name: root
+          mountPath: /host/root
+          readOnly: true
+        - name: monitoring-config
+          mountPath: /etc/node-exporter
+        resources:
+          requests:
+            memory: "32Mi"
+            cpu: "100m"
+          limits:
+            memory: "64Mi"
+            cpu: "200m"
+      volumes:
+      - name: proc
+        hostPath:
+          path: /proc
+      - name: sys
+        hostPath:
+          path: /sys
+      - name: root
+        hostPath:
+          path: /
+      - name: monitoring-config
+        configMap:
+          name: node-exporter-config
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: node-exporter-service
+  namespace: monitoring
+  labels:
+    app: monitoring
+    component: node-exporter
+    tier: monitoring
+spec:
+  type: ClusterIP
+  ports:
+  - port: 9100
+    targetPort: 9100
+    protocol: TCP
+    name: metrics
+  selector:
+    app: monitoring
+    component: node-exporter
+    tier: monitoring
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: node-exporter-config
+  namespace: monitoring
+  labels:
+    app: monitoring
+    component: node-exporter
+    tier: monitoring
+data:
+  config.yml: |
+    collectors:
+      enabled_collectors:
+        - cpu
+        - diskstats
+        - filesystem
+        - loadavg
+        - meminfo
+        - netdev
+        - netstat
+        - textfile
+        - time
+        - vmstat
+      disabled_collectors:
+        - wifi
+        - hwmon
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: monitoring-sa
+  namespace: monitoring
+  labels:
+    app: monitoring
+    component: node-exporter
+    tier: monitoring
+automountServiceAccountToken: true
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: node-exporter-cluster-role
+  labels:
+    app: monitoring
+    component: node-exporter
+    tier: monitoring
+rules:
+- apiGroups: [""]
+  resources: ["nodes", "nodes/proxy", "services", "endpoints", "pods"]
+  verbs: ["get", "list", "watch"]
+- apiGroups: [""]
+  resources: ["nodes/metrics"]
+  verbs: ["get", "list", "watch"]
+- apiGroups: [""]
+  resources: ["nodes/stats"]
+  verbs: ["get", "list", "watch"]
+- apiGroups: [""]
+  resources: ["events"]
+  verbs: ["get", "list", "watch"]
+- apiGroups: ["metrics.k8s.io"]
+  resources: ["nodes", "pods"]
+  verbs: ["get", "list", "watch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: node-exporter-cluster-role-binding
+  labels:
+    app: monitoring
+    component: node-exporter
+    tier: monitoring
+subjects:
+- kind: ServiceAccount
+  name: monitoring-sa
+  namespace: monitoring
+roleRef:
+  kind: ClusterRole
+  name: node-exporter-cluster-role
+  apiGroup: rbac.authorization.k8s.io
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: monitoring-network-policy
+  namespace: monitoring
+  labels:
+    app: monitoring
+    component: node-exporter
+    tier: monitoring
+spec:
+  podSelector:
+    matchLabels:
+      app: monitoring
+      component: node-exporter
+      tier: monitoring
+  policyTypes:
+  - Ingress
+  - Egress
+  ingress:
+  - from:
+    - namespaceSelector:
+        matchLabels:
+          name: monitoring
+    ports:
+    - protocol: TCP
+      port: 9100
+  egress:
+  - to:
+    - namespaceSelector:
+        matchLabels:
+          name: kube-system
+    ports:
+    - protocol: UDP
+      port: 53

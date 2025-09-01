@@ -1,7 +1,7 @@
 # MapOSCAL
 
 ## TL;DR
-MapOSCAL automatically analyzes your codebase and generates NIST OSCAL compliance documentation using AI-powered discovery. It scans your repository for security controls, maps them to compliance frameworks like NIST SP 800-53, and produces validated OSCAL component definitions. This CLI tool saves security teams weeks of manual documentation work by automating the tedious parts while maintaining accuracy through multi-layer validation.
+MapOSCAL automatically analyzes your source code or Kubernetes resources and generates NIST OSCAL compliance documentation using AI-powered discovery. It scans your repository for security controls, maps them to compliance frameworks like NIST SP 800-53, and produces validated OSCAL component definitions. This CLI tool saves security teams weeks of manual documentation work by automating the tedious parts while maintaining accuracy through multi-layer validation.
 
 ## Overview
 
@@ -61,6 +61,29 @@ NEW in v0.4.0 - MapOSCAL now provides comprehensive container security analysis:
 - **Comprehensive Coverage**: Supports all major Dockerfile instructions (USER, EXPOSE, ENV, COPY, RUN, etc.)
 - **OSCAL Integration**: Generates structured properties for automated compliance reporting
 
+### Kubernetes Support & Analysis
+
+**NEW in v0.5.0** - MapOSCAL now provides comprehensive Kubernetes manifest analysis:
+
+- **K8s Control Mapping**: Automatic NIST 800-53 control identification from Kubernetes resources
+- **Resource Analysis**: Analyzes Deployments, Services, ConfigMaps, Secrets, RBAC, and more
+- **Security Context**: Maps Kubernetes security features to compliance controls
+- **Network Policies**: Automatic detection and analysis of network security policies
+- **RBAC Analysis**: Role-based access control analysis and compliance mapping
+- **Pod Security**: Pod security standards and security context analysis
+- **Dedicated Command**: `k8s-process` command for Kubernetes-specific analysis
+
+### Compliance-Trestle Integration
+
+**NEW in v0.5.0** - MapOSCAL now uses industry-standard compliance-trestle for OSCAL generation:
+
+- **Standards Compliance**: 100% OSCAL 1.1.3 compliance across all commands
+- **Type Safety**: Strong typing and validation for all OSCAL elements
+- **Schema Validation**: Automatic OSCAL structure validation using compliance-trestle models
+- **Future-Proof**: Automatic support for OSCAL standard updates
+- **Developer Experience**: IDE autocomplete and compile-time validation
+- **Production Ready**: Enterprise-grade OSCAL generation with full validation
+
 ### GPT-5 Model Family Support
 
 NEW in v0.4.0 - MapOSCAL now provides full compatibility with OpenAI's latest models:
@@ -91,6 +114,12 @@ The industry is currently struggling to have a clean, clear, and actionable way 
 ## Recent Improvements
 
 MapOSCAL has undergone significant improvements to enhance usability, accuracy, and maintainability:
+
+### v0.5.0 Major Features
+- **Kubernetes Support**: New `k8s-process` command for comprehensive Kubernetes manifest analysis
+- **Compliance-Trestle Integration**: Standards-compliant OSCAL generation with enterprise-grade validation
+- **Enhanced OSCAL**: All commands now generate 100% OSCAL 1.1.3 compliant component definitions
+- **Dual Analysis Workflow**: Separate commands for code analysis (`generate`) and Kubernetes analysis (`k8s-process`)
 
 ### Security Overview Integration
 - **New `summarize` command**: Generates comprehensive security overviews of services
