@@ -663,8 +663,7 @@ def generate(
                 if detail["suggestion"]:
                     typer.echo(f"    Suggestion: {detail['suggestion']}")
 
-    # Generate OSCAL component using compliance-trestle integration
-    try:
+            # Generate OSCAL component using compliance-trestle
         from maposcal.generator.trestle_integration import (
             create_oscal_component_from_maposcal_output,
             serialize_oscal_component,
@@ -689,41 +688,7 @@ def generate(
         with open(output_path, "w") as f:
             f.write(json_output)
         
-        # Also write the legacy format for backward compatibility
-        legacy_output_data = {"implemented_requirements": implemented_requirements}
-        legacy_output_data_with_metadata = inject_metadata_into_json(legacy_output_data, metadata)
-        legacy_output_path = os.path.join(output_dir, "implemented_requirements_legacy.json")
-        with open(legacy_output_path, "w") as f:
-            json.dump(legacy_output_data_with_metadata, f, indent=2)
-        
-        typer.echo(f"✅ Generated OSCAL component (compliance-trestle) written to {output_path}")
-        typer.echo(f"📄 Legacy format written to {legacy_output_path}")
-        typer.echo(
-            f"Successfully processed {len(implemented_requirements)} out of {len(controls_dict)} controls"
-        )
-        
-    except ImportError:
-        typer.echo("⚠️  Compliance-trestle not available, using legacy generation")
-        # Fallback to legacy generation
-        output_data = {"implemented_requirements": implemented_requirements}
-        output_data_with_metadata = inject_metadata_into_json(output_data, metadata)
-        output_path = os.path.join(output_dir, "implemented_requirements.json")
-        with open(output_path, "w") as f:
-            json.dump(output_data_with_metadata, f, indent=2)
-        typer.echo(f"Generated OSCAL component written to {output_path}")
-        typer.echo(
-            f"Successfully processed {len(implemented_requirements)} out of {len(controls_dict)} controls"
-        )
-    except Exception as e:
-        typer.echo(f"❌ Error with compliance-trestle integration: {e}")
-        typer.echo("Falling back to legacy generation...")
-        # Fallback to legacy generation
-        output_data = {"implemented_requirements": implemented_requirements}
-        output_data_with_metadata = inject_metadata_into_json(output_data, metadata)
-        output_path = os.path.join(output_dir, "implemented_requirements.json")
-        with open(output_path, "w") as f:
-            json.dump(output_data_with_metadata, f, indent=2)
-        typer.echo(f"Generated OSCAL component written to {output_path}")
+        typer.echo(f"✅ Generated OSCAL component written to {output_path}")
         typer.echo(
             f"Successfully processed {len(implemented_requirements)} out of {len(controls_dict)} controls"
         )
@@ -932,7 +897,6 @@ def k8s_process(config: str = typer.Argument(None, help="Path to the configurati
                 typer.echo("✅ Control mapping completed successfully!")
                 typer.echo(f"🏗️  Generated OSCAL component definition with {len(oscal_results['component-definition']['components'])} components")
                 typer.echo(f"📁 OSCAL output saved to: {output_dir}/k8s_oscal_component_definition.json")
-                typer.echo(f"📄 Legacy format saved to: {output_dir}/k8s_oscal_component_definition_legacy.json")
             except Exception as e:
                 typer.echo(f"❌ Control mapping failed: {e}")
                 raise typer.Exit(1)
@@ -1315,70 +1279,35 @@ def run_all(config: str = typer.Argument(None, help="Path to the configuration f
                 json.dump(unvalidated_data_with_metadata, f, indent=2)
             typer.echo(f"Unvalidated requirements written to {unvalidated_path}")
 
-        # Generate OSCAL component using compliance-trestle integration
-        try:
-            from maposcal.generator.trestle_integration import (
-                create_oscal_component_from_maposcal_output,
-                serialize_oscal_component,
-                validate_oscal_structure
-            )
-            
-            # Create compliance-trestle OSCAL component
-            output_data = {"implemented_requirements": implemented_requirements}
-            comp_def = create_oscal_component_from_maposcal_output(output_data)
-            
-            # Validate the OSCAL structure
-            if validate_oscal_structure(comp_def):
-                typer.echo("✅ OSCAL structure validation passed")
-            else:
-                typer.echo("⚠️  OSCAL structure validation warnings")
-            
-            # Serialize to JSON using compliance-trestle
-            json_output = serialize_oscal_component(comp_def, pretty=True)
-            
-            # Write the compliance-trestle generated OSCAL component
-            output_path = os.path.join(output_dir, "implemented_requirements.json")
-            with open(output_path, "w") as f:
-                f.write(json_output)
-            
-            # Also write the legacy format for backward compatibility
-            legacy_output_data = {"implemented_requirements": implemented_requirements}
-            legacy_output_data_with_metadata = inject_metadata_into_json(legacy_output_data, metadata)
-            legacy_output_path = os.path.join(output_dir, "implemented_requirements_legacy.json")
-            with open(legacy_output_path, "w") as f:
-                json.dump(legacy_output_data_with_metadata, f, indent=2)
-            
-            typer.echo(f"✅ Generated OSCAL component (compliance-trestle) written to {output_path}")
-            typer.echo(f"📄 Legacy format written to {legacy_output_path}")
-            typer.echo(
-                f"✅ Successfully processed {len(implemented_requirements)} out of {len(controls_dict)} controls"
-            )
-            
-        except ImportError:
-            typer.echo("⚠️  Compliance-trestle not available, using legacy generation")
-            # Fallback to legacy generation
-            output_data = {"implemented_requirements": implemented_requirements}
-            output_data_with_metadata = inject_metadata_into_json(output_data, metadata)
-            output_path = os.path.join(output_dir, "implemented_requirements.json")
-            with open(output_path, "w") as f:
-                json.dump(output_data_with_metadata, f, indent=2)
-            typer.echo(f"✅ Generated OSCAL components written to {output_path}")
-            typer.echo(
-                f"✅ Successfully processed {len(implemented_requirements)} out of {len(controls_dict)} controls"
-            )
-        except Exception as e:
-            typer.echo(f"❌ Error with compliance-trestle integration: {e}")
-            typer.echo("Falling back to legacy generation...")
-            # Fallback to legacy generation
-            output_data = {"implemented_requirements": implemented_requirements}
-            output_data_with_metadata = inject_metadata_into_json(output_data, metadata)
-            output_path = os.path.join(output_dir, "implemented_requirements.json")
-            with open(output_path, "w") as f:
-                json.dump(output_data_with_metadata, f, indent=2)
-            typer.echo(f"✅ Generated OSCAL components written to {output_path}")
-            typer.echo(
-                f"✅ Successfully processed {len(implemented_requirements)} out of {len(controls_dict)} controls"
-            )
+        # Generate OSCAL component using compliance-trestle
+        from maposcal.generator.trestle_integration import (
+            create_oscal_component_from_maposcal_output,
+            serialize_oscal_component,
+            validate_oscal_structure
+        )
+        
+        # Create compliance-trestle OSCAL component
+        output_data = {"implemented_requirements": implemented_requirements}
+        comp_def = create_oscal_component_from_maposcal_output(output_data)
+        
+        # Validate the OSCAL structure
+        if validate_oscal_structure(comp_def):
+            typer.echo("✅ OSCAL structure validation passed")
+        else:
+            typer.echo("⚠️  OSCAL structure validation warnings")
+        
+        # Serialize to JSON using compliance-trestle
+        json_output = serialize_oscal_component(comp_def, pretty=True)
+        
+        # Write the compliance-trestle generated OSCAL component
+        output_path = os.path.join(output_dir, "implemented_requirements.json")
+        with open(output_path, "w") as f:
+            f.write(json_output)
+        
+        typer.echo(f"✅ Generated OSCAL component written to {output_path}")
+        typer.echo(
+            f"✅ Successfully processed {len(implemented_requirements)} out of {len(controls_dict)} controls"
+        )
 
     except Exception as e:
         typer.echo(f"❌ Generate failed: {e}")

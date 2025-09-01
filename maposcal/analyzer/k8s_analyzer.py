@@ -2255,56 +2255,34 @@ class K8sAnalyzer:
         """Save the OSCAL component definition to the output directory."""
         oscal_path = self.output_dir / "k8s_oscal_component_definition.json"
         
-        # Try to use compliance-trestle integration for better OSCAL compliance
-        try:
-            from maposcal.generator.trestle_integration import (
-                create_oscal_component_from_maposcal_output,
-                serialize_oscal_component,
-                validate_oscal_structure
-            )
-            
-            # Convert the K8s component definition to MapOSCAL format
-            # The K8s analyzer creates a different structure, so we need to adapt it
-            maposcal_format = self._convert_k8s_to_maposcal_format(component_definition)
-            
-            # Create compliance-trestle OSCAL component
-            comp_def = create_oscal_component_from_maposcal_output(maposcal_format)
-            
-            # Validate the OSCAL structure
-            if validate_oscal_structure(comp_def):
-                logger.info("✅ OSCAL structure validation passed")
-            else:
-                logger.warning("⚠️  OSCAL structure validation warnings")
-            
-            # Serialize to JSON using compliance-trestle
-            json_output = serialize_oscal_component(comp_def, pretty=True)
-            
-            # Write the compliance-trestle generated OSCAL component
-            with open(oscal_path, 'w') as f:
-                f.write(json_output)
-            
-            # Also write the legacy format for backward compatibility
-            legacy_path = self.output_dir / "k8s_oscal_component_definition_legacy.json"
-            with open(legacy_path, 'w') as f:
-                json.dump(component_definition, f, indent=2)
-            
-            logger.info(f"✅ Generated OSCAL component (compliance-trestle) written to {oscal_path}")
-            logger.info(f"📄 Legacy format written to {legacy_path}")
-            
-        except ImportError:
-            logger.warning("⚠️  Compliance-trestle not available, using legacy generation")
-            # Fallback to legacy generation
-            with open(oscal_path, 'w') as f:
-                json.dump(component_definition, f, indent=2)
-            logger.info(f"OSCAL component definition saved to {oscal_path}")
-            
-        except Exception as e:
-            logger.error(f"❌ Error with compliance-trestle integration: {e}")
-            logger.info("Falling back to legacy generation...")
-            # Fallback to legacy generation
-            with open(oscal_path, 'w') as f:
-                json.dump(component_definition, f, indent=2)
-            logger.info(f"OSCAL component definition saved to {oscal_path}")
+        # Use compliance-trestle for OSCAL generation
+        from maposcal.generator.trestle_integration import (
+            create_oscal_component_from_maposcal_output,
+            serialize_oscal_component,
+            validate_oscal_structure
+        )
+        
+        # Convert the K8s component definition to MapOSCAL format
+        # The K8s analyzer creates a different structure, so we need to adapt it
+        maposcal_format = self._convert_k8s_to_maposcal_format(component_definition)
+        
+        # Create compliance-trestle OSCAL component
+        comp_def = create_oscal_component_from_maposcal_output(maposcal_format)
+        
+        # Validate the OSCAL structure
+        if validate_oscal_structure(comp_def):
+            logger.info("✅ OSCAL structure validation passed")
+        else:
+            logger.warning("⚠️  OSCAL structure validation warnings")
+        
+        # Serialize to JSON using compliance-trestle
+        json_output = serialize_oscal_component(comp_def, pretty=True)
+        
+        # Write the compliance-trestle generated OSCAL component
+        with open(oscal_path, 'w') as f:
+            f.write(json_output)
+        
+        logger.info(f"✅ Generated OSCAL component written to {oscal_path}")
     
     def _convert_k8s_to_maposcal_format(self, component_definition: Dict[str, Any]) -> Dict[str, Any]:
         """Convert K8s component definition format to MapOSCAL format for trestle integration."""
