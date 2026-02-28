@@ -28,3 +28,14 @@ testpaths = ["tests"]
 python_files = ["test_*.py"]
 python_classes = ["Test*"]
 python_functions = ["test_*"]
+addopts = "--tb=short"
+markers = [
+    "unit: fast, isolated unit tests with no external I/O",
+    "integration: end-to-end workflow tests that may touch the filesystem or network",
+    "slow: tests that take more than 1 second to run",
+]
+filterwarnings = [
+    "ignore::DeprecationWarning:pydantic",
+    "ignore::FutureWarning:transformers",
+    "ignore::UserWarning:sentence_transformers",
+]
