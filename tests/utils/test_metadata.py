@@ -2,6 +2,7 @@
 Tests for metadata utilities.
 """
 
+from maposcal import __version__
 from maposcal.utils.metadata import (
     generate_metadata,
     inject_metadata_into_json,
@@ -29,7 +30,7 @@ class TestGenerateMetadata:
         assert info["command"] == "generate"
         assert "start_time" in info
         assert info["config_file"] is None
-        assert info["version"] == "0.1.0"  # Should match package version
+        assert info["version"] == __version__
 
     def test_generate_metadata_with_config_file(self):
         """Test metadata generation with config file."""
@@ -68,7 +69,7 @@ class TestGenerateMetadata:
         )
 
         # Should use the package version from __init__.py
-        assert metadata["generation_info"]["version"] == "0.1.0"
+        assert metadata["generation_info"]["version"] == __version__
 
 
 class TestInjectMetadataIntoJson:
@@ -252,7 +253,7 @@ This is the content."""
         assert info["base_url"] == "https://api.openai.com/v1"
         assert info["command"] == "summarize"
         assert info["config_file"] == "config.yaml"
-        assert info["version"] == "0.1.0"  # Should match package version
+        assert info["version"] == "0.1.0"
 
     def test_extract_metadata_from_markdown_without_metadata(self):
         """Test extracting metadata from markdown without metadata."""

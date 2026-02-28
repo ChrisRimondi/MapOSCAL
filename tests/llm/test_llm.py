@@ -6,6 +6,8 @@ import maposcal.llm.prompt_templates as prompt_templates
 
 
 class TestLLMHandler:
+    pytestmark = pytest.mark.unit
+
     @patch("maposcal.llm.llm_handler.tiktoken")
     @patch("maposcal.llm.llm_handler.OpenAI")
     @patch.dict(os.environ, {"OPENAI_API_KEY": "test-key"})
@@ -185,65 +187,73 @@ class TestLLMHandler:
 
 
 class TestPromptTemplates:
-    def test_build_service_overview_prompt(self):
-        context = "Service context"
-        prompt = prompt_templates.build_service_overview_prompt(context)
-        assert "Service Overview" in prompt
-        assert context in prompt
+    """Prompt template functions return non-empty strings containing expected substrings."""
 
-    def test_build_file_summary_prompt(self):
-        filename = "main.py"
-        file_content = "def foo(): pass"
-        prompt = prompt_templates.build_file_summary_prompt(filename, file_content)
-        assert filename in prompt
-        assert file_content in prompt
-        assert "Summary:" in prompt
+    _EVIDENCE_CHUNK = {
+        "chunk_type": "code",
+        "source_file": "main.py",
+        "start_line": 1,
+        "end_line": 10,
+        "content": "def foo(): pass",
+    }
 
-    def test_build_control_prompt(self):
-        prompt = prompt_templates.build_control_prompt(
-            control_id="AC-1",
-            control_name="Access Control",
-            control_description="desc",
-            evidence_chunks=[
-                {
-                    "chunk_type": "code",
-                    "source_file": "main.py",
-                    "start_line": 1,
-                    "end_line": 10,
-                    "content": "def foo(): pass",
-                }
-            ],
-            main_uuid="uuid1",
-            statement_uuid="uuid2",
-            security_overview="overview",
-        )
-        assert "AC-1" in prompt
-        assert "Access Control" in prompt
-        assert "overview" in prompt
-        assert "def foo(): pass" in prompt
-        assert "Generate the JSON now" in prompt
-
-    def test_build_critique_prompt(self):
-        implemented_requirements = [{"control-id": "AC-1"}]
-        prompt = prompt_templates.build_critique_prompt(
-            implemented_requirements, security_overview="overview"
-        )
-        assert "violations" in prompt
-        assert "overview" in prompt
-        assert "AC-1" in prompt
-
-    def test_build_revise_prompt(self):
-        implemented_requirements = [{"control-id": "AC-1"}]
-        violations = [{"path": "props[0]", "issue": "Missing"}]
-        prompt = prompt_templates.build_revise_prompt(
-            implemented_requirements, violations, security_overview="overview"
-        )
-        assert "violations" in prompt
-        assert "overview" in prompt
-        assert "AC-1" in prompt
-
-    def test_build_evaluate_prompt(self):
-        requirement = {"control-id": "AC-1"}
-        prompt = prompt_templates.build_evaluate_prompt(requirement)
-        assert "control-id" in prompt
-        assert "scores" in prompt or "Score" in prompt
+    @pytest.mark.parametrize("func,kwargs,expected_substrings", [
+        pytest.param(
+            prompt_templates.build_service_overview_prompt,
+            {"context": "Service context"},
+            ["Service Overview", "Service context"],
+            id="service_overview",
+        ),
+        pytest.param(
+            prompt_templates.build_file_summary_prompt,
+            {"filename": "main.py", "file_content": "def foo(): pass"},
+            ["main.py", "def foo(): pass", "Summary:"],
+            id="file_summary",
+        ),
+        pytest.param(
+            prompt_templates.build_control_prompt,
+            {
+                "control_id": "AC-1",
+                "control_name": "Access Control",
+                "control_description": "desc",
+                "evidence_chunks": [_EVIDENCE_CHUNK],
+                "main_uuid": "uuid1",
+                "statement_uuid": "uuid2",
+                "security_overview": "overview",
+            },
+            ["AC-1", "Access Control", "overview", "def foo(): pass", "Generate the JSON now"],
+            id="control_prompt",
+        ),
+        pytest.param(
+            prompt_templates.build_critique_prompt,
+            {
+                "implemented_requirements": [{"control-id": "AC-1"}],
+                "security_overview": "overview",
+            },
+            ["violations", "overview", "AC-1"],
+            id="critique",
+        ),
+        pytest.param(
+            prompt_templates.build_revise_prompt,
+            {
+                "implemented_requirements": [{"control-id": "AC-1"}],
+                "violations": [{"path": "props[0]", "issue": "Missing"}],
+                "security_overview": "overview",
+            },
+            ["violations", "overview", "AC-1"],
+            id="revise",
+        ),
+        pytest.param(
+            prompt_templates.build_evaluate_prompt,
+            {"requirement": {"control-id": "AC-1"}},
+            ["control-id", "scores"],
+            id="evaluate",
+        ),
+    ])
+    @pytest.mark.unit
+    def test_prompt_templates(self, func, kwargs, expected_substrings):
+        result = func(**kwargs)
+        assert isinstance(result, str)
+        assert len(result) > 0
+        for substring in expected_substrings:
+            assert substring in result
