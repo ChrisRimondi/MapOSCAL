@@ -88,7 +88,7 @@ class LLMHandler:
                 f"No API key found for {self.provider}. Please set the {self.api_key_env} environment variable."
             )
 
-        # Initialize OpenAI client (works for OpenAI, Azure, and Gemini via OpenAI-compatible API)
+        # Initialize OpenAI client (works for OpenAI, Azure, Gemini, and Anthropic via OpenAI-compatible API)
         self.client = OpenAI(
             api_key=api_key,
             base_url=base_url,
