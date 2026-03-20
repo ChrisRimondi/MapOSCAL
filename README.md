@@ -160,8 +160,8 @@ These improvements make MapOSCAL more user-friendly, accurate, and maintainable 
 - pip (Python package installer)
 
 ### Setup
-0. OpenAI API Key:
-This open source configuration currently only supports OpenAI's API functionality for the LLM-based operations.  You will need to configure your environmental variable "OPENAI_API_KEY" to have a valid API key.
+0. LLM API Key:
+MapOSCAL supports OpenAI, Google Gemini, and Anthropic as LLM providers. You will need to configure the appropriate environment variable for your chosen provider (e.g., `OPENAI_API_KEY`, `GEMINI_API_KEY`, or `ANTHROPIC_API_KEY`). See [LLM Configuration](#llm-configuration-optional) for details.
 
 2. Clone the repository:
 ```bash
@@ -255,13 +255,15 @@ llm:
 
 - **OpenAI**: Any OpenAI model (e.g., `gpt-4`, `gpt-4-turbo`, `gpt-3.5-turbo`, `gpt-4o`, `gpt-4o-mini`)
 - **Gemini** (via OpenAI-compatible API): Any Gemini model (e.g., `gemini-2.0-flash`, `gemini-2.5-flash`, `gemini-1.5-pro`)
+- **Anthropic** (via OpenAI-compatible API): Any Anthropic model (e.g., `claude-sonnet-4-6`, `claude-haiku-4-5-20251001`, `claude-opus-4-6`)
 
 **Environment Variables Required:**
 - For OpenAI: `OPENAI_API_KEY`
 - For Gemini: `GEMINI_API_KEY`
+- For Anthropic: `ANTHROPIC_API_KEY`
 
 **Optional Base URL Overrides:**
-- `OPENAI_BASE_URL`, `GEMINI_BASE_URL`
+- `OPENAI_BASE_URL`, `GEMINI_BASE_URL`, `ANTHROPIC_BASE_URL`
 
 **Setup Environment Variables:**
 1. Copy `env.example` to `.env`: `cp env.example .env`
