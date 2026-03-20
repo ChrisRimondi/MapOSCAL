@@ -128,6 +128,28 @@ class TestLLMHandler:
 
     @patch("maposcal.llm.llm_handler.OpenAI")
     @patch("maposcal.llm.llm_handler.tiktoken")
+    @patch.dict(os.environ, {"ANTHROPIC_API_KEY": "sk-ant-test-key"})
+    def test_llm_handler_anthropic_provider(self, mock_tiktoken, mock_openai):
+        """Test LLMHandler with Anthropic provider."""
+        mock_encoding = MagicMock()
+        mock_encoding.encode.return_value = [1, 2]
+        mock_tiktoken.get_encoding.return_value = mock_encoding
+        mock_client = MagicMock()
+        mock_openai.return_value = mock_client
+
+        handler = LLMHandler(provider="anthropic", model="claude-sonnet-4-6")
+
+        assert handler.provider == "anthropic"
+        assert handler.model == "claude-sonnet-4-6"
+        assert handler.base_url == "https://api.anthropic.com/v1/"
+        assert handler.api_key_env == "ANTHROPIC_API_KEY"
+        mock_openai.assert_called_with(
+            api_key="sk-ant-test-key",
+            base_url="https://api.anthropic.com/v1/",
+        )
+
+    @patch("maposcal.llm.llm_handler.OpenAI")
+    @patch("maposcal.llm.llm_handler.tiktoken")
     @patch.dict(os.environ, {"OPENAI_API_KEY": "sk-test-key"})
     def test_llm_handler_command_defaults(self, mock_tiktoken, mock_openai):
         """Test LLMHandler with command-specific defaults."""

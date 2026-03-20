@@ -12,6 +12,10 @@ LLM_PROVIDERS = {
         "base_url": "https://generativelanguage.googleapis.com/v1beta/openai/",
         "api_key_env": "GEMINI_API_KEY",
     },
+    "anthropic": {
+        "base_url": "https://api.anthropic.com/v1/",
+        "api_key_env": "ANTHROPIC_API_KEY",
+    },
 }
 
 # Default LLM configurations for each command
